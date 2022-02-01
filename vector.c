@@ -1,15 +1,30 @@
 #include "vector.h"
 
+Mat4x4 Get_Translation_Matrix(float x, float y, float z)
+{
+    Mat4x4 matrix = {0.0f};
+
+    matrix.elements[0] = 1.0f;
+    matrix.elements[5] = 1.0f;
+    matrix.elements[10] = 1.0f;
+    matrix.elements[15] = 1.0f;
+    matrix.elements[12] = x;
+    matrix.elements[13] = y;
+    matrix.elements[14] = z;
+
+    return matrix;
+}
+
 Mat4x4 Get_Rotation_X_Matrix(float angle_rad)
 {
     Mat4x4 matrix = {0.0f};
 
-    matrix.matrix[0][0] = 1.0f;
-    matrix.matrix[1][1] = cosf(angle_rad);
-    matrix.matrix[1][2] = sinf(angle_rad);
-    matrix.matrix[2][1] = -sinf(angle_rad);
-    matrix.matrix[2][2] = cosf(angle_rad);
-    matrix.matrix[3][3] = 1.0f;
+    matrix.elements[0] = 1.0f;
+    matrix.elements[5] = cosf(angle_rad);
+    matrix.elements[6] = sinf(angle_rad);
+    matrix.elements[9] = -sinf(angle_rad);
+    matrix.elements[10] = cosf(angle_rad);
+    matrix.elements[15] = 1.0f;
 
     return matrix;
 }
@@ -18,12 +33,12 @@ Mat4x4 Get_Rotation_Y_Matrix(float angle_rad)
 {
     Mat4x4 matrix = {0.0f};
 
-    matrix.matrix[0][0] = cosf(angle_rad);
-    matrix.matrix[0][2] = sinf(angle_rad);
-    matrix.matrix[1][1] = 1.0f;
-    matrix.matrix[2][0] = -sinf(angle_rad);
-    matrix.matrix[2][2] = cosf(angle_rad);
-    matrix.matrix[3][3] = 1.0f;
+    matrix.elements[0] = cosf(angle_rad);
+    matrix.elements[2] = sinf(angle_rad);
+    matrix.elements[5] = 1.0f;
+    matrix.elements[8] = -sinf(angle_rad);
+    matrix.elements[10] = cosf(angle_rad);
+    matrix.elements[15] = 1.0f;
 
     return matrix;
 }
@@ -32,27 +47,12 @@ Mat4x4 Get_Rotation_Z_Matrix(float angle_rad)
 {
     Mat4x4 matrix = {0.0f};
 
-    matrix.matrix[0][0] = cosf(angle_rad);
-    matrix.matrix[0][1] = -sinf(angle_rad);
-    matrix.matrix[1][0] = sinf(angle_rad);
-    matrix.matrix[1][1] = cosf(angle_rad);
-    matrix.matrix[2][2] = 1.0f;
-    matrix.matrix[3][3] = 1.0f;
-
-    return matrix;
-}
-
-Mat4x4 Get_Translation_Matrix(float x, float y, float z)
-{
-    Mat4x4 matrix = {0.0f};
-
-    matrix.matrix[0][0] = 1.0f;
-    matrix.matrix[1][1] = 1.0f;
-    matrix.matrix[2][2] = 1.0f;
-    matrix.matrix[3][3] = 1.0f;
-    matrix.matrix[3][0] = x;
-    matrix.matrix[3][1] = y;
-    matrix.matrix[3][2] = z;
+    matrix.elements[0] = cosf(angle_rad);
+    matrix.elements[1] = -sinf(angle_rad);
+    matrix.elements[4] = sinf(angle_rad);
+    matrix.elements[5] = cosf(angle_rad);
+    matrix.elements[10] = 1.0f;
+    matrix.elements[15] = 1.0f;
 
     return matrix;
 }
@@ -63,12 +63,12 @@ Mat4x4 Get_Projection_Matrix(float FOV_Degrees, float aspect_ratio, float near, 
 
     Mat4x4 matrix = {0.0f};
 
-    matrix.matrix[0][0] = aspect_ratio * fFovRad;
-    matrix.matrix[1][1] = fFovRad;
-    matrix.matrix[2][2] = far / (far - near);
-    matrix.matrix[3][2] = (-far * near) / (far - near);
-    matrix.matrix[2][3] = 1.0f;
-    matrix.matrix[3][3] = 0.0f;
+    matrix.elements[0] = aspect_ratio * fFovRad;
+    matrix.elements[5] = fFovRad;
+    matrix.elements[10] = far / (far - near);
+    matrix.elements[14] = (-far * near) / (far - near);
+    matrix.elements[11] = 1.0f;
+    matrix.elements[15] = 0.0f;
 
     return matrix;
 }

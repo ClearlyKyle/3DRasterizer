@@ -22,14 +22,13 @@ typedef union vec3_u
     } coords;
 } vec3;
 
-typedef union Mat4x4_u
+typedef struct
 {
-    // 1  2  3  4
-    // 5  6  7  8
-    // 9  10 11 12
-    // 13 14 15 16
+    // 0  1  2  3
+    // 4  5  6  7
+    // 8  9  10 11
+    // 12 13 14 15
     float elements[16];
-    float matrix[4][4];
 } Mat4x4;
 
 struct Mesh
