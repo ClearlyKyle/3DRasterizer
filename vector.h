@@ -42,4 +42,18 @@ struct Mesh
     float *w;
 };
 
+Mat4x4 Get_Rotation_X_Matrix(float angle_rad);
+Mat4x4 Get_Rotation_Y_Matrix(float angle_rad);
+Mat4x4 Get_Rotation_Z_Matrix(float angle_rad);
+Mat4x4 Get_Translation_Matrix(float x, float y, float z);
+Mat4x4 Get_Projection_Matrix(float FOV_Degrees, float aspect_ratio, float near, float far);
+
+void Matrix_Multiply_Matrix(const float *A, const float *B, float *C);
+void Vector_Cross_Product(const float *v0, const float *v1, float *output);
+
+vec4 Vector_Add(const vec4 *v1, const vec4 *v2);
+vec4 Vector_Sub(const vec4 *v1, const vec4 *v2);
+vec4 Vector_Mul(const vec4 *v1, float k);
+vec4 Vector_Div(const vec4 *v1, float k);
+
 #endif // __VECTOR_H__
