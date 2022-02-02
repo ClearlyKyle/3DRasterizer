@@ -6,17 +6,32 @@
 
 #include "vector.h"
 #include "Renderer.h"
+#include "test_sqaure.h"
 
 #define SCREEN_WIDTH 960
 #define SCREEN_HEIGHT 1000
-const unsigned int num_of_pixels = SCREEN_WIDTH * SCREEN_HEIGHT;
 
 int main(int argc, char *argv[])
 {
     Renderer ren = SDL_Startup("Window", SCREEN_HEIGHT, SCREEN_WIDTH);
 
-    // ren.buffer = (float *)malloc(sizeof(float) * (num_of_pixels));
-    ren.ZBuffer = (float *)malloc(sizeof(float) * (num_of_pixels));
+    SDL_Surface *window_surface = SDL_GetWindowSurface(ren.window);
+
+    // Get window pixels
+    unsigned int *pixels = window_surface->pixels;
+    const int width = window_surface->w;
+    const int height = window_surface->h;
+    const int number_of_pixels = width * height;
+
+    // Allocate z buffer
+    ren.ZBuffer = (float *)malloc(sizeof(float) * (number_of_pixels));
+
+    // Test Square
+    Mesh test_square;
+    test_square.count = 2;
+    test_square.x = test_square_x;
+    test_square.y = test_square_y;
+    test_square.z = test_square_z;
 
     // Projection Matrix : converts from view space to screen space
     const Mat4x4 matProj = Get_Projection_Matrix(90.0f, (float)ren.HEIGHT / (float)ren.WIDTH, 0.1f, 1000.0f);
@@ -33,10 +48,10 @@ int main(int argc, char *argv[])
     ren.running = true;
     while (ren.running)
     {
-        // clear the z buffer
-        for (size_t i = 0; i < num_of_pixels; i++)
+        for (size_t i = 0; i < number_of_pixels; i++)
         {
-            ren.ZBuffer[i] = FLT_MAX;
+            ren.ZBuffer[i] = FLT_MAX; // clear z buffer
+            pixels[i] = 0x0000;       // clear screen pixels
         }
 
         while (SDL_PollEvent(&event))
@@ -57,8 +72,14 @@ int main(int argc, char *argv[])
         Matrix_Multiply_Matrix(matRotZ.elements, matRotX.elements, World_Matrix.elements);
         Matrix_Multiply_Matrix(World_Matrix.elements, Translation_matrix.elements, World_Matrix.elements);
 
+        for (size_t i = 0; i < test_square.count; i += 3)
+        {
+            /* code */
+            Matrix_Multiply_Matrix(World_Matrix.elements, test_square.x);
+        }
+
         // Update Screen
-        SDL_RenderPresent(ren.renderer);
+        SDL_UpdateWindowSurface(ren.window);
 
         // End frame timing
         const Uint64 EndCounter = SDL_GetPerformanceCounter();
