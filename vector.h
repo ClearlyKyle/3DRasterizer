@@ -52,6 +52,7 @@ Mat4x4 Get_Projection_Matrix(float FOV_Degrees, float aspect_ratio, float near, 
 void Matrix_Multiply_Vector_SIMD(const float *M, const float *vec, float *output);
 void Matrix_Multiply_Matrix(const float *A, const float *B, float *C);
 void Vector_Cross_Product(const float *v0, const float *v1, float *output);
+void Calculate_Surface_Normal(const float *A, const float *B, const float *C, const float *output);
 
 vec4 Vector_Add(const vec4 *v1, const vec4 *v2);
 vec4 Vector_Sub(const vec4 *v1, const vec4 *v2);

@@ -75,7 +75,6 @@ Mat4x4 Get_Projection_Matrix(float FOV_Degrees, float aspect_ratio, float near, 
 
 void Matrix_Multiply_Vector_SIMD(const float *M, const float *vec, float *output)
 {
-
     __m128 brod1 = _mm_load_ps(vec);
     __m128 brod2 = _mm_load_ps(vec);
     __m128 brod3 = _mm_load_ps(vec);
@@ -128,6 +127,30 @@ void Vector_Cross_Product(const float *v0, const float *v1, float *output)
     __m128 result = _mm_sub_ps(tmp3, tmp4);
 
     _mm_store_ps(output, result);
+}
+
+void Calculate_Surface_Normal(const float *A, const float *B, const float *C, const float *output)
+{
+    vec3 out_vec;
+
+    __m128 vertex1 = _mm_load_ps(A);
+    __m128 vertex2 = _mm_load_ps(B);
+    __m128 vertex3 = _mm_load_ps(C);
+
+    __m128 normal = _mm_mul_ps(
+        _mm_sub_ps(vertex2, vertex1),
+        _mm_sub_ps(vertex3, vertex1));
+
+    normal = _mm_mul_ps(normal, normal);
+
+    // 2 hadd's are slow...
+    // https://stackoverflow.com/questions/4120681/how-to-calculate-single-vector-dot-product-using-sse-intrinsic-functions-in-c
+    __m128 sum = _mm_hadd_ps(_mm_hadd_ps(normal, _mm_setzero_ps()), _mm_setzero_ps());
+
+    normal = _mm_div_ps(normal, _mm_sqrt_ps(sum));
+
+    _mm_store_ps(output, normal);
+
 }
 
 vec4 Vector_Add(const vec4 *v1, const vec4 *v2)
