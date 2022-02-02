@@ -31,7 +31,7 @@ typedef struct
     float elements[16];
 } Mat4x4;
 
-struct Mesh
+typedef struct Mesh_s
 {
     unsigned int count;
 
@@ -39,7 +39,9 @@ struct Mesh
     float *y;
     float *z;
     float *w;
-};
+    float *u;
+    float *v;
+} Mesh;
 
 Mat4x4 Get_Rotation_X_Matrix(float angle_rad);
 Mat4x4 Get_Rotation_Y_Matrix(float angle_rad);
@@ -47,6 +49,7 @@ Mat4x4 Get_Rotation_Z_Matrix(float angle_rad);
 Mat4x4 Get_Translation_Matrix(float x, float y, float z);
 Mat4x4 Get_Projection_Matrix(float FOV_Degrees, float aspect_ratio, float near, float far);
 
+void Matrix_Multiply_Vector_SIMD(const float *M, const float *vec, float *output);
 void Matrix_Multiply_Matrix(const float *A, const float *B, float *C);
 void Vector_Cross_Product(const float *v0, const float *v1, float *output);
 

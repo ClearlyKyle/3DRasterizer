@@ -73,6 +73,24 @@ Mat4x4 Get_Projection_Matrix(float FOV_Degrees, float aspect_ratio, float near, 
     return matrix;
 }
 
+void Matrix_Multiply_Vector_SIMD(const float *M, const float *vec, float *output)
+{
+
+    __m128 brod1 = _mm_load_ps(vec);
+    __m128 brod2 = _mm_load_ps(vec);
+    __m128 brod3 = _mm_load_ps(vec);
+    __m128 brod4 = _mm_load_ps(vec);
+    __m128 row = _mm_add_ps(
+        _mm_add_ps(
+            _mm_mul_ps(brod1, _mm_load_ps(&M[0])),
+            _mm_mul_ps(brod2, _mm_load_ps(&M[4]))),
+        _mm_add_ps(
+            _mm_mul_ps(brod3, _mm_load_ps(&M[8])),
+            _mm_mul_ps(brod4, _mm_load_ps(&M[12]))));
+
+    _mm_store_ps(output, row);
+}
+
 void Matrix_Multiply_Matrix(const float *A, const float *B, float *C)
 {
     __m128 row1 = _mm_load_ps(&B[0]);
