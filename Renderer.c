@@ -55,6 +55,71 @@ static void Draw_Pixel(const SDL_PixelFormat *fmt, unsigned int *pixels, int x, 
                                 (uint8_t)(col->a));
 }
 
+// THE EXTREMELY FAST LINE ALGORITHM Variation E (Addition Fixed Point PreCalc)
+// http://www.edepot.com/algorithm.html
+static void DrawLine2(const SDL_PixelFormat *fmt, unsigned int *pixels, int x, int y, int x2, int y2, const SDL_Colour *col)
+{
+    bool yLonger = false;
+    int shortLen = y2 - y;
+    int longLen = x2 - x;
+    if (abs(shortLen) > abs(longLen))
+    {
+        int swap = shortLen;
+        shortLen = longLen;
+        longLen = swap;
+        yLonger = true;
+    }
+    int decInc;
+    if (longLen == 0)
+        decInc = 0;
+    else
+        decInc = (shortLen << 16) / longLen;
+
+    if (yLonger)
+    {
+        if (longLen > 0)
+        {
+            longLen += y;
+            for (int j = 0x8000 + (x << 16); y <= longLen; ++y)
+            {
+                // myPixel(surface, j >> 16, y);
+                Draw_Pixel(fmt, pixels, j >> 16, y, col);
+                j += decInc;
+            }
+            return;
+        }
+        longLen += y;
+        for (int j = 0x8000 + (x << 16); y >= longLen; --y)
+        {
+            // myPixel(surface, j >> 16, y);
+            Draw_Pixel(fmt, pixels, j >> 16, y, col);
+
+            j -= decInc;
+        }
+        return;
+    }
+
+    if (longLen > 0)
+    {
+        longLen += x;
+        for (int j = 0x8000 + (y << 16); x <= longLen; ++x)
+        {
+            // myPixel(surface, x, j >> 16);
+            Draw_Pixel(fmt, pixels, x, j >> 16, col);
+
+            j += decInc;
+        }
+        return;
+    }
+    longLen += x;
+    for (int j = 0x8000 + (y << 16); x >= longLen; --x)
+    {
+        // myPixel(surface, x, j >> 16);
+        Draw_Pixel(fmt, pixels, x, j >> 16, col);
+        j -= decInc;
+    }
+}
+
 static void Draw_Line(const SDL_PixelFormat *fmt, unsigned int *pixels, int x0, int y0, int x1, int y1, const SDL_Colour *col)
 {
     bool steep = false;
@@ -115,7 +180,10 @@ void Draw_Triangle_Outline(const SDL_PixelFormat *fmt, unsigned int *pixels, con
     float vert3[4];
     _mm_store_ps(vert3, v3);
 
-    Draw_Line(fmt, pixels, (int)vert1[0], (int)vert1[1], (int)vert2[0], (int)vert2[1], col);
-    Draw_Line(fmt, pixels, (int)vert2[0], (int)vert2[1], (int)vert3[0], (int)vert3[1], col);
-    Draw_Line(fmt, pixels, (int)vert3[0], (int)vert3[1], (int)vert1[0], (int)vert1[1], col);
+    // Draw_Line(fmt, pixels, (int)vert1[0], (int)vert1[1], (int)vert2[0], (int)vert2[1], col);
+    // Draw_Line(fmt, pixels, (int)vert2[0], (int)vert2[1], (int)vert3[0], (int)vert3[1], col);
+    // Draw_Line(fmt, pixels, (int)vert3[0], (int)vert3[1], (int)vert1[0], (int)vert1[1], col);
+    DrawLine2(fmt, pixels, (int)vert1[0], (int)vert1[1], (int)vert2[0], (int)vert2[1], col);
+    DrawLine2(fmt, pixels, (int)vert2[0], (int)vert2[1], (int)vert3[0], (int)vert3[1], col);
+    DrawLine2(fmt, pixels, (int)vert3[0], (int)vert3[1], (int)vert1[0], (int)vert1[1], col);
 }
