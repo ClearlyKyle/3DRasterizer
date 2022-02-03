@@ -3,6 +3,7 @@
 
 #include <math.h>
 #include <xmmintrin.h>
+#include <pmmintrin.h>
 
 typedef union vec4_u
 {
@@ -49,10 +50,14 @@ Mat4x4 Get_Rotation_Z_Matrix(float angle_rad);
 Mat4x4 Get_Translation_Matrix(float x, float y, float z);
 Mat4x4 Get_Projection_Matrix(float FOV_Degrees, float aspect_ratio, float near, float far);
 
-void Matrix_Multiply_Vector_SIMD(const float *M, const float *vec, float *output);
+void Matrix_Multiply_Vector(const float *M, const float *vec, float *output);
+__m128 Matrix_Multiply_Vector_SIMD(const float *M, const __m128 vec);
+
 void Matrix_Multiply_Matrix(const float *A, const float *B, float *C);
 void Vector_Cross_Product(const float *v0, const float *v1, float *output);
-void Calculate_Surface_Normal(const float *A, const float *B, const float *C, const float *output);
+void Calculate_Surface_Normal(const float *A, const float *B, const float *C, float *output);
+__m128 Calculate_Surface_Normal_SIMD(const __m128 v1, const __m128 v2, const __m128 v3);
+float Calculate_Dot_Product_SIMD(const __m128 v1, const __m128 v2);
 
 vec4 Vector_Add(const vec4 *v1, const vec4 *v2);
 vec4 Vector_Sub(const vec4 *v1, const vec4 *v2);

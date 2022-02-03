@@ -73,7 +73,7 @@ Mat4x4 Get_Projection_Matrix(float FOV_Degrees, float aspect_ratio, float near, 
     return matrix;
 }
 
-void Matrix_Multiply_Vector_SIMD(const float *M, const float *vec, float *output)
+void Matrix_Multiply_Vector(const float *M, const float *vec, float *output)
 {
     __m128 brod1 = _mm_load_ps(vec);
     __m128 brod2 = _mm_load_ps(vec);
@@ -88,6 +88,23 @@ void Matrix_Multiply_Vector_SIMD(const float *M, const float *vec, float *output
             _mm_mul_ps(brod4, _mm_load_ps(&M[12]))));
 
     _mm_store_ps(output, row);
+}
+
+__m128 Matrix_Multiply_Vector_SIMD(const float *M, const __m128 vec)
+{
+    // Do we need to store these?
+    __m128 brod1 = _mm_shuffle_ps(vec, vec, _MM_SHUFFLE(0, 0, 0, 0));
+    __m128 brod2 = _mm_shuffle_ps(vec, vec, _MM_SHUFFLE(1, 1, 1, 1));
+    __m128 brod3 = _mm_shuffle_ps(vec, vec, _MM_SHUFFLE(2, 2, 2, 2));
+    __m128 brod4 = _mm_shuffle_ps(vec, vec, _MM_SHUFFLE(3, 3, 3, 3));
+
+    return _mm_add_ps(
+        _mm_add_ps(
+            _mm_mul_ps(brod1, _mm_load_ps(&M[0])),
+            _mm_mul_ps(brod2, _mm_load_ps(&M[4]))),
+        _mm_add_ps(
+            _mm_mul_ps(brod3, _mm_load_ps(&M[8])),
+            _mm_mul_ps(brod4, _mm_load_ps(&M[12]))));
 }
 
 void Matrix_Multiply_Matrix(const float *A, const float *B, float *C)
@@ -129,10 +146,19 @@ void Vector_Cross_Product(const float *v0, const float *v1, float *output)
     _mm_store_ps(output, result);
 }
 
-void Calculate_Surface_Normal(const float *A, const float *B, const float *C, const float *output)
+__m128 Vector_Cross_Product_SIMD(const __m128 vec0, const __m128 vec1)
 {
-    vec3 out_vec;
+    __m128 tmp0 = _mm_shuffle_ps(vec0, vec0, _MM_SHUFFLE(3, 0, 2, 1));
+    __m128 tmp1 = _mm_shuffle_ps(vec1, vec1, _MM_SHUFFLE(3, 1, 0, 2));
+    __m128 tmp2 = _mm_mul_ps(tmp0, vec1);
+    __m128 tmp3 = _mm_mul_ps(tmp0, tmp1);
+    __m128 tmp4 = _mm_shuffle_ps(tmp2, tmp2, _MM_SHUFFLE(3, 0, 2, 1));
 
+    return _mm_sub_ps(tmp3, tmp4);
+}
+
+void Calculate_Surface_Normal(const float *A, const float *B, const float *C, float *output)
+{
     __m128 vertex1 = _mm_load_ps(A);
     __m128 vertex2 = _mm_load_ps(B);
     __m128 vertex3 = _mm_load_ps(C);
@@ -145,12 +171,36 @@ void Calculate_Surface_Normal(const float *A, const float *B, const float *C, co
 
     // 2 hadd's are slow...
     // https://stackoverflow.com/questions/4120681/how-to-calculate-single-vector-dot-product-using-sse-intrinsic-functions-in-c
-    __m128 sum = _mm_hadd_ps(_mm_hadd_ps(normal, _mm_setzero_ps()), _mm_setzero_ps());
+    //__m128 sum = _mm_hadd_ps(_mm_hadd_ps(normal, _mm_setzero_ps()), _mm_setzero_ps());
 
-    normal = _mm_div_ps(normal, _mm_sqrt_ps(sum));
+    // normal = _mm_div_ps(normal, _mm_sqrt_ps(sum));
 
     _mm_store_ps(output, normal);
+}
 
+static float hsum_ps_sse3(__m128 v)
+{
+    __m128 shuf = _mm_movehdup_ps(v); // broadcast elements 3,1 to 2,0
+    __m128 sums = _mm_add_ps(v, shuf);
+    shuf = _mm_movehl_ps(shuf, sums); // high half -> low half
+    sums = _mm_add_ss(sums, shuf);
+    return _mm_cvtss_f32(sums);
+}
+
+__m128 Calculate_Surface_Normal_SIMD(const __m128 v1, const __m128 v2, const __m128 v3)
+{
+    __m128 cross_product_result = Vector_Cross_Product_SIMD(_mm_sub_ps(v1, v2), _mm_sub_ps(v1, v3));
+
+    __m128 sqrt_result = _mm_sqrt_ps(_mm_mul_ps(cross_product_result, cross_product_result));
+
+    const float lower_value = hsum_ps_sse3(sqrt_result);
+
+    return _mm_div_ps(cross_product_result, _mm_set1_ps(lower_value));
+}
+
+float Calculate_Dot_Product_SIMD(const __m128 v1, const __m128 v2)
+{
+    return hsum_ps_sse3(_mm_mul_ps(v1, v2));
 }
 
 vec4 Vector_Add(const vec4 *v1, const vec4 *v2)
