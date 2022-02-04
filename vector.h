@@ -4,6 +4,7 @@
 #include <math.h>
 #include <xmmintrin.h>
 #include <pmmintrin.h>
+#include <smmintrin.h>
 
 typedef union vec4_u
 {
