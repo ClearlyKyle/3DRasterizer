@@ -187,3 +187,135 @@ void Draw_Triangle_Outline(const SDL_PixelFormat *fmt, unsigned int *pixels, con
     DrawLine2(fmt, pixels, (int)vert2[0], (int)vert2[1], (int)vert3[0], (int)vert3[1], col);
     DrawLine2(fmt, pixels, (int)vert3[0], (int)vert3[1], (int)vert1[0], (int)vert1[1], col);
 }
+
+static __m128 Get_AABB_SIMD(const __m128 v1, const __m128 v2, const __m128 v3)
+{
+    const __m128 max_values = _mm_min_ps(_mm_max_ps(_mm_max_ps(v1, v2), v3), _mm_set_ps(0.0f, 0.0f, 100.0f, 100.0f));
+    const __m128 min_values = _mm_max_ps(_mm_min_ps(_mm_min_ps(v1, v2), v3), _mm_set1_ps(0.0f));
+
+    // Returns {maxX, minX, maxY, minY}
+    return _mm_unpacklo_ps(max_values, min_values);
+}
+
+// static vec3 calculate_weights_consts(vec3 ab, vec3 ac, vec3 ap)
+static __m128 GetWeights(const __m128 v1, const __m128 v2, const __m128 v3, const __m128 point)
+{
+    //  v1 = W Z Y X
+    //  v2 = D C B A
+    // res = W Z Y A
+    //__m128 res = _mm_move_ss(v1, v2);
+
+    __m128 v2v3_xxyy = _mm_unpacklo_ps(v2, v3);
+
+    // _mm_shuffle_ps(v1, v2, _MM_SUFFLE(v2, v2, v1 v1))
+    const __m128 c1_v1v1v2v3_xxxx = _mm_shuffle_ps(v1, v2v3_xxyy, _MM_SHUFFLE(1, 0, 0, 0));
+    const __m128 c1_v2v1v2v3_yyyy = _mm_shuffle_ps(v1, v2v3_xxyy, _MM_SHUFFLE(3, 2, 1, 1));
+
+    const __m128 c2_v2v2v3v1_xxxx = _mm_shuffle_ps(c1_v1v1v2v3_xxxx, c1_v1v1v2v3_xxxx, _MM_SHUFFLE(1, 3, 2, 2));
+    const __m128 c2_v2v2v3v1_yyyy = _mm_shuffle_ps(c1_v2v1v2v3_yyyy, c1_v2v1v2v3_yyyy, _MM_SHUFFLE(1, 3, 2, 2));
+
+    const __m128 v3p_xxyy = _mm_unpacklo_ps(v3, point);
+    const __m128 c3_v3p_xxxx = _mm_shuffle_ps(v3p_xxyy, v3p_xxyy, _MM_SHUFFLE(1, 1, 1, 0));
+    const __m128 c3_v3p_yyyy = _mm_shuffle_ps(v3p_xxyy, v3p_xxyy, _MM_SHUFFLE(3, 3, 3, 2));
+
+    const __m128 left_side = _mm_mul_ps(
+        _mm_sub_ps(c2_v2v2v3v1_xxxx, c1_v1v1v2v3_xxxx),
+        _mm_sub_ps(c3_v3p_yyyy, c1_v2v1v2v3_yyyy));
+
+    const __m128 right_side = _mm_mul_ps(
+        _mm_sub_ps(c2_v2v2v3v1_yyyy, c1_v2v1v2v3_yyyy),
+        _mm_sub_ps(c3_v3p_xxxx, c1_v1v1v2v3_xxxx));
+
+    const __m128 edge_result = _mm_sub_ps(left_side, right_side);
+
+    const __m128 area = _mm_shuffle_ps(edge_result, edge_result, _MM_SHUFFLE(0, 0, 0, 0));
+
+    return _mm_div_ps(edge_result, area); // weights
+}
+
+void Barycentric_Algorithm_Tex_Buffer(const SDL_PixelFormat *fmt, unsigned int *pixels, float *z_buffer_array, unsigned char *tex_data, const __m128 v1, const __m128 v2, const __m128 v3)
+// void Barycentric_Algorithm_Tex_Buffer(const SDL_PixelFormat *fmt, unsigned int *pixels, float *z_buffer_array, unsigned char *tex_data, const Triangle *tri, const Triangle *tex)
+{
+    /* get the bounding box of the triangle */
+    float AABB_values[4]; // {maxX, minX, maxY, minY}
+    _mm_store_ps(AABB_values, Get_AABB_SIMD(v1, v2, v3));
+
+    // constants for the weights function
+    const __m128 ab = _mm_sub_ps(v1, v2);
+    const __m128 ac = _mm_sub_ps(v1, v3);
+
+    // bool outside_triangle = true;
+
+    for (int y = AABB_values[3]; y <= AABB_values[2]; y++)
+    {
+        for (int x = AABB_values[1]; x <= AABB_values[0]; x++)
+        {
+            const __m128 point = _mm_set_ps(1.0f, 1.0f, (float)y + 0.5f, (float)x + 0.5f);
+
+            const __m128 weights = GetWeights(v1, v2, v3, point);
+
+            if (weights.x > 0 && weights.y > 0 && weights.z > 0)
+            { /* inside triangle */
+                // outside_triangle = false;
+
+                // Depth interpolation
+                // const float z = 1.0f / ((tex->vec[0].w * weights.x) + (v1.w * weights.y) + (v2.w * weights.z));
+                const float z = 1.0f / ((tex->vec[0].w * weights.x) + (tex->vec[1].w * weights.y) + (tex->vec[2].w * weights.z));
+
+                // Get z-buffer index
+                const int index = (int)y * 1000 + (int)x;
+
+                if (z < z_buffer_array[index])
+                {
+                    // Set new value in zbuffer if point is closer
+                    z_buffer_array[index] = z;
+
+                    //  IMAGE TEXTURE
+                    const float u = (320 - 1) * (weights.x * tex->vec[0].x + weights.y * tex->vec[1].x + weights.z * tex->vec[2].x) * z;
+                    const float v = (320 - 1) * (weights.x * tex->vec[0].y + weights.y * tex->vec[1].y + weights.z * tex->vec[2].y) * z;
+
+                    const unsigned char *pixelOffset = tex_data + ((int)v + 320 * (int)u) * 4; // 4 = bpp
+                    // const SDL_Colour colour = {.r = (uint8_t)(pixelOffset[0]),
+                    //                            .g = (uint8_t)(pixelOffset[1]),
+                    //                            .b = (uint8_t)(pixelOffset[2]),
+                    //                            .a = (uint8_t)(pixelOffset[3])};
+
+                    // Pack these RGBA values into a pixel of the correct format.
+                    pixels[index] = SDL_MapRGBA(fmt,
+                                                (uint8_t)(pixelOffset[0]),
+                                                (uint8_t)(pixelOffset[1]),
+                                                (uint8_t)(pixelOffset[2]),
+                                                (uint8_t)(pixelOffset[3]));
+
+                    // CHECKERBOARD PATTERN
+                    // tex_data = NULL;
+                    // const float u = ((weights.x * texture1.u + weights.y * texture2.u + weights.z * texture3.u) * z);
+                    // const float v = ((weights.x * texture1.v + weights.y * texture2.v + weights.z * texture3.v) * z);
+                    // const float M = 8.0f;
+                    // const float p = (float)((fmod(u * M, 1.0) > 0.5) ^ (fmod(v * M, 1.0) < 0.5));
+                    // const SDL_Colour colour = {.r = (uint8_t)((p * 255)),
+                    //                           .g = (uint8_t)((p * 255)),
+                    //                           .b = (uint8_t)((p * 255)),
+                    //                           .a = (uint8_t)255};
+
+                    // COLOURS
+                    // const float r = (weights.x * c0.x + weights.y * c0.y + weights.z * c0.z) * z;
+                    // const float g = (weights.x * c1.x + weights.y * c1.y + weights.z * c1.z) * z;
+                    // const float b = (weights.x * c2.x + weights.y * c2.y + weights.z * c2.z) * z;
+                    // const SDL_Colour colour = {(uint8_t)(r * 255), (uint8_t)(g * 255), (uint8_t)(b * 255), 255};
+
+                    // Draw the pixel finally
+                    // Draw_Point(renderer, x, y, &colour);
+                }
+            }
+            // else
+            //{
+            //     if (outside_triangle == false)
+            //     {
+            //         outside_triangle = true;
+            //         break;
+            //     }
+            // }
+        }
+    }
+}
