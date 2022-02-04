@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
         .y = test_square_y,
         .z = test_square_z,
         .w = test_square_w,
-        .count = 2};
+        .count = 12};
     // test_square.count = 2;
     // test_square.x = test_square_x;
     // test_square.y = test_square_y;
@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
     // Projection Matrix : converts from view space to screen space
     const Mat4x4 Projection_matrix = Get_Projection_Matrix(90.0f, (float)ren.HEIGHT / (float)ren.WIDTH, 0.1f, 1000.0f);
 
-    const Mat4x4 Translation_matrix = Get_Translation_Matrix(0.0f, 0.0f, 5.0f);
+    const Mat4x4 Translation_matrix = Get_Translation_Matrix(0.0f, 0.0f, 2.0f);
 
     // Camera
     __m128 camera = _mm_set_ps(1.0f, 0.0f, 0.0f, 0.0f);
@@ -72,8 +72,8 @@ int main(int argc, char *argv[])
         }
 
         Mat4x4 World_Matrix = {0.0f};
-        // fTheta += (float)MSPerFrame;
-        fTheta += 0.0f;
+        fTheta += (float)MSPerFrame;
+        // fTheta += 0.0f;
 
         const Mat4x4 matRotZ = Get_Rotation_Z_Matrix(fTheta); // Rotation Z
         const Mat4x4 matRotX = Get_Rotation_X_Matrix(fTheta); // Rotation X
@@ -83,9 +83,12 @@ int main(int argc, char *argv[])
 
         for (size_t i = 0; i < test_square.count; i++)
         {
-            __m128 tri1 = _mm_set_ps(test_square.w[3 * i], test_square.z[3 * i], test_square.y[3 * i], test_square.x[3 * i]);
-            __m128 tri2 = _mm_set_ps(test_square.w[3 * i + 1], test_square.z[3 * i + 1], test_square.y[3 * i + 1], test_square.x[3 * i + 1]);
-            __m128 tri3 = _mm_set_ps(test_square.w[3 * i + 2], test_square.z[3 * i + 2], test_square.y[3 * i + 2], test_square.x[3 * i + 2]);
+            //__m128 tri1 = _mm_set_ps(test_square.w[3 * i], test_square.z[3 * i], test_square.y[3 * i], test_square.x[3 * i]);
+            //__m128 tri2 = _mm_set_ps(test_square.w[3 * i + 1], test_square.z[3 * i + 1], test_square.y[3 * i + 1], test_square.x[3 * i + 1]);
+            //__m128 tri3 = _mm_set_ps(test_square.w[3 * i + 2], test_square.z[3 * i + 2], test_square.y[3 * i + 2], test_square.x[3 * i + 2]);
+            __m128 tri1 = _mm_load_ps(&test_contig_data[12 * i + 0]);
+            __m128 tri2 = _mm_load_ps(&test_contig_data[12 * i + 4]);
+            __m128 tri3 = _mm_load_ps(&test_contig_data[12 * i + 8]);
 
             // World_Matrix * Each Vertix = transformed Vertex
             tri1 = Matrix_Multiply_Vector_SIMD(World_Matrix.elements, tri1);
@@ -115,6 +118,7 @@ int main(int argc, char *argv[])
                 tri3 = Matrix_Multiply_Vector_SIMD(Projection_matrix.elements, tri3);
 
                 // Perform x/w, y/w, z/w
+                // __m128 _mm_rcp_ps (__m128 a)
                 tri1 = _mm_div_ps(tri1, _mm_shuffle_ps(tri1, tri1, _MM_SHUFFLE(3, 3, 3, 3)));
                 tri2 = _mm_div_ps(tri2, _mm_shuffle_ps(tri2, tri2, _MM_SHUFFLE(3, 3, 3, 3)));
                 tri3 = _mm_div_ps(tri3, _mm_shuffle_ps(tri3, tri3, _MM_SHUFFLE(3, 3, 3, 3)));
@@ -135,22 +139,21 @@ int main(int argc, char *argv[])
                 const SDL_Colour WHITE = {255, 255, 255, 255};
                 Draw_Triangle_Outline(window_surface->format, pixels, tri1, tri2, tri3, &WHITE);
             }
-
-            // Update Screen
-            SDL_UpdateWindowSurface(ren.window);
-
-            // End frame timing
-            const Uint64 EndCounter = SDL_GetPerformanceCounter();
-            const Uint64 CounterElapsed = EndCounter - LastCounter;
-
-            MSPerFrame = ((double)CounterElapsed / (double)SDL_GetPerformanceFrequency());
-            const double FPS = (double)SDL_GetPerformanceFrequency() / (double)CounterElapsed;
-            snprintf(window_title, sizeof(window_title), "%.02f ms/f \t%.02f f/s\n", 1000.0 * MSPerFrame, FPS);
-
-            SDL_SetWindowTitle(ren.window, window_title);
-
-            LastCounter = EndCounter;
         }
+        // Update Screen
+        SDL_UpdateWindowSurface(ren.window);
+
+        // End frame timing
+        const Uint64 EndCounter = SDL_GetPerformanceCounter();
+        const Uint64 CounterElapsed = EndCounter - LastCounter;
+
+        MSPerFrame = ((double)CounterElapsed / (double)SDL_GetPerformanceFrequency());
+        const double FPS = (double)SDL_GetPerformanceFrequency() / (double)CounterElapsed;
+        snprintf(window_title, sizeof(window_title), "%.02f ms/f \t%.02f f/s\n", 1000.0 * MSPerFrame, FPS);
+
+        SDL_SetWindowTitle(ren.window, window_title);
+
+        LastCounter = EndCounter;
     }
 
     SDL_CleanUp(&ren);
