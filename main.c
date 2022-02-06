@@ -23,8 +23,14 @@ int main(int argc, char *argv[])
     const int height = window_surface->h;
     const int number_of_pixels = width * height;
 
+    Rendering_data ren_data;
+    ren_data.fmt = window_surface->format;
+    ren_data.pixels = pixels;
+    // ren_data.tex_data = tex_data;
+
     // Allocate z buffer
     ren.ZBuffer = (float *)malloc(sizeof(float) * (number_of_pixels));
+    ren_data.z_buffer_array = ren.ZBuffer;
 
     // Test Square
     Mesh test_square = {
@@ -136,8 +142,9 @@ int main(int argc, char *argv[])
                 tri3 = _mm_mul_ps(tri3, _mm_set_ps(1.0f, 1.0f, y_adjustment, x_adjustment));
 
                 // Draw
-                const SDL_Colour WHITE = {255, 255, 255, 255};
-                Draw_Triangle_Outline(window_surface->format, pixels, tri1, tri2, tri3, &WHITE);
+                // const SDL_Colour WHITE = {255, 255, 255, 255};
+                // Draw_Triangle_Outline(&ren_data, tri1, tri2, tri3, &WHITE);
+                Barycentric_Algorithm_Tex_Buffer(&ren_data, tri1, tri2, tri3);
             }
         }
         // Update Screen
