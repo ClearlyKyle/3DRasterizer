@@ -8,6 +8,9 @@
 #include "Renderer.h"
 #include "test_sqaure.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "libs/stb_image.h"
+
 #define SCREEN_WIDTH 960
 #define SCREEN_HEIGHT 1000
 
@@ -31,6 +34,15 @@ int main(int argc, char *argv[])
     // Allocate z buffer
     ren.ZBuffer = (float *)malloc(sizeof(float) * (number_of_pixels));
     ren_data.z_buffer_array = ren.ZBuffer;
+
+    // Load a texture
+    int tex_h, tex_w, bpp;
+    unsigned char *texture_data = stbi_load("", &tex_w, &tex_h, &bpp, STBI_rgb_alpha);
+    if (!texture_data)
+    {
+        fprintf(stderr, "Loading image : %s\n", stbi_failure_reason());
+        return -1;
+    }
 
     // Test Square
     Mesh test_square = {
