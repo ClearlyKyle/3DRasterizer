@@ -26,15 +26,6 @@ int main(int argc, char *argv[])
     const int height = window_surface->h;
     const int number_of_pixels = width * height;
 
-    Rendering_data ren_data;
-    ren_data.fmt = window_surface->format;
-    ren_data.pixels = pixels;
-    // ren_data.tex_data = tex_data;
-
-    // Allocate z buffer
-    ren.ZBuffer = (float *)malloc(sizeof(float) * (number_of_pixels));
-    ren_data.z_buffer_array = ren.ZBuffer;
-
     // Load a texture
     int tex_h, tex_w, bpp;
     unsigned char *texture_data = stbi_load("", &tex_w, &tex_h, &bpp, STBI_rgb_alpha);
@@ -43,6 +34,16 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Loading image : %s\n", stbi_failure_reason());
         return -1;
     }
+
+    Rendering_data ren_data;
+    ren_data.fmt = window_surface->format;
+    ren_data.pixels = pixels;
+    ren_data.tex_data = texture_data;
+    // ren_data.tex_data = tex_data;
+
+    // Allocate z buffer
+    ren.ZBuffer = (float *)malloc(sizeof(float) * (number_of_pixels));
+    ren_data.z_buffer_array = ren.ZBuffer;
 
     // Test Square
     Mesh test_square = {
