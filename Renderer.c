@@ -328,3 +328,104 @@ void Barycentric_Algorithm_Tex_Buffer(const Rendering_data *render, const __m128
         }
     }
 }
+
+// https://fgiesen.wordpress.com/2013/02/10/optimizing-the-basic-rasterizer/
+static __m128i Edge_init(const __m128 v0, const __m128 v1, unsigned int minX, unsigned int minY, __m128i *return_oneStepX)
+{
+    // int A = v0.y - v1.y;
+    // int B = v1.x - v0.x;
+    // int C = v0.x * v1.y - v0.y * v1.x;
+    const __m128 A = _mm_sub_ps(v0, v1);
+    const __m128 B = _mm_sub_ps(v1, v0);
+
+    const __m128 AB = _mm_shuffle_ps(v0, v1, _MM_SHUFFLE(0, 1, 0, 1));
+    //__declspec(align(16)) float tmp[4];
+    float tmp[4];
+    _mm_store_ps(tmp, AB);
+
+    const float C = tmp[1] * tmp[0] - tmp[1] * tmp[0];
+
+    // Step deltas
+    // oneStepX = Vec4i(A * stepXSize);
+    // oneStepY = Vec4i(B * stepYSize);
+
+    // x/y values for initial pixel block
+    // Vec4i x = Vec4i(origin.x) + Vec4i(0, 1, 2, 3);
+    // Vec4i y = Vec4i(origin.y);
+
+    // const int stepXSize = 4;
+    // const int stepYSize = 1;
+    const __m128i x = _mm_add_epi32(_mm_set1_epi32(minX), _mm_set_epi32(0, 1, 2, 3));
+    const __m128i y = _mm_set1_epi32(minY);
+
+    *return_oneStepX = x;
+
+    // Edge function values at origin
+    // return Vec4i(A) * x + Vec4i(B) * y + Vec4i(C);
+
+    const __m128i res = _mm_add_epi32(
+        _mm_add_epi32(
+            _mm_mul_epi32(_mm_castps_si128(_mm_shuffle_ps(A, A, _MM_SHUFFLE(0, 0, 0, 0))), x),
+            _mm_mul_epi32(_mm_castps_si128(_mm_shuffle_ps(B, B, _MM_SHUFFLE(0, 0, 0, 0))), y)),
+        _mm_set1_epi32((int)C));
+
+    return res;
+}
+
+void Draw_Function(const __m128 v0, const __m128 v1, const __m128 v2)
+{
+    const __m128i fxptZero = _mm_setzero_si128();
+
+    /* get the bounding box of the triangle */
+    float AABB_values[4]; // {[3]maxX, [2]minX, [1]maxY, [0]minY}
+    _mm_store_ps(AABB_values, Get_AABB_SIMD(v0, v1, v2));
+
+    // Triangle setup
+    // Point2D p = {minX, minY};
+    __m128i e01, e12, e20;
+
+    __m128i w0_row = Edge_init(v1, v2, (unsigned int)AABB_values[2], (unsigned int)AABB_values[0], &e01);
+    __m128i w1_row = Edge_init(v2, v0, (unsigned int)AABB_values[2], (unsigned int)AABB_values[0], &e12);
+    __m128i w2_row = Edge_init(v0, v1, (unsigned int)AABB_values[2], (unsigned int)AABB_values[0], &e20);
+
+    // Rasterize
+    for (int y = (int)AABB_values[3]; y <= (int)AABB_values[2]; y += 4)
+    {
+        // Barycentric coordinates at start of row
+        __m128i w0 = w0_row;
+        __m128i w1 = w1_row;
+        __m128i w2 = w2_row;
+
+        for (int x = (int)AABB_values[1]; x <= (int)AABB_values[0]; x++)
+        {
+            // If p is on or inside all edges for any pixels,
+            // render those pixels.
+            // const __m128i mask = w0 | w1 | w2;
+
+            // Test Pixel inside triangle
+            __m128i mask = _mm_cmplt_epi32(fxptZero, _mm_or_si128(_mm_or_si128(w0, w1), w2));
+
+            // Early out if all of this quad's pixels are outside the triangle.
+            if (_mm_test_all_zeros(mask, mask))
+            {
+                continue;
+            }
+            else
+            {
+                /* code */
+                RGB colour = {255, 000, 000};
+                Draw_Pixel(x, y, colour);
+            }
+
+            // One step to the right
+            _mm_add_epi32(w0, e01);
+            _mm_add_epi32(w1, e12);
+            _mm_add_epi32(w2, e20);
+        }
+
+        // One row step
+        _mm_add_epi32(w0_row, _mm_set1_epi32(4));
+        _mm_add_epi32(w1_row, _mm_set1_epi32(4));
+        _mm_add_epi32(w2_row, _mm_set1_epi32(4));
+    }
+}
