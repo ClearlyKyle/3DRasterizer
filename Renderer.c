@@ -372,60 +372,186 @@ static __m128i Edge_init(const __m128 v0, const __m128 v1, unsigned int minX, un
     return res;
 }
 
-void Draw_Function(const __m128 v0, const __m128 v1, const __m128 v2)
+union AABB_u
 {
-    const __m128i fxptZero = _mm_setzero_si128();
+    struct
+    {
+        int maxX;
+        int minX;
+        int maxY;
+        int minY;
+    };
+    int values[4];
+};
+
+static __m128i Get_AABB_SIMD(const __m128 v1, const __m128 v2, const __m128 v3)
+{
+    const __m128i max_values = _mm_cvtps_epi32(_mm_min_ps(_mm_max_ps(_mm_max_ps(v1, v2), v3), _mm_set_ps(0.0f, 0.0f, 512.0f, 512.0f)));
+    const __m128i min_values = _mm_cvtps_epi32(_mm_max_ps(_mm_min_ps(_mm_min_ps(v1, v2), v3), _mm_set1_ps(0.0f)));
+
+    // Returns {maxX, minX, maxY, minY}
+    return _mm_unpacklo_epi32(max_values, min_values);
+}
+
+void Draw_Function(const Rendering_data *render, const __m128 v0, const __m128 v1, const __m128 v2)
+{
+    // Random colours for each point
+    // const __m128i colour_red_value = _mm_set_epi32(rand() % 255 + 1, rand() % 255 + 1, rand() % 255 + 1, rand() % 255 + 1);
+    // const __m128i colour_green_value = _mm_set_epi32(rand() % 255 + 1, rand() % 255 + 1, rand() % 255 + 1, rand() % 255 + 1);
+    // const __m128i colour_blue_value = _mm_set_epi32(rand() % 255 + 1, rand() % 255 + 1, rand() % 255 + 1, rand() % 255 + 1);
+
+    __m128 texture1 = _mm_set_ps(0.0f, 0.0f, 0.0f, 0.0f);
+    __m128 texture2 = _mm_set_ps(0.0f, 0.0f, 0.0f, 1.0f);
+    __m128 texture3 = _mm_set_ps(0.0f, 0.0f, 1.0f, 0.0f);
+
+    // used when checking if w0,w1,w2 is greater than 0;
+    __m128i fxptZero = _mm_setzero_si128();
 
     /* get the bounding box of the triangle */
-    float AABB_values[4]; // {[3]maxX, [2]minX, [1]maxY, [0]minY}
-    _mm_store_ps(AABB_values, Get_AABB_SIMD(v0, v1, v2));
+    union AABB_u aabb;
+    _mm_storeu_si128((__m128i *)aabb.values, Get_AABB_SIMD(v0, v1, v2));
 
-    // Triangle setup
-    // Point2D p = {minX, minY};
-    __m128i e01, e12, e20;
+    // X and Y value setup
+    const __m128 v0_x = _mm_shuffle_ps(v0, v0, _MM_SHUFFLE(0, 0, 0, 0));
+    const __m128 v1_x = _mm_shuffle_ps(v1, v1, _MM_SHUFFLE(0, 0, 0, 0));
+    const __m128 v2_x = _mm_shuffle_ps(v2, v2, _MM_SHUFFLE(0, 0, 0, 0));
 
-    __m128i w0_row = Edge_init(v1, v2, (unsigned int)AABB_values[2], (unsigned int)AABB_values[0], &e01);
-    __m128i w1_row = Edge_init(v2, v0, (unsigned int)AABB_values[2], (unsigned int)AABB_values[0], &e12);
-    __m128i w2_row = Edge_init(v0, v1, (unsigned int)AABB_values[2], (unsigned int)AABB_values[0], &e20);
+    const __m128 v0_y = _mm_shuffle_ps(v0, v0, _MM_SHUFFLE(1, 1, 1, 1));
+    const __m128 v1_y = _mm_shuffle_ps(v1, v1, _MM_SHUFFLE(1, 1, 1, 1));
+    const __m128 v2_y = _mm_shuffle_ps(v2, v2, _MM_SHUFFLE(1, 1, 1, 1));
+
+    __m128 v0_z = _mm_shuffle_ps(v0, v0, _MM_SHUFFLE(2, 2, 2, 2));
+    __m128 v1_z = _mm_shuffle_ps(v1, v1, _MM_SHUFFLE(2, 2, 2, 2));
+    __m128 v2_z = _mm_shuffle_ps(v2, v2, _MM_SHUFFLE(2, 2, 2, 2));
+
+    v0_z = _mm_div_ps(_mm_set1_ps(1.0f), v0_z);
+    v1_z = _mm_div_ps(_mm_set1_ps(1.0f), v1_z);
+    v2_z = _mm_div_ps(_mm_set1_ps(1.0f), v2_z);
+
+    texture1 = _mm_mul_ps(texture1, v0_z);
+    texture2 = _mm_mul_ps(texture2, v1_z);
+    texture3 = _mm_mul_ps(texture3, v2_z);
+
+    // Edge Setup
+    const __m128 A01 = _mm_sub_ps(v0_y, v1_y); // A01 = (int)(v0.y - v1.y);
+    const __m128 A12 = _mm_sub_ps(v1_y, v2_y); // A12 = (int)(v1.y - v2.y);
+    const __m128 A20 = _mm_sub_ps(v2_y, v0_y); // A20 = (int)(v2.y - v0.y);
+
+    const __m128 B01 = _mm_sub_ps(v1_x, v0_x);
+    const __m128 B12 = _mm_sub_ps(v2_x, v1_x);
+    const __m128 B20 = _mm_sub_ps(v0_x, v2_x);
+
+    const __m128 C01 = _mm_sub_ps(_mm_mul_ps(v0_x, v1_y), _mm_mul_ps(v0_y, v1_x));
+    const __m128 C12 = _mm_sub_ps(_mm_mul_ps(v1_x, v2_y), _mm_mul_ps(v1_y, v2_x));
+    const __m128 C20 = _mm_sub_ps(_mm_mul_ps(v2_x, v0_y), _mm_mul_ps(v2_y, v0_x));
+
+    const __m128 p_x = _mm_add_ps(_mm_set1_ps((float)aabb.minX), _mm_set_ps(0, 1, 2, 3));
+    const __m128 p_y = _mm_set1_ps((float)aabb.minY);
+
+    // Barycentric Setip
+    // Order of triangle sides *IMPORTANT*
+    // v1, v2 :  w0_row = (A12 * p.x) + (B12 * p.y) + C12;
+    // v2, v0 :  w1_row = (A20 * p.x) + (B20 * p.y) + C20;
+    // v0, v1 :  w2_row = (A01 * p.x) + (B01 * p.y) + C01;
+    __m128 w0_row = _mm_add_ps(
+        _mm_add_ps(
+            _mm_mul_ps(A12, p_x), _mm_mul_ps(B12, p_y)),
+        C12);
+    __m128 w1_row = _mm_add_ps(
+        _mm_add_ps(
+            _mm_mul_ps(A20, p_x), _mm_mul_ps(B20, p_y)),
+        C20);
+    __m128 w2_row = _mm_add_ps(
+        _mm_add_ps(
+            _mm_mul_ps(A01, p_x), _mm_mul_ps(B01, p_y)),
+        C01);
+
+    // Compute triangle area
+    __m128 triArea = _mm_mul_ps(A01, v2_x);
+    triArea = _mm_add_ps(triArea, _mm_mul_ps(B01, v2_y));
+    triArea = _mm_add_ps(triArea, C01);
+
+    const __m128 oneOverTriArea = _mm_div_ps(_mm_set1_ps(1.0f), triArea);
+
+    // X Step
+    const __m128 X_Step_w0 = _mm_mul_ps(A12, _mm_set1_ps(4.0f));
+    const __m128 X_Step_w1 = _mm_mul_ps(A20, _mm_set1_ps(4.0f));
+    const __m128 X_Step_w2 = _mm_mul_ps(A01, _mm_set1_ps(4.0f));
+    // Y Step
+    // const __m128i Y_Step = 1;
+
+    // Precompute the Z
+    v0_z = _mm_mul_ps(v0_z, oneOverTriArea);
+    v1_z = _mm_mul_ps(v1_z, oneOverTriArea);
+    v2_z = _mm_mul_ps(v2_z, oneOverTriArea);
 
     // Rasterize
-    for (int y = (int)AABB_values[3]; y <= (int)AABB_values[2]; y += 4)
+    for (int y = aabb.minY; y <= aabb.maxY; y += 1)
     {
         // Barycentric coordinates at start of row
-        __m128i w0 = w0_row;
-        __m128i w1 = w1_row;
-        __m128i w2 = w2_row;
+        __m128 w0 = w0_row;
+        __m128 w1 = w1_row;
+        __m128 w2 = w2_row;
 
-        for (int x = (int)AABB_values[1]; x <= (int)AABB_values[0]; x++)
+        for (int x = aabb.minX; x <= aabb.maxX; x += 4,
+                 w0 = _mm_add_ps(w0, X_Step_w0),
+                 w1 = _mm_add_ps(w1, X_Step_w1),
+                 w2 = _mm_add_ps(w2, X_Step_w2))
+        // One step to the right
         {
-            // If p is on or inside all edges for any pixels,
-            // render those pixels.
-            // const __m128i mask = w0 | w1 | w2;
-
             // Test Pixel inside triangle
-            __m128i mask = _mm_cmplt_epi32(fxptZero, _mm_or_si128(_mm_or_si128(w0, w1), w2));
+            // __m128i mask = w0 | w1 | w2;
+            __m128i mask = _mm_cmplt_epi32(fxptZero, _mm_or_si128(_mm_or_si128(_mm_cvtps_epi32(w0), _mm_cvtps_epi32(w1)), _mm_cvtps_epi32(w2)));
 
             // Early out if all of this quad's pixels are outside the triangle.
             if (_mm_test_all_zeros(mask, mask))
-            {
                 continue;
-            }
-            else
-            {
-                /* code */
-                RGB colour = {255, 000, 000};
-                Draw_Pixel(x, y, colour);
-            }
 
-            // One step to the right
-            _mm_add_epi32(w0, e01);
-            _mm_add_epi32(w1, e12);
-            _mm_add_epi32(w2, e20);
+            // Compute barycentric-interpolated depth
+            __m128 depth = _mm_mul_ps(w0, v0_z);
+            depth = _mm_add_ps(depth, _mm_mul_ps(w1, v1_z));
+            depth = _mm_add_ps(depth, _mm_mul_ps(w2, v2_z));
+            // depth = _mm_div_ps(_mm_set1_ps(1.0f), depth);
+
+            mask = _mm_and_si128(_mm_set1_epi32(1), mask);
+
+            // Where are has alread been computed as (1/area)
+            // texture from image
+            //  u = (tex_w - 1) * (w0 * tex1[0] + w1 * tex2[0] + w2 * tex3[0]) * z
+            //  v = (tex_h - 1) * (w0 * tex1[1] + w1 * tex2[1] + w2 * tex3[1]) * z
+            const __m128 weighted_textures = _mm_add_ps(
+                _mm_add_ps(
+                    _mm_mul_ps(_mm_mul_ps(w0, oneOverTriArea), texture1),
+                    _mm_mul_ps(_mm_mul_ps(w1, oneOverTriArea), texture2)),
+                _mm_mul_ps(_mm_mul_ps(w2, oneOverTriArea), texture3));
+
+            __m128 tex_uv = _mm_set_ps(0.0f, 0.0f, (float)(tex_h - 1), (float)(tex_w - 1));
+            tex_uv = _mm_mul_ps(tex_uv, weighted_textures);
+            tex_uv = _mm_mul_ps(tex_uv, depth);
+
+            float tex_coordinates[4];
+            _mm_store_ps(tex_coordinates, tex_uv);
+
+            unsigned char *texRGB = render->tex_data + ((int)tex_coordinates[0] + tex_w * (int)tex_coordinates[1]) * bpp;
+
+            const SDL_Colour draw_colour_values = {texRGB[0], texRGB[1], texRGB[2], texRGB[3]};
+
+            if (mask.m128i_i32[3])
+                Draw_Pixel(render->fmt, render->pixels, x + 0, y, &draw_colour_values);
+
+            if (mask.m128i_i32[2])
+                Draw_Pixel(render->fmt, render->pixels, x + 1, y, &draw_colour_values);
+
+            if (mask.m128i_i32[1])
+                Draw_Pixel(render->fmt, render->pixels, x + 2, y, &draw_colour_values);
+
+            if (mask.m128i_i32[0])
+                Draw_Pixel(render->fmt, render->pixels, x + 3, y, &draw_colour_values);
         }
 
         // One row step
-        _mm_add_epi32(w0_row, _mm_set1_epi32(4));
-        _mm_add_epi32(w1_row, _mm_set1_epi32(4));
-        _mm_add_epi32(w2_row, _mm_set1_epi32(4));
+        w0_row = _mm_add_ps(w0_row, B12);
+        w1_row = _mm_add_ps(w1_row, B20);
+        w2_row = _mm_add_ps(w2_row, B01);
     }
 }
