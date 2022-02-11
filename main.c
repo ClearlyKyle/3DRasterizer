@@ -26,24 +26,29 @@ int main(int argc, char *argv[])
     const int height = window_surface->h;
     const int number_of_pixels = width * height;
 
-    // Load a texture
-    int tex_h, tex_w, bpp;
-    unsigned char *texture_data = stbi_load("", &tex_w, &tex_h, &bpp, STBI_rgb_alpha);
+    // Allocate z buffer
+    float *z_buffer = (float *)malloc(sizeof(float) * (number_of_pixels));
+
+    // Load texture data
+    int tex_w, tex_h, bpp;
+    unsigned char *texture_data = stbi_load("../../res/crate_1.png", &tex_w, &tex_h, &bpp, STBI_rgb_alpha);
     if (!texture_data)
     {
         fprintf(stderr, "Loading image : %s\n", stbi_failure_reason());
-        return -1;
+        return 0;
     }
 
     Rendering_data ren_data;
     ren_data.fmt = window_surface->format;
     ren_data.pixels = pixels;
+    ren_data.screen_height = height;
+    ren_data.screen_width = width;
     ren_data.tex_data = texture_data;
-    // ren_data.tex_data = tex_data;
-
-    // Allocate z buffer
-    ren.ZBuffer = (float *)malloc(sizeof(float) * (number_of_pixels));
-    ren_data.z_buffer_array = ren.ZBuffer;
+    ren_data.z_buffer_array = z_buffer;
+    ren_data.tex_data = texture_data;
+    ren_data.tex_w = tex_w;
+    ren_data.tex_h = tex_h;
+    ren_data.bpp = bpp;
 
     // Test Square
     Mesh test_square = {
@@ -51,6 +56,8 @@ int main(int argc, char *argv[])
         .y = test_square_y,
         .z = test_square_z,
         .w = test_square_w,
+        .u = test_square_tex_u,
+        .v = test_square_tex_v,
         .count = 12};
     // test_square.count = 2;
     // test_square.x = test_square_x;
@@ -77,8 +84,8 @@ int main(int argc, char *argv[])
     {
         for (size_t i = 0; i < number_of_pixels; i++)
         {
-            ren.ZBuffer[i] = FLT_MAX; // clear z buffer
-            pixels[i] = 0x0000;       // clear screen pixels
+            ren_data.z_buffer_array[i] = 0.0f; // clear z buffer
+            ren_data.pixels[i] = 0x0000;       // clear screen pixels
         }
 
         while (SDL_PollEvent(&event))
@@ -155,9 +162,10 @@ int main(int argc, char *argv[])
                 tri3 = _mm_mul_ps(tri3, _mm_set_ps(1.0f, 1.0f, y_adjustment, x_adjustment));
 
                 // Draw
-                // const SDL_Colour WHITE = {255, 255, 255, 255};
-                // Draw_Triangle_Outline(&ren_data, tri1, tri2, tri3, &WHITE);
-                Barycentric_Algorithm_Tex_Buffer(&ren_data, tri1, tri2, tri3);
+                __m128 texture_u = _mm_set_ps(0.0f, test_square.u[3 * i + 2], test_square.u[3 * i + 1], test_square.u[3 * i]);
+                __m128 texture_v = _mm_set_ps(0.0f, test_square.u[3 * i + 2], test_square.u[3 * i + 1], test_square.u[3 * i]);
+
+                Draw_Textured_Triangle(&ren_data, tri1, tri2, tri3, texture_u, texture_v);
             }
         }
         // Update Screen
