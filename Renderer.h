@@ -36,7 +36,9 @@ typedef struct Rendering_data_s
 Renderer SDL_Startup(const char *title, unsigned int width, unsigned int height);
 void SDL_CleanUp(Renderer *renderer);
 
-void Draw_Triangle_Outline(const Rendering_data *render, unsigned int *pixels, const __m128 v1, const __m128 v2, const __m128 v3, const SDL_Colour *col);
-void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const __m128 v1, const __m128 v2, const __m128 texture_u, const __m128 texture_v);
+void Draw_Triangle_Outline(const SDL_PixelFormat *fmt, unsigned int *pixels, const __m128 v1, const __m128 v2, const __m128 v3, const SDL_Colour *col);
+void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const __m128 v1, const __m128 v2,
+                            const __m128 texture_u, const __m128 texture_v,
+                            const __m128 one_over_w1, const __m128 one_over_w2, const __m128 one_over_w3);
 
 #endif // __RENDERER_H__
