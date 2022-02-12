@@ -67,10 +67,15 @@ int main(int argc, char *argv[])
     // Projection Matrix : converts from view space to screen space
     const Mat4x4 Projection_matrix = Get_Projection_Matrix(90.0f, (float)ren.HEIGHT / (float)ren.WIDTH, 0.1f, 1000.0f);
 
-    const Mat4x4 Translation_matrix = Get_Translation_Matrix(0.0f, 0.0f, 2.0f);
+    const Mat4x4 Translation_matrix = Get_Translation_Matrix(0.0f, 0.0f, 5.0f);
 
     // Camera
     __m128 camera = _mm_set_ps(1.0f, 0.0f, 0.0f, 0.0f);
+
+    const float x_adjustment = 0.5f * (float)ren.WIDTH;
+    const float y_adjustment = 0.5f * (float)ren.HEIGHT;
+
+    const SDL_Colour LINE_COLOUR = {255, 255, 255, 255};
 
     // Performance counters
     Uint64 LastCounter = SDL_GetPerformanceCounter();
@@ -121,9 +126,9 @@ int main(int argc, char *argv[])
             tri2 = Matrix_Multiply_Vector_SIMD(World_Matrix.elements, tri2);
             tri3 = Matrix_Multiply_Vector_SIMD(World_Matrix.elements, tri3);
 
-            tri1 = _mm_add_ps(tri1, _mm_set_ps(0.0f, 5.0f, 0.0f, 0.0f));
-            tri2 = _mm_add_ps(tri2, _mm_set_ps(0.0f, 5.0f, 0.0f, 0.0f));
-            tri3 = _mm_add_ps(tri3, _mm_set_ps(0.0f, 5.0f, 0.0f, 0.0f));
+            // tri1 = _mm_add_ps(tri1, _mm_set_ps(0.0f, 5.0f, 0.0f, 0.0f));
+            // tri2 = _mm_add_ps(tri2, _mm_set_ps(0.0f, 5.0f, 0.0f, 0.0f));
+            // tri3 = _mm_add_ps(tri3, _mm_set_ps(0.0f, 5.0f, 0.0f, 0.0f));
 
             // Vector Dot Product between : Surface normal and CameraRay
             const __m128 surface_normal = Calculate_Surface_Normal_SIMD(tri1, tri2, tri3);
@@ -143,29 +148,38 @@ int main(int argc, char *argv[])
                 tri2 = Matrix_Multiply_Vector_SIMD(Projection_matrix.elements, tri2);
                 tri3 = Matrix_Multiply_Vector_SIMD(Projection_matrix.elements, tri3);
 
+                // Setup texture coordinates
+                const __m128 one_over_w1 = _mm_div_ps(_mm_set1_ps(1.0f), _mm_shuffle_ps(tri1, tri1, _MM_SHUFFLE(3, 3, 3, 3)));
+                const __m128 one_over_w2 = _mm_div_ps(_mm_set1_ps(1.0f), _mm_shuffle_ps(tri2, tri2, _MM_SHUFFLE(3, 3, 3, 3)));
+                const __m128 one_over_w3 = _mm_div_ps(_mm_set1_ps(1.0f), _mm_shuffle_ps(tri3, tri3, _MM_SHUFFLE(3, 3, 3, 3)));
+
+                __m128 texture_u = _mm_set_ps(0.0f, test_square.u[3 * i + 2], test_square.u[3 * i + 1], test_square.u[3 * i + 0]);
+                __m128 texture_v = _mm_set_ps(0.0f, test_square.u[3 * i + 2], test_square.u[3 * i + 1], test_square.u[3 * i + 0]);
+
+                texture_u = _mm_mul_ps(texture_u, _mm_set_ps(0.0f, one_over_w3.m128_f32[0], one_over_w2.m128_f32[0], one_over_w1.m128_f32[0]));
+                texture_v = _mm_mul_ps(texture_v, _mm_set_ps(0.0f, one_over_w3.m128_f32[0], one_over_w2.m128_f32[0], one_over_w1.m128_f32[0]));
+
                 // Perform x/w, y/w, z/w
                 // __m128 _mm_rcp_ps (__m128 a)
-                tri1 = _mm_div_ps(tri1, _mm_shuffle_ps(tri1, tri1, _MM_SHUFFLE(3, 3, 3, 3)));
-                tri2 = _mm_div_ps(tri2, _mm_shuffle_ps(tri2, tri2, _MM_SHUFFLE(3, 3, 3, 3)));
-                tri3 = _mm_div_ps(tri3, _mm_shuffle_ps(tri3, tri3, _MM_SHUFFLE(3, 3, 3, 3)));
+                // tri1 = _mm_div_ps(tri1, _mm_shuffle_ps(tri1, tri1, _MM_SHUFFLE(3, 3, 3, 3)));
+                // tri2 = _mm_div_ps(tri2, _mm_shuffle_ps(tri2, tri2, _MM_SHUFFLE(3, 3, 3, 3)));
+                // tri3 = _mm_div_ps(tri3, _mm_shuffle_ps(tri3, tri3, _MM_SHUFFLE(3, 3, 3, 3)));
+                tri1 = _mm_mul_ps(tri1, one_over_w1);
+                tri2 = _mm_mul_ps(tri2, one_over_w2);
+                tri3 = _mm_mul_ps(tri3, one_over_w3);
 
                 // Sacle Into View
                 tri1 = _mm_add_ps(tri1, _mm_set_ps(0.0f, 0.0f, 1.0f, 1.0f));
                 tri2 = _mm_add_ps(tri2, _mm_set_ps(0.0f, 0.0f, 1.0f, 1.0f));
                 tri3 = _mm_add_ps(tri3, _mm_set_ps(0.0f, 0.0f, 1.0f, 1.0f));
 
-                const float x_adjustment = 0.5f * (float)ren.WIDTH;
-                const float y_adjustment = 0.5f * (float)ren.HEIGHT;
-
                 tri1 = _mm_mul_ps(tri1, _mm_set_ps(1.0f, 1.0f, y_adjustment, x_adjustment));
                 tri2 = _mm_mul_ps(tri2, _mm_set_ps(1.0f, 1.0f, y_adjustment, x_adjustment));
                 tri3 = _mm_mul_ps(tri3, _mm_set_ps(1.0f, 1.0f, y_adjustment, x_adjustment));
 
-                // Draw
-                __m128 texture_u = _mm_set_ps(0.0f, test_square.u[3 * i + 2], test_square.u[3 * i + 1], test_square.u[3 * i]);
-                __m128 texture_v = _mm_set_ps(0.0f, test_square.u[3 * i + 2], test_square.u[3 * i + 1], test_square.u[3 * i]);
-
-                Draw_Textured_Triangle(&ren_data, tri1, tri2, tri3, texture_u, texture_v);
+                // Draw (CCW) Triangle Order
+                Draw_Textured_Triangle(&ren_data, tri3, tri2, tri1, texture_v, texture_u, one_over_w1, one_over_w2, one_over_w3);
+                // Draw_Triangle_Outline(ren_data.fmt, ren_data.pixels, tri1, tri2, tri3, &LINE_COLOUR);
             }
         }
         // Update Screen
