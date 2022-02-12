@@ -45,14 +45,36 @@ void SDL_CleanUp(Renderer *renderer)
     SDL_Quit();
 }
 
-static void Draw_Pixel(const SDL_PixelFormat *fmt, unsigned int *pixels, int x, int y, const SDL_Colour *col)
+static void Draw_Pixel_SDL_Colour(const SDL_PixelFormat *fmt, unsigned int *pixels, int x, int y, const SDL_Colour *col)
 {
+    // index = y * screen_w * x
     const int index = (int)y * 1000 + (int)x;
     pixels[index] = SDL_MapRGBA(fmt,
                                 (uint8_t)(col->r),
                                 (uint8_t)(col->g),
                                 (uint8_t)(col->b),
                                 (uint8_t)(col->a));
+}
+static void Draw_Pixel_RGBA(const SDL_PixelFormat *fmt, unsigned int *pixels, int x, int y, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha)
+{
+    // index = y * screen_w * x
+    const int index = (int)y * 1000 + (int)x;
+    pixels[index] = SDL_MapRGBA(fmt,
+                                red,
+                                green,
+                                blue,
+                                alpha);
+}
+
+static void Draw_Pixel_Pixel_Data(const SDL_PixelFormat *fmt, unsigned int *pixels, int x, int y, const unsigned char *texture_data)
+{
+    // index = y * screen_w * x
+    const int index = (int)y * 1000 + (int)x;
+    pixels[index] = SDL_MapRGBA(fmt,
+                                (uint8_t)(texture_data[0]),
+                                (uint8_t)(texture_data[1]),
+                                (uint8_t)(texture_data[2]),
+                                (uint8_t)(texture_data[3]));
 }
 
 // THE EXTREMELY FAST LINE ALGORITHM Variation E (Addition Fixed Point PreCalc)
@@ -83,7 +105,7 @@ static void Draw_Line(const SDL_PixelFormat *fmt, unsigned int *pixels, int x, i
             for (int j = 0x8000 + (x << 16); y <= longLen; ++y)
             {
                 // myPixel(surface, j >> 16, y);
-                Draw_Pixel(fmt, pixels, j >> 16, y, col);
+                Draw_Pixel_SDL_Colour(fmt, pixels, j >> 16, y, col);
                 j += decInc;
             }
             return;
@@ -92,7 +114,7 @@ static void Draw_Line(const SDL_PixelFormat *fmt, unsigned int *pixels, int x, i
         for (int j = 0x8000 + (x << 16); y >= longLen; --y)
         {
             // myPixel(surface, j >> 16, y);
-            Draw_Pixel(fmt, pixels, j >> 16, y, col);
+            Draw_Pixel_SDL_Colour(fmt, pixels, j >> 16, y, col);
 
             j -= decInc;
         }
@@ -105,7 +127,7 @@ static void Draw_Line(const SDL_PixelFormat *fmt, unsigned int *pixels, int x, i
         for (int j = 0x8000 + (y << 16); x <= longLen; ++x)
         {
             // myPixel(surface, x, j >> 16);
-            Draw_Pixel(fmt, pixels, x, j >> 16, col);
+            Draw_Pixel_SDL_Colour(fmt, pixels, x, j >> 16, col);
 
             j += decInc;
         }
@@ -115,7 +137,7 @@ static void Draw_Line(const SDL_PixelFormat *fmt, unsigned int *pixels, int x, i
     for (int j = 0x8000 + (y << 16); x >= longLen; --x)
     {
         // myPixel(surface, x, j >> 16);
-        Draw_Pixel(fmt, pixels, x, j >> 16, col);
+        Draw_Pixel_SDL_Colour(fmt, pixels, x, j >> 16, col);
         j -= decInc;
     }
 }
@@ -290,12 +312,7 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 const int res_v = (int)hsum_ps_sse3(v);
 
                 const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->bpp;
-                const SDL_Colour colour = {.r = (uint8_t)(pixelOffset[0]),
-                                           .g = (uint8_t)(pixelOffset[1]),
-                                           .b = (uint8_t)(pixelOffset[2]),
-                                           .a = (uint8_t)(pixelOffset[3])};
-
-                Draw_Pixel(render->fmt, render->pixels, x + 0, y, &colour);
+                Draw_Pixel_Pixel_Data(render->fmt, render->pixels, x + 0, y, pixelOffset);
             }
 
             if (finalMask.m128i_i32[2])
@@ -314,12 +331,7 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 const int res_v = (int)hsum_ps_sse3(v);
 
                 const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->bpp;
-                const SDL_Colour colour = {.r = (uint8_t)(pixelOffset[0]),
-                                           .g = (uint8_t)(pixelOffset[1]),
-                                           .b = (uint8_t)(pixelOffset[2]),
-                                           .a = (uint8_t)(pixelOffset[3])};
-
-                Draw_Pixel(render->fmt, render->pixels, x + 1, y, &colour);
+                Draw_Pixel_Pixel_Data(render->fmt, render->pixels, x + 1, y, pixelOffset);
             }
 
             if (finalMask.m128i_i32[1])
@@ -338,12 +350,7 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 const int res_v = (int)hsum_ps_sse3(v);
 
                 const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->bpp;
-                const SDL_Colour colour = {.r = (uint8_t)(pixelOffset[0]),
-                                           .g = (uint8_t)(pixelOffset[1]),
-                                           .b = (uint8_t)(pixelOffset[2]),
-                                           .a = (uint8_t)(pixelOffset[3])};
-
-                Draw_Pixel(render->fmt, render->pixels, x + 2, y, &colour);
+                Draw_Pixel_Pixel_Data(render->fmt, render->pixels, x + 2, y, pixelOffset);
             }
 
             if (finalMask.m128i_i32[0])
@@ -362,12 +369,7 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 const int res_v = (int)hsum_ps_sse3(v);
 
                 const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->bpp;
-                const SDL_Colour colour = {.r = (uint8_t)(pixelOffset[0]),
-                                           .g = (uint8_t)(pixelOffset[1]),
-                                           .b = (uint8_t)(pixelOffset[2]),
-                                           .a = (uint8_t)(pixelOffset[3])};
-
-                Draw_Pixel(render->fmt, render->pixels, x + 3, y, &colour);
+                Draw_Pixel_Pixel_Data(render->fmt, render->pixels, x + 3, y, pixelOffset);
             }
 
             depth = _mm_blendv_ps(previousDepthValue, depth, _mm_castsi128_ps(finalMask));
