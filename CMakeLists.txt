@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.10)
 
 project(main)
 
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
+
 find_package(SDL2 CONFIG REQUIRED)
 
 add_executable(${CMAKE_PROJECT_NAME} main.c vector.h vector.c Renderer.c Renderer.h)
