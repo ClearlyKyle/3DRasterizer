@@ -153,11 +153,13 @@ int main(int argc, char *argv[])
                 const __m128 one_over_w2 = _mm_div_ps(_mm_set1_ps(1.0f), _mm_shuffle_ps(tri2, tri2, _MM_SHUFFLE(3, 3, 3, 3)));
                 const __m128 one_over_w3 = _mm_div_ps(_mm_set1_ps(1.0f), _mm_shuffle_ps(tri3, tri3, _MM_SHUFFLE(3, 3, 3, 3)));
 
-                __m128 texture_u = _mm_set_ps(0.0f, test_square.u[3 * i + 2], test_square.u[3 * i + 1], test_square.u[3 * i + 0]);
-                __m128 texture_v = _mm_set_ps(0.0f, test_square.u[3 * i + 2], test_square.u[3 * i + 1], test_square.u[3 * i + 0]);
+                // tex coordinates are read in like : u u u...
+                __m128 texture_u = _mm_set_ps(0.0f, test_square.u[3 * i + 0], test_square.u[3 * i + 1], test_square.u[3 * i + 2]);
+                __m128 texture_v = _mm_set_ps(0.0f, test_square.v[3 * i + 0], test_square.v[3 * i + 1], test_square.v[3 * i + 2]);
 
-                texture_u = _mm_mul_ps(texture_u, _mm_set_ps(0.0f, one_over_w3.m128_f32[0], one_over_w2.m128_f32[0], one_over_w1.m128_f32[0]));
-                texture_v = _mm_mul_ps(texture_v, _mm_set_ps(0.0f, one_over_w3.m128_f32[0], one_over_w2.m128_f32[0], one_over_w1.m128_f32[0]));
+                const __m128 texture_w_values = _mm_set_ps(0.0f, one_over_w1.m128_f32[0], one_over_w2.m128_f32[0], one_over_w3.m128_f32[0]);
+                texture_u = _mm_mul_ps(texture_u, texture_w_values);
+                texture_v = _mm_mul_ps(texture_v, texture_w_values);
 
                 // Perform x/w, y/w, z/w
                 // __m128 _mm_rcp_ps (__m128 a)
