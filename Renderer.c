@@ -286,13 +286,8 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 v = _mm_mul_ps(v, _mm_set1_ps(depth.m128_f32[3]));
                 v = _mm_mul_ps(v, _mm_set1_ps((float)render->tex_h));
 
-                float tex_u_coordinates[4];
-                float tex_v_coordinates[4];
-                _mm_store_ps(tex_u_coordinates, u);
-                _mm_store_ps(tex_v_coordinates, v);
-
-                const int res_u = (int)(tex_u_coordinates[3] + tex_u_coordinates[2] + tex_u_coordinates[1] + tex_u_coordinates[0]);
-                const int res_v = (int)(tex_v_coordinates[3] + tex_v_coordinates[2] + tex_v_coordinates[1] + tex_v_coordinates[0]);
+                const int res_u = (int)hsum_ps_sse3(u);
+                const int res_v = (int)hsum_ps_sse3(v);
 
                 const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->bpp;
                 const SDL_Colour colour = {.r = (uint8_t)(pixelOffset[0]),
@@ -315,13 +310,8 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 v = _mm_mul_ps(v, _mm_set1_ps(depth.m128_f32[2]));
                 v = _mm_mul_ps(v, _mm_set1_ps((float)render->tex_h));
 
-                float tex_u_coordinates[4];
-                float tex_v_coordinates[4];
-                _mm_store_ps(tex_u_coordinates, u);
-                _mm_store_ps(tex_v_coordinates, v);
-
-                const int res_u = (int)(tex_u_coordinates[2] + tex_u_coordinates[1] + tex_u_coordinates[0]);
-                const int res_v = (int)(tex_v_coordinates[2] + tex_v_coordinates[1] + tex_v_coordinates[0]);
+                const int res_u = (int)hsum_ps_sse3(u);
+                const int res_v = (int)hsum_ps_sse3(v);
 
                 const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->bpp;
                 const SDL_Colour colour = {.r = (uint8_t)(pixelOffset[0]),
@@ -344,13 +334,8 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 v = _mm_mul_ps(v, _mm_set1_ps(depth.m128_f32[1]));
                 v = _mm_mul_ps(v, _mm_set1_ps((float)render->tex_h));
 
-                float tex_u_coordinates[4];
-                float tex_v_coordinates[4];
-                _mm_store_ps(tex_u_coordinates, u);
-                _mm_store_ps(tex_v_coordinates, v);
-
-                const int res_u = (int)(tex_u_coordinates[2] + tex_u_coordinates[1] + tex_u_coordinates[0]);
-                const int res_v = (int)(tex_v_coordinates[2] + tex_v_coordinates[1] + tex_v_coordinates[0]);
+                const int res_u = (int)hsum_ps_sse3(u);
+                const int res_v = (int)hsum_ps_sse3(v);
 
                 const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->bpp;
                 const SDL_Colour colour = {.r = (uint8_t)(pixelOffset[0]),
@@ -373,13 +358,8 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 v = _mm_mul_ps(v, _mm_set1_ps(depth.m128_f32[0]));
                 v = _mm_mul_ps(v, _mm_set1_ps((float)render->tex_h));
 
-                float tex_u_coordinates[4];
-                float tex_v_coordinates[4];
-                _mm_store_ps(tex_u_coordinates, u);
-                _mm_store_ps(tex_v_coordinates, v);
-
-                const int res_u = (int)(tex_u_coordinates[2] + tex_u_coordinates[1] + tex_u_coordinates[0]);
-                const int res_v = (int)(tex_v_coordinates[2] + tex_v_coordinates[1] + tex_v_coordinates[0]);
+                const int res_u = (int)hsum_ps_sse3(u);
+                const int res_v = (int)hsum_ps_sse3(v);
 
                 const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->bpp;
                 const SDL_Colour colour = {.r = (uint8_t)(pixelOffset[0]),

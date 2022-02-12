@@ -3,6 +3,8 @@
 
 #include <stdbool.h>
 
+#include "vector.h"
+
 #include "SDL2/SDL.h"
 
 typedef struct Renderer_s
