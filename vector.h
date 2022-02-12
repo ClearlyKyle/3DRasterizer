@@ -60,6 +60,8 @@ void Calculate_Surface_Normal(const float *A, const float *B, const float *C, fl
 __m128 Calculate_Surface_Normal_SIMD(const __m128 v1, const __m128 v2, const __m128 v3);
 float Calculate_Dot_Product_SIMD(const __m128 v1, const __m128 v2);
 
+float hsum_ps_sse3(const __m128 v);
+
 vec4 Vector_Add(const vec4 *v1, const vec4 *v2);
 vec4 Vector_Sub(const vec4 *v1, const vec4 *v2);
 vec4 Vector_Mul(const vec4 *v1, float k);

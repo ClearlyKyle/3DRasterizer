@@ -180,7 +180,7 @@ int main(int argc, char *argv[])
                 tri3 = _mm_mul_ps(tri3, _mm_set_ps(1.0f, 1.0f, y_adjustment, x_adjustment));
 
                 // Draw (CCW) Triangle Order
-                Draw_Textured_Triangle(&ren_data, tri3, tri2, tri1, texture_v, texture_u, one_over_w1, one_over_w2, one_over_w3);
+                Draw_Textured_Triangle(&ren_data, tri3, tri2, tri1, texture_u, texture_v, one_over_w1, one_over_w2, one_over_w3);
                 // Draw_Triangle_Outline(ren_data.fmt, ren_data.pixels, tri1, tri2, tri3, &LINE_COLOUR);
             }
         }

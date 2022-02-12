@@ -178,7 +178,7 @@ void Calculate_Surface_Normal(const float *A, const float *B, const float *C, fl
     _mm_store_ps(output, normal);
 }
 
-static float hsum_ps_sse3(__m128 v)
+float hsum_ps_sse3(const __m128 v)
 {
     __m128 shuf = _mm_movehdup_ps(v); // broadcast elements 3,1 to 2,0
     __m128 sums = _mm_add_ps(v, shuf);
