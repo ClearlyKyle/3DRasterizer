@@ -162,10 +162,6 @@ int main(int argc, char *argv[])
                 texture_v = _mm_mul_ps(texture_v, texture_w_values);
 
                 // Perform x/w, y/w, z/w
-                // __m128 _mm_rcp_ps (__m128 a)
-                // tri1 = _mm_div_ps(tri1, _mm_shuffle_ps(tri1, tri1, _MM_SHUFFLE(3, 3, 3, 3)));
-                // tri2 = _mm_div_ps(tri2, _mm_shuffle_ps(tri2, tri2, _MM_SHUFFLE(3, 3, 3, 3)));
-                // tri3 = _mm_div_ps(tri3, _mm_shuffle_ps(tri3, tri3, _MM_SHUFFLE(3, 3, 3, 3)));
                 tri1 = _mm_mul_ps(tri1, one_over_w1);
                 tri2 = _mm_mul_ps(tri2, one_over_w2);
                 tri3 = _mm_mul_ps(tri3, one_over_w3);
