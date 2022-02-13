@@ -5,12 +5,17 @@
 
 int main()
 {
-    // Load_Object("../../obj/Yellow_Plane/Yellow_Plane_3.obj");
-    // ObjectData *mesh = Load_Object("../../obj/basic_cube.obj");
-    ObjectData *mesh = Load_Object("../../obj/axis.obj");
-    // Load_Object("../../obj/teapot.obj");
+    const char *filename = "../../res/Wooden Box/wooden crate.obj";
 
-    fprintf(stderr, "vertex_count = %d\n", mesh->vertex_count);
+    const Mesh_Data mesh = Get_Object_Data(filename, false);
+
+    fprintf(stderr, "vertex_count = %d\n", mesh.num_of_triangles);
+
+    for (unsigned int i = 0; i < 24; i++)
+    {
+        /* code */
+        fprintf(stderr, "[%d] %f\n", i, mesh.vertex_coordinates[i]);
+    }
 
     return 0;
 }
