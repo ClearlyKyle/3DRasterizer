@@ -4,7 +4,7 @@ Renderer SDL_Startup(const char *title, unsigned int width, unsigned int height)
 {
     Renderer rend;
 
-    if (SDL_Init(SDL_INIT_EVERYTHING) != 0)
+    if (SDL_Init(SDL_INIT_VIDEO) != 0)
     {
         fprintf(stderr, "Could not SDL_Init(SDL_INIT_VIDEO): %s\n", SDL_GetError());
         exit(2);
@@ -75,6 +75,17 @@ static void Draw_Pixel_Pixel_Data(const SDL_PixelFormat *fmt, unsigned int *pixe
                                 (uint8_t)(texture_data[1]),
                                 (uint8_t)(texture_data[2]),
                                 (uint8_t)(texture_data[3]));
+}
+
+static void Draw_Pixel_Pixel_Data_Light_Value(const SDL_PixelFormat *fmt, int screen_width, unsigned int *pixels, int x, int y, const unsigned char *texture_data, const float light_value)
+{
+    // index = y * screen_w * x
+    const int index = (int)y * screen_width + (int)x;
+    pixels[index] = SDL_MapRGBA(fmt,
+                                (uint8_t)(texture_data[0] * light_value),
+                                (uint8_t)(texture_data[1] * light_value),
+                                (uint8_t)(texture_data[2] * light_value),
+                                (uint8_t)(255));
 }
 
 // THE EXTREMELY FAST LINE ALGORITHM Variation E (Addition Fixed Point PreCalc)
@@ -312,7 +323,8 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 const int res_v = (int)hsum_ps_sse3(v);
 
                 const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->bpp;
-                Draw_Pixel_Pixel_Data(render->fmt, render->pixels, x + 0, y, pixelOffset);
+                // Draw_Pixel_Pixel_Data(render->fmt, render->pixels, x + 0, y, pixelOffset);
+                Draw_Pixel_Pixel_Data_Light_Value(render->fmt, render->screen_width, render->pixels, x + 0, y, pixelOffset, render->light_value);
             }
 
             if (finalMask.m128i_i32[2])
@@ -331,7 +343,8 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 const int res_v = (int)hsum_ps_sse3(v);
 
                 const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->bpp;
-                Draw_Pixel_Pixel_Data(render->fmt, render->pixels, x + 1, y, pixelOffset);
+                // Draw_Pixel_Pixel_Data(render->fmt, render->pixels, x + 1, y, pixelOffset);
+                Draw_Pixel_Pixel_Data_Light_Value(render->fmt, render->screen_width, render->pixels, x + 1, y, pixelOffset, render->light_value);
             }
 
             if (finalMask.m128i_i32[1])
@@ -350,7 +363,8 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 const int res_v = (int)hsum_ps_sse3(v);
 
                 const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->bpp;
-                Draw_Pixel_Pixel_Data(render->fmt, render->pixels, x + 2, y, pixelOffset);
+                // Draw_Pixel_Pixel_Data(render->fmt, render->pixels, x + 2, y, pixelOffset);
+                Draw_Pixel_Pixel_Data_Light_Value(render->fmt, render->screen_width, render->pixels, x + 2, y, pixelOffset, render->light_value);
             }
 
             if (finalMask.m128i_i32[0])
@@ -369,7 +383,8 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 const int res_v = (int)hsum_ps_sse3(v);
 
                 const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->bpp;
-                Draw_Pixel_Pixel_Data(render->fmt, render->pixels, x + 3, y, pixelOffset);
+                // Draw_Pixel_Pixel_Data(render->fmt, render->pixels, x + 3, y, pixelOffset);
+                Draw_Pixel_Pixel_Data_Light_Value(render->fmt, render->screen_width, render->pixels, x + 3, y, pixelOffset, render->light_value);
             }
 
             depth = _mm_blendv_ps(previousDepthValue, depth, _mm_castsi128_ps(finalMask));

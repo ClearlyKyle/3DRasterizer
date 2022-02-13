@@ -13,9 +13,6 @@ typedef struct Renderer_s
     unsigned int HEIGHT;
     bool running;
 
-    float *ZBuffer;
-    float *buffer;
-
     SDL_Window *window;
     SDL_Renderer *renderer;
 } Renderer;
@@ -26,6 +23,7 @@ typedef struct Rendering_data_s
     unsigned int *pixels;
     unsigned int screen_width;
     unsigned int screen_height;
+    unsigned int screen_num_pixels;
 
     float *z_buffer_array;
 
@@ -33,6 +31,10 @@ typedef struct Rendering_data_s
     unsigned int tex_w;
     unsigned int tex_h;
     unsigned int bpp;
+
+    __m128 light_position;
+    float light_value;
+    
 } Rendering_data;
 
 Renderer SDL_Startup(const char *title, unsigned int width, unsigned int height);
