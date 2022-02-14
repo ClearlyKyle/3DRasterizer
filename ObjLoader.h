@@ -24,6 +24,8 @@
 typedef struct Mesh_Data_s
 {
     unsigned int num_of_triangles;
+    unsigned int num_of_verticies;
+
     float *vertex_coordinates;
     float *uv_coordinates;
 } Mesh_Data;
@@ -68,7 +70,7 @@ void Print_Attribute_Info(tinyobj_attrib_t *attrib)
     fprintf(stderr, "num_normals    \t\t: %d\n", attrib->num_normals);
     fprintf(stderr, "num_texcoords  \t\t: %d\n", attrib->num_texcoords);
     fprintf(stderr, "num_faces      \t\t: %d\n", attrib->num_faces);
-    fprintf(stderr, "num_face_num_verts\t: %d\n", attrib->num_face_num_verts);
+    fprintf(stderr, "num_face_num_verts\t: %d (number of 'f' rows)\n", attrib->num_face_num_verts);
     fprintf(stderr, "\n");
 }
 
@@ -98,7 +100,7 @@ void Print_Material_Info(tinyobj_material_t *material)
     printf("\n");
 }
 
-static void Get_Mesh_Data(const tinyobj_attrib_t *attrib, Mesh_Data *return_mesh)
+static void Get_Mesh_Data(const tinyobj_attrib_t *attrib, Mesh_Data **return_mesh)
 {
     // Check if mesh is triangulated
     const unsigned int triangulated = (unsigned int)ceil((float)attrib->num_faces / (float)attrib->num_face_num_verts);
@@ -106,102 +108,144 @@ static void Get_Mesh_Data(const tinyobj_attrib_t *attrib, Mesh_Data *return_mesh
     // fprintf(stderr, "triangulated = %f\n", (float)attrib->num_faces / (float)attrib->num_face_num_verts);
     // fprintf(stderr, "triangulated = %f\n", ceil((float)attrib->num_faces / (float)attrib->num_face_num_verts));
 
-    return_mesh->num_of_triangles = attrib->num_faces;
-
-    return_mesh->vertex_coordinates = (float *)malloc(sizeof(float) * (attrib->num_faces + 1) * 4);
-    return_mesh->uv_coordinates = (float *)malloc(sizeof(float) * (attrib->num_faces + 1) * 2);
+    float *vert_coords = NULL;
+    float *uv_coords = NULL;
 
     if (triangulated == 3)
     {
         // 3 face values
         fprintf(stderr, "Using 3 face values setup...\n");
-        for (size_t i = 0; i < attrib->num_faces; i++)
+        const unsigned int number_of_triangles = attrib->num_face_num_verts;
+
+        (*return_mesh)->num_of_triangles = number_of_triangles;
+        (*return_mesh)->num_of_verticies = number_of_triangles * 3;
+
+        vert_coords = (float *)malloc(sizeof(float) * number_of_triangles * 4);
+        if (!vert_coords)
+        {
+            fprintf(stderr, "Error alocating memeory for 'vert_coords'\n");
+            exit(1);
+        }
+        uv_coords = (float *)malloc(sizeof(float) * number_of_triangles * 2);
+        if (!uv_coords)
+        {
+            fprintf(stderr, "Error alocating memeory for 'vert_coords'\n");
+            exit(1);
+        }
+
+        for (size_t i = 0; i < attrib->num_face_num_verts; i++)
         {
             // verts
-            return_mesh->vertex_coordinates[i + 0] = attrib->vertices[(int)attrib->faces[i].v_idx * 3 + 0]; // X
-            return_mesh->vertex_coordinates[i + 1] = attrib->vertices[(int)attrib->faces[i].v_idx * 3 + 1]; // Y
-            return_mesh->vertex_coordinates[i + 2] = attrib->vertices[(int)attrib->faces[i].v_idx * 3 + 2]; // Z
-            return_mesh->vertex_coordinates[i + 3] = 1.0f;                                                  // W
+            vert_coords[i * 4 + 0] = attrib->vertices[(int)attrib->faces[i].v_idx * 3 + 0]; // X
+            vert_coords[i * 4 + 1] = attrib->vertices[(int)attrib->faces[i].v_idx * 3 + 1]; // Y
+            vert_coords[i * 4 + 2] = attrib->vertices[(int)attrib->faces[i].v_idx * 3 + 2]; // Z
+            vert_coords[i * 4 + 3] = 1.0f;                                                  // W
 
             // tex
-            return_mesh->uv_coordinates[i + 0] = attrib->texcoords[(int)attrib->faces[i].vt_idx * 2 + 0]; // u
-            return_mesh->uv_coordinates[i + 1] = attrib->texcoords[(int)attrib->faces[i].vt_idx * 2 + 1]; // v
+            uv_coords[i * 2 + 0] = attrib->texcoords[(int)attrib->faces[i].vt_idx * 2 + 0]; // u
+            uv_coords[i * 2 + 1] = attrib->texcoords[(int)attrib->faces[i].vt_idx * 2 + 1]; // v
         }
     }
     else if (triangulated == 4)
     {
-        // 4 face values
         fprintf(stderr, "Using 4 face values setup...\n");
-        for (size_t i = 0; i < attrib->num_face_num_verts - 3; i++) // loop through in steps of 4
-        {
-            // attrib->vertices - has the data arranged like : X Y Z X Y Z X Y Z
+        const unsigned int number_of_triangles = attrib->num_face_num_verts * 2;
 
-            const unsigned int vert1 = (unsigned int)attrib->faces[4 * i + 0].v_idx;
-            const unsigned int vert2 = (unsigned int)attrib->faces[4 * i + 1].v_idx;
-            const unsigned int vert3 = (unsigned int)attrib->faces[4 * i + 2].v_idx;
-            const unsigned int vert4 = (unsigned int)attrib->faces[4 * i + 3].v_idx;
+        (*return_mesh)->num_of_triangles = number_of_triangles;
+        (*return_mesh)->num_of_verticies = number_of_triangles * 3;
+
+        vert_coords = (float *)malloc(sizeof(float) * (number_of_triangles * 3) * 4);
+        if (!vert_coords)
+        {
+            fprintf(stderr, "Error alocating memeory for 'vert_coords'\n");
+            exit(1);
+        }
+        uv_coords = (float *)malloc(sizeof(float) * (number_of_triangles * 3) * 2);
+        if (!uv_coords)
+        {
+            fprintf(stderr, "Error alocating memeory for 'vert_coords'\n");
+            exit(1);
+        }
+
+        // 4 face values
+        for (size_t i = 0; i < attrib->num_face_num_verts; i++) // loop through in steps of 4
+        {
+            const int f_vert_index1 = attrib->faces[4 * i + 0].v_idx;
+            const int f_vert_index2 = attrib->faces[4 * i + 1].v_idx;
+            const int f_vert_index3 = attrib->faces[4 * i + 2].v_idx;
+            const int f_vert_index4 = attrib->faces[4 * i + 3].v_idx;
 
             // TRI 1
-            return_mesh->vertex_coordinates[i * 24 + 0] = attrib->vertices[vert1 * 3 + 0]; // X
-            return_mesh->vertex_coordinates[i * 24 + 1] = attrib->vertices[vert1 * 3 + 1]; // Y
-            return_mesh->vertex_coordinates[i * 24 + 2] = attrib->vertices[vert1 * 3 + 2]; // Z
-            return_mesh->vertex_coordinates[i * 24 + 3] = 1.0f;                            // W
+            // attrib->vertices - has the data arranged like : X Y Z X Y Z X Y Z
+            vert_coords[(i * 24) + 0] = attrib->vertices[f_vert_index1 * 3 + 0]; // X
+            vert_coords[(i * 24) + 1] = attrib->vertices[f_vert_index1 * 3 + 1]; // Y
+            vert_coords[(i * 24) + 2] = attrib->vertices[f_vert_index1 * 3 + 2]; // Z
+            vert_coords[(i * 24) + 3] = 1.0f;                                    // W
 
-            return_mesh->vertex_coordinates[i * 24 + 4] = attrib->vertices[vert2 * 3 + 0]; // X
-            return_mesh->vertex_coordinates[i * 24 + 5] = attrib->vertices[vert2 * 3 + 1]; // Y
-            return_mesh->vertex_coordinates[i * 24 + 6] = attrib->vertices[vert2 * 3 + 2]; // Z
-            return_mesh->vertex_coordinates[i * 24 + 7] = 1.0f;                            // W
+            vert_coords[(i * 24) + 4] = attrib->vertices[f_vert_index2 * 3 + 0]; // X
+            vert_coords[(i * 24) + 5] = attrib->vertices[f_vert_index2 * 3 + 1]; // Y
+            vert_coords[(i * 24) + 6] = attrib->vertices[f_vert_index2 * 3 + 2]; // Z
+            vert_coords[(i * 24) + 7] = 1.0f;                                    // W
 
-            return_mesh->vertex_coordinates[i * 24 + 8] = attrib->vertices[vert3 * 3 + 0];  // X
-            return_mesh->vertex_coordinates[i * 24 + 9] = attrib->vertices[vert3 * 3 + 1];  // Y
-            return_mesh->vertex_coordinates[i * 24 + 10] = attrib->vertices[vert3 * 3 + 2]; // Z
-            return_mesh->vertex_coordinates[i * 24 + 11] = 1.0f;                            // W
-
-            return_mesh->uv_coordinates[i * 12 + 0] = attrib->texcoords[vert1 * 2 + 0]; // u
-            return_mesh->uv_coordinates[i * 12 + 1] = attrib->texcoords[vert1 * 2 + 1]; // v
-
-            return_mesh->uv_coordinates[i * 12 + 2] = attrib->texcoords[vert2 * 2 + 0]; // u
-            return_mesh->uv_coordinates[i * 12 + 3] = attrib->texcoords[vert2 * 2 + 1]; // v
-
-            return_mesh->uv_coordinates[i * 12 + 4] = attrib->texcoords[vert3 * 2 + 0]; // u
-            return_mesh->uv_coordinates[i * 12 + 5] = attrib->texcoords[vert3 * 2 + 1]; // v
+            vert_coords[(i * 24) + 8] = attrib->vertices[f_vert_index3 * 3 + 0];  // X
+            vert_coords[(i * 24) + 9] = attrib->vertices[f_vert_index3 * 3 + 1];  // Y
+            vert_coords[(i * 24) + 10] = attrib->vertices[f_vert_index3 * 3 + 2]; // Z
+            vert_coords[(i * 24) + 11] = 1.0f;                                    // W
 
             // TRI 2
-            return_mesh->vertex_coordinates[i * 24 + 12] = attrib->vertices[vert1 * 3 + 0]; // X
-            return_mesh->vertex_coordinates[i * 24 + 13] = attrib->vertices[vert1 * 3 + 1]; // Y
-            return_mesh->vertex_coordinates[i * 24 + 14] = attrib->vertices[vert1 * 3 + 2]; // Z
-            return_mesh->vertex_coordinates[i * 24 + 15] = 1.0f;                            // W
+            vert_coords[(i * 24) + 12] = attrib->vertices[f_vert_index1 * 3 + 0]; // X
+            vert_coords[(i * 24) + 13] = attrib->vertices[f_vert_index1 * 3 + 1]; // Y
+            vert_coords[(i * 24) + 14] = attrib->vertices[f_vert_index1 * 3 + 2]; // Z
+            vert_coords[(i * 24) + 15] = 1.0f;                                    // W
 
-            return_mesh->vertex_coordinates[i * 24 + 16] = attrib->vertices[vert3 * 3 + 0]; // X
-            return_mesh->vertex_coordinates[i * 24 + 17] = attrib->vertices[vert3 * 3 + 1]; // Y
-            return_mesh->vertex_coordinates[i * 24 + 18] = attrib->vertices[vert3 * 3 + 2]; // Z
-            return_mesh->vertex_coordinates[i * 24 + 19] = 1.0f;                            // W
+            vert_coords[(i * 24) + 16] = attrib->vertices[f_vert_index3 * 3 + 0]; // X
+            vert_coords[(i * 24) + 17] = attrib->vertices[f_vert_index3 * 3 + 1]; // Y
+            vert_coords[(i * 24) + 18] = attrib->vertices[f_vert_index3 * 3 + 2]; // Z
+            vert_coords[(i * 24) + 19] = 1.0f;                                    // W
 
-            return_mesh->vertex_coordinates[i * 24 + 20] = attrib->vertices[vert4 * 3 + 0]; // X
-            return_mesh->vertex_coordinates[i * 24 + 21] = attrib->vertices[vert4 * 3 + 1]; // Y
-            return_mesh->vertex_coordinates[i * 24 + 22] = attrib->vertices[vert4 * 3 + 2]; // Z
-            return_mesh->vertex_coordinates[i * 24 + 23] = 1.0f;                            // W
+            vert_coords[(i * 24) + 20] = attrib->vertices[f_vert_index4 * 3 + 0]; // X
+            vert_coords[(i * 24) + 21] = attrib->vertices[f_vert_index4 * 3 + 1]; // Y
+            vert_coords[(i * 24) + 22] = attrib->vertices[f_vert_index4 * 3 + 2]; // Z
+            vert_coords[(i * 24) + 23] = 1.0f;                                    // W
+        }
+        for (size_t i = 0; i < attrib->num_face_num_verts; i++) // loop through in steps of 4
+        {
+            const int f_tex_index1 = attrib->faces[4 * i + 0].vt_idx;
+            const int f_tex_index2 = attrib->faces[4 * i + 1].vt_idx;
+            const int f_tex_index3 = attrib->faces[4 * i + 2].vt_idx;
+            const int f_tex_index4 = attrib->faces[4 * i + 3].vt_idx;
 
-            return_mesh->uv_coordinates[i * 12 + 6] = attrib->texcoords[vert1 * 2 + 0]; // u
-            return_mesh->uv_coordinates[i * 12 + 7] = attrib->texcoords[vert1 * 2 + 1]; // v
+            uv_coords[i * 12 + 0] = attrib->texcoords[f_tex_index1 * 2 + 0]; // u
+            uv_coords[i * 12 + 1] = attrib->texcoords[f_tex_index1 * 2 + 1]; // v
 
-            return_mesh->uv_coordinates[i * 12 + 8] = attrib->texcoords[vert2 * 2 + 0]; // u
-            return_mesh->uv_coordinates[i * 12 + 9] = attrib->texcoords[vert2 * 2 + 1]; // v
+            uv_coords[i * 12 + 2] = attrib->texcoords[f_tex_index2 * 2 + 0]; // u
+            uv_coords[i * 12 + 3] = attrib->texcoords[f_tex_index2 * 2 + 1]; // v
 
-            return_mesh->uv_coordinates[i * 12 + 10] = attrib->texcoords[vert3 * 2 + 0]; // u
-            return_mesh->uv_coordinates[i * 12 + 11] = attrib->texcoords[vert3 * 2 + 1]; // v
+            uv_coords[i * 12 + 4] = attrib->texcoords[f_tex_index3 * 2 + 0]; // u
+            uv_coords[i * 12 + 5] = attrib->texcoords[f_tex_index3 * 2 + 1]; // v
+
+            uv_coords[i * 12 + 6] = attrib->texcoords[f_tex_index1 * 2 + 0]; // u
+            uv_coords[i * 12 + 7] = attrib->texcoords[f_tex_index1 * 2 + 1]; // v
+
+            uv_coords[i * 12 + 8] = attrib->texcoords[f_tex_index3 * 2 + 0]; // u
+            uv_coords[i * 12 + 9] = attrib->texcoords[f_tex_index3 * 2 + 1]; // v
+
+            uv_coords[i * 12 + 10] = attrib->texcoords[f_tex_index4 * 2 + 0]; // u
+            uv_coords[i * 12 + 11] = attrib->texcoords[f_tex_index4 * 2 + 1]; // v
         }
     }
+
+    (*return_mesh)->vertex_coordinates = vert_coords;
+    (*return_mesh)->uv_coordinates = uv_coords;
+
     fprintf(stderr, "Vertex setup complete!\n");
 }
 
-Mesh_Data Get_Object_Data(const char *filename, bool print_info)
+void Get_Object_Data(const char *filename, bool print_info, Mesh_Data **output)
 {
     tinyobj_shape_t *shape = NULL;
     tinyobj_material_t *material = NULL;
     tinyobj_attrib_t attrib;
-
-    Mesh_Data mesh;
 
     size_t num_shapes;
     size_t num_materials;
@@ -211,19 +255,30 @@ Mesh_Data Get_Object_Data(const char *filename, bool print_info)
     const int ret = tinyobj_parse_obj(&attrib, &shape, &num_shapes, &material, &num_materials, filename, loadFile, NULL, 0);
     if (ret != TINYOBJ_SUCCESS)
     {
-        printf("ERROR!\n");
+        fprintf(stderr, "ERROR!\n");
         exit(1);
     }
 
-    Get_Mesh_Data(&attrib, &mesh);
+    (*output) = (Mesh_Data *)malloc(sizeof(Mesh_Data) * 1);
+    Get_Mesh_Data(&attrib, output);
 
     if (print_info)
     {
         Print_Attribute_Info(&attrib);
         // Print_Material_Info(material);
-    }
 
-    return mesh;
+        fprintf(stderr, "Number of Triangles = %d\n", (*output)->num_of_triangles);
+        fprintf(stderr, "Number of Verticies = %d\n", (*output)->num_of_verticies);
+    }
+    fprintf(stderr, "Mesh complete!\n");
+}
+
+void Free_Mesh(Mesh_Data **m)
+{
+    // free((*m)->vertex_coordinates);
+    // free((*m)->uv_coordinates);
+
+    fprintf(stderr, "Free Mesh Sucess\n");
 }
 
 #endif // __OBJLOADER_H__
