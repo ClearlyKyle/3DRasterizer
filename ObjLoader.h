@@ -149,7 +149,9 @@ static void Get_Mesh_Data(const tinyobj_attrib_t *attrib, Mesh_Data **return_mes
     else if (triangulated == 4)
     {
         fprintf(stderr, "Using 4 face values setup...\n");
-        const unsigned int number_of_triangles = attrib->num_face_num_verts * 2;
+        const unsigned int number_of_f_values = attrib->num_faces / 4;
+        const unsigned int number_of_triangles = number_of_f_values * 2;
+        // const unsigned int number_of_triangles = attrib->num_face_num_verts * 2;
 
         (*return_mesh)->num_of_triangles = number_of_triangles;
         (*return_mesh)->num_of_verticies = number_of_triangles * 3;
@@ -168,12 +170,13 @@ static void Get_Mesh_Data(const tinyobj_attrib_t *attrib, Mesh_Data **return_mes
         }
 
         // 4 face values
-        for (size_t i = 0; i < attrib->num_face_num_verts; i++) // loop through in steps of 4
+        for (unsigned int i = 0; i < number_of_f_values; i++)
         {
-            const int f_vert_index1 = attrib->faces[4 * i + 0].v_idx;
-            const int f_vert_index2 = attrib->faces[4 * i + 1].v_idx;
-            const int f_vert_index3 = attrib->faces[4 * i + 2].v_idx;
-            const int f_vert_index4 = attrib->faces[4 * i + 3].v_idx;
+            tinyobj_vertex_index_t tmp = attrib->faces[i * 4];
+            const unsigned int f_vert_index1 = attrib->faces[4 * i + 0].v_idx;
+            const unsigned int f_vert_index2 = attrib->faces[4 * i + 1].v_idx;
+            const unsigned int f_vert_index3 = attrib->faces[4 * i + 2].v_idx;
+            const unsigned int f_vert_index4 = attrib->faces[4 * i + 3].v_idx;
 
             // TRI 1
             // attrib->vertices - has the data arranged like : X Y Z X Y Z X Y Z
@@ -208,12 +211,12 @@ static void Get_Mesh_Data(const tinyobj_attrib_t *attrib, Mesh_Data **return_mes
             vert_coords[(i * 24) + 22] = attrib->vertices[f_vert_index4 * 3 + 2]; // Z
             vert_coords[(i * 24) + 23] = 1.0f;                                    // W
         }
-        for (size_t i = 0; i < attrib->num_face_num_verts; i++) // loop through in steps of 4
+        for (size_t i = 0; i < number_of_f_values; i++) // loop through in steps of 4
         {
-            const int f_tex_index1 = attrib->faces[4 * i + 0].vt_idx;
-            const int f_tex_index2 = attrib->faces[4 * i + 1].vt_idx;
-            const int f_tex_index3 = attrib->faces[4 * i + 2].vt_idx;
-            const int f_tex_index4 = attrib->faces[4 * i + 3].vt_idx;
+            const unsigned int f_tex_index1 = attrib->faces[4 * i + 0].vt_idx;
+            const unsigned int f_tex_index2 = attrib->faces[4 * i + 1].vt_idx;
+            const unsigned int f_tex_index3 = attrib->faces[4 * i + 2].vt_idx;
+            const unsigned int f_tex_index4 = attrib->faces[4 * i + 3].vt_idx;
 
             uv_coords[i * 12 + 0] = attrib->texcoords[f_tex_index1 * 2 + 0]; // u
             uv_coords[i * 12 + 1] = attrib->texcoords[f_tex_index1 * 2 + 1]; // v
