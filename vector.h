@@ -6,24 +6,6 @@
 #include <pmmintrin.h>
 #include <smmintrin.h>
 
-typedef union vec4_u
-{
-    float points[4];
-    struct
-    {
-        float x, y, z, w;
-    } coords;
-} vec4;
-
-typedef union vec3_u
-{
-    float points[3];
-    struct
-    {
-        float x, y, z;
-    } coords;
-} vec3;
-
 typedef struct
 {
     // 0  1  2  3
@@ -78,10 +60,5 @@ __m128 Calculate_Surface_Normal_SIMD(const __m128 v1, const __m128 v2, const __m
 float Calculate_Dot_Product_SIMD(const __m128 v1, const __m128 v2);
 
 float hsum_ps_sse3(const __m128 v);
-
-vec4 Vector_Add(const vec4 *v1, const vec4 *v2);
-vec4 Vector_Sub(const vec4 *v1, const vec4 *v2);
-vec4 Vector_Mul(const vec4 *v1, float k);
-vec4 Vector_Div(const vec4 *v1, float k);
 
 #endif // __VECTOR_H__

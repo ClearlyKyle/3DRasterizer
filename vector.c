@@ -315,26 +315,6 @@ __m128 Calculate_Surface_Normal_SIMD(const __m128 v1, const __m128 v2, const __m
 float Calculate_Dot_Product_SIMD(const __m128 v1, const __m128 v2)
 {
     // return hsum_ps_sse3(_mm_mul_ps(v1, v2));
-    // return hsum_ps_sse3(_mm_dp_ps(v1, v2, 0xf1));
-    return _mm_cvtss_f32(_mm_dp_ps(v1, v2, 0xf1));
-}
-
-vec4 Vector_Add(const vec4 *v1, const vec4 *v2)
-{
-    return (vec4){v1->coords.x + v2->coords.x, v1->coords.y + v2->coords.y, v1->coords.z + v2->coords.z, v1->coords.w + v2->coords.w};
-}
-
-vec4 Vector_Sub(const vec4 *v1, const vec4 *v2)
-{
-    return (vec4){v1->coords.x - v2->coords.x, v1->coords.y - v2->coords.y, v1->coords.z - v2->coords.z, v1->coords.w - v2->coords.w};
-}
-
-vec4 Vector_Mul(const vec4 *v1, float k)
-{
-    return (vec4){v1->coords.x * k, v1->coords.y * k, v1->coords.z * k, v1->coords.w * k};
-}
-
-vec4 Vector_Div(const vec4 *v1, float k)
-{
-    return (vec4){v1->coords.x / k, v1->coords.y / k, v1->coords.z / k, v1->coords.w / k};
+    return hsum_ps_sse3(_mm_dp_ps(v1, v2, 0xf1));
+    // return _mm_cvtss_f32(_mm_dp_ps(v1, v3, 0xf1));
 }
