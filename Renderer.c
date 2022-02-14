@@ -164,7 +164,7 @@ void Draw_Triangle_Outline(const SDL_PixelFormat *fmt, unsigned int *pixels, con
 
     Draw_Line(fmt, pixels, (int)vert1[0], (int)vert1[1], (int)vert2[0], (int)vert2[1], col);
     Draw_Line(fmt, pixels, (int)vert2[0], (int)vert2[1], (int)vert3[0], (int)vert3[1], col);
-    Draw_Line(fmt, pixels, (int)vert3[0], (int)vert3[1], (int)vert1[0], (int)vert1[1], col);
+    Draw_Line(fmt, pixels, (int)vert1[0], (int)vert1[1], (int)vert3[0], (int)vert3[1], col);
 }
 
 union AABB_u
@@ -323,8 +323,13 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 const int res_v = (int)hsum_ps_sse3(v);
 
                 const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->bpp;
-                // Draw_Pixel_Pixel_Data(render->fmt, render->pixels, x + 0, y, pixelOffset);
-                Draw_Pixel_Pixel_Data_Light_Value(render->fmt, render->screen_width, render->pixels, x + 0, y, pixelOffset, render->light_value);
+
+                const uint8_t red = (uint8_t)(pixelOffset[0]);
+                const uint8_t gre = (uint8_t)(pixelOffset[1]);
+                const uint8_t blu = (uint8_t)(pixelOffset[2]);
+                const uint8_t alp = (uint8_t)(pixelOffset[3]);
+                Draw_Pixel_RGBA(render->fmt, render->pixels, x + 0, y, red, gre, blu, alp);
+                // Draw_Pixel_Pixel_Data_Light_Value(render->fmt, render->screen_width, render->pixels, x + 0, y, pixelOffset, render->light_value);
             }
 
             if (finalMask.m128i_i32[2])
@@ -343,8 +348,13 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 const int res_v = (int)hsum_ps_sse3(v);
 
                 const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->bpp;
-                // Draw_Pixel_Pixel_Data(render->fmt, render->pixels, x + 1, y, pixelOffset);
-                Draw_Pixel_Pixel_Data_Light_Value(render->fmt, render->screen_width, render->pixels, x + 1, y, pixelOffset, render->light_value);
+
+                const uint8_t red = (uint8_t)(pixelOffset[0]);
+                const uint8_t gre = (uint8_t)(pixelOffset[1]);
+                const uint8_t blu = (uint8_t)(pixelOffset[2]);
+                const uint8_t alp = (uint8_t)(pixelOffset[3]);
+                Draw_Pixel_RGBA(render->fmt, render->pixels, x + 1, y, red, gre, blu, alp);
+                // Draw_Pixel_Pixel_Data_Light_Value(render->fmt, render->screen_width, render->pixels, x + 1, y, pixelOffset, render->light_value);
             }
 
             if (finalMask.m128i_i32[1])
@@ -363,8 +373,13 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 const int res_v = (int)hsum_ps_sse3(v);
 
                 const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->bpp;
-                // Draw_Pixel_Pixel_Data(render->fmt, render->pixels, x + 2, y, pixelOffset);
-                Draw_Pixel_Pixel_Data_Light_Value(render->fmt, render->screen_width, render->pixels, x + 2, y, pixelOffset, render->light_value);
+
+                const uint8_t red = (uint8_t)(pixelOffset[0]);
+                const uint8_t gre = (uint8_t)(pixelOffset[1]);
+                const uint8_t blu = (uint8_t)(pixelOffset[2]);
+                const uint8_t alp = (uint8_t)(pixelOffset[3]);
+                Draw_Pixel_RGBA(render->fmt, render->pixels, x + 2, y, red, gre, blu, alp);
+                // Draw_Pixel_Pixel_Data_Light_Value(render->fmt, render->screen_width, render->pixels, x + 2, y, pixelOffset, render->light_value);
             }
 
             if (finalMask.m128i_i32[0])
@@ -383,8 +398,15 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 const int res_v = (int)hsum_ps_sse3(v);
 
                 const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->bpp;
-                // Draw_Pixel_Pixel_Data(render->fmt, render->pixels, x + 3, y, pixelOffset);
-                Draw_Pixel_Pixel_Data_Light_Value(render->fmt, render->screen_width, render->pixels, x + 3, y, pixelOffset, render->light_value);
+
+                const uint8_t red = (uint8_t)(pixelOffset[0]);
+                const uint8_t gre = (uint8_t)(pixelOffset[1]);
+                const uint8_t blu = (uint8_t)(pixelOffset[2]);
+                const uint8_t alp = (uint8_t)(pixelOffset[3]);
+
+                // Put_Pixel(render, x + 3, y, )
+                Draw_Pixel_RGBA(render->fmt, render->pixels, x + 3, y, red, gre, blu, alp);
+                // Draw_Pixel_Pixel_Data_Light_Value(render->fmt, render->screen_width, render->pixels, x + 3, y, pixelOffset, render->light_value);
             }
 
             depth = _mm_blendv_ps(previousDepthValue, depth, _mm_castsi128_ps(finalMask));

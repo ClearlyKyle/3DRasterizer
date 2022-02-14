@@ -19,7 +19,8 @@ typedef struct Renderer_s
 
 typedef struct Rendering_data_s
 {
-    const SDL_PixelFormat *fmt;
+    SDL_Surface *surface;
+    SDL_PixelFormat *fmt;
     unsigned int *pixels;
     unsigned int screen_width;
     unsigned int screen_height;
@@ -34,7 +35,7 @@ typedef struct Rendering_data_s
 
     __m128 light_position;
     float light_value;
-    
+
 } Rendering_data;
 
 Renderer SDL_Startup(const char *title, unsigned int width, unsigned int height);
