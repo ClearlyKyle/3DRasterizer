@@ -31,7 +31,12 @@ typedef struct Rendering_data_s
     unsigned char *tex_data;
     unsigned int tex_w;
     unsigned int tex_h;
-    unsigned int bpp;
+    unsigned int tex_bpp;
+
+    unsigned char *nrm_data;
+    unsigned int nrm_w;
+    unsigned int nrm_h;
+    unsigned int nrm_bpp;
 
     __m128 light_position;
     float light_value;
