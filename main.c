@@ -12,17 +12,19 @@
 #include "test_sqaure.h"
 #include "ObjLoader.h"
 
-#define SCREEN_WIDTH 900
-#define SCREEN_HEIGHT 1000
+#define SCREEN_WIDTH 1000
+#define SCREEN_HEIGHT 900
 
 int main(int argc, char *argv[])
 {
-    Renderer ren = SDL_Startup("Window", SCREEN_HEIGHT, SCREEN_WIDTH);
+    Renderer ren = SDL_Startup("Window", SCREEN_WIDTH, SCREEN_HEIGHT);
 
     SDL_Surface *window_surface = SDL_GetWindowSurface(ren.window);
 
+    // WOODEN BOX
     // const char *obj_filename = "../../res/Wooden Box/wooden crate.obj";
-    //  const char *obj_filename = "../../res/Wooden Box/wooden crate triangulated.obj";
+    // const char *tex_filename = "../../res/Wooden Box/crate_BaseColor.png";
+    const char *nrm_filename = "../../res/Wooden Box/crate_Normal.png";
 
     // CRATE
     // const char *obj_filename = "../../res/Crate/cube_triang.obj";
@@ -31,6 +33,7 @@ int main(int argc, char *argv[])
 
     // Load texture data
     int tex_w, tex_h, tex_bpp;
+    // unsigned char *texture_data = stbi_load(tex_filename, &tex_w, &tex_h, &tex_bpp, STBI_rgb);
     unsigned char *texture_data = stbi_load(tex_filename, &tex_w, &tex_h, &tex_bpp, STBI_rgb_alpha);
     if (!texture_data)
     {
@@ -44,13 +47,13 @@ int main(int argc, char *argv[])
     fprintf(stderr, "Texture bbp    : %d\n", tex_bpp);
 
     // Load Normal map
-    // int nrm_w, nrm_h, nrm_bpp;
-    // unsigned char *normal_data = stbi_load("../../res/crate_1.png", &tex_w, &tex_h, &bpp, STBI_rgb_alpha);
-    // if (!texture_data)
-    //{
-    //    fprintf(stderr, "Loading image : %s\n", stbi_failure_reason());
-    //    return 0;
-    //}
+    int nrm_w, nrm_h, nrm_bpp;
+    unsigned char *normal_data = stbi_load(nrm_filename, &nrm_w, &nrm_h, &nrm_bpp, STBI_rgb_alpha);
+    if (!texture_data)
+    {
+        fprintf(stderr, "Loading image : %s\n", stbi_failure_reason());
+        return 0;
+    }
 
     Rendering_data ren_data;
 
@@ -66,10 +69,19 @@ int main(int argc, char *argv[])
     ren_data.tex_data = texture_data;
     ren_data.tex_w = tex_w;
     ren_data.tex_h = tex_h;
-    ren_data.bpp = tex_bpp;
+    ren_data.tex_bpp = tex_bpp;
+
+    ren_data.nrm_data = normal_data;
+    ren_data.nrm_w = nrm_w;
+    ren_data.nrm_h = nrm_h;
+    ren_data.nrm_bpp = nrm_bpp;
+
+    // Normal Map
 
     // Allocate z buffer
-    ren_data.z_buffer_array = (float *)malloc(sizeof(float) * (ren_data.screen_num_pixels));
+    __declspec(align(16)) float *z_buff = (float *)malloc(sizeof(float) * (ren_data.screen_num_pixels));
+    ren_data.z_buffer_array = z_buff;
+    // ren_data.z_buffer_array = (float *)_aligned_malloc(sizeof(float), (ren_data.screen_num_pixels));
 
     // Lights (W, Z, Y, Z)
     ren_data.light_position = _mm_set_ps(0.0f, -1.0f, 0.5f, 1.0f);
@@ -104,15 +116,19 @@ int main(int argc, char *argv[])
     unsigned int loop_counter = 0;
     while (ren.running)
     {
-        // TODO : Better frame and z buffer clearing
-        // SDL_Surface *screen = SDL_GetWindowSurface(window);
-        // SDL_FillRect(screen, 0, 0);
-        // SDL_UpdateWindowSurface(window);
-        for (size_t i = 0; i < ren_data.screen_num_pixels; i++)
+        // for (size_t i = 0; i < ren_data.screen_num_pixels; i++)
+        //{
+        //    ren_data.z_buffer_array[i] = 0.0f;
+        //}
+
+        for (float *i = ren_data.z_buffer_array, *end = &ren_data.z_buffer_array[ren_data.screen_num_pixels];
+             i < end; i += 4)
         {
-            // ren_data.z_buffer_array[i] = 0.0f; // clear z buffer
-            ren_data.pixels[i] = 0x0000; // clear screen pixels
+            _mm_store_ps(i, _mm_set1_ps(0.0f));
         }
+
+        // memset(ren_data.z_buffer_array, 0, ren_data.screen_num_pixels);
+        memset(ren_data.pixels, 0, ren_data.screen_num_pixels * 4);
 
         SDL_Event event;
         while (SDL_PollEvent(&event))
@@ -136,9 +152,6 @@ int main(int argc, char *argv[])
 
         for (size_t i = 0; i < mesh->num_of_triangles; i += 1) // can we jump through triangles?
         {
-            //__m128 tri1 = _mm_set_ps(mesh.vertex_coordinates[3 * i + 0], mesh.vertex_coordinates[3 * i + 0], mesh.vertex_coordinates[3 * i + 0], mesh.vertex_coordinates[3 * i + 0]);
-            //__m128 tri2 = _mm_set_ps(mesh.vertex_coordinates[3 * i + 1], mesh.vertex_coordinates[3 * i + 1], mesh.vertex_coordinates[3 * i + 1], mesh.vertex_coordinates[3 * i + 1]);
-            //__m128 tri3 = _mm_set_ps(mesh.vertex_coordinates[3 * i + 2], mesh.vertex_coordinates[3 * i + 2], mesh.vertex_coordinates[3 * i + 2], mesh.vertex_coordinates[3 * i + 2]);
             __m128 tri1 = _mm_load_ps(&mesh->vertex_coordinates[i * 12 + 0]); // 12 because we load 3 triangles at at a time looping
             __m128 tri2 = _mm_load_ps(&mesh->vertex_coordinates[i * 12 + 4]); // through triangles. 3 traingles each spaced 4 coordinates apart
             __m128 tri3 = _mm_load_ps(&mesh->vertex_coordinates[i * 12 + 8]); // 4 * 3 = 12; [x y z w][x y z w][x y z w]...
@@ -203,8 +216,8 @@ int main(int argc, char *argv[])
                 tri3 = _mm_mul_ps(tri3, _mm_set_ps(1.0f, 1.0f, y_adjustment, x_adjustment));
 
                 // Draw (CCW) Triangle Order
-                // Draw_Textured_Triangle(&ren_data, tri3, tri2, tri1, texture_u, texture_v, one_over_w1, one_over_w2, one_over_w3);
-                Draw_Triangle_Outline(ren_data.fmt, ren_data.pixels, tri1, tri2, tri3, &LINE_COLOUR);
+                Draw_Textured_Triangle(&ren_data, tri3, tri2, tri1, texture_u, texture_v, one_over_w1, one_over_w2, one_over_w3);
+                // Draw_Triangle_Outline(ren_data.fmt, ren_data.pixels, tri1, tri2, tri3, &LINE_COLOUR);
             }
         }
         // Update Screen
@@ -216,7 +229,7 @@ int main(int argc, char *argv[])
 
         MSPerFrame = ((double)CounterElapsed / (double)SDL_GetPerformanceFrequency());
 
-        if (loop_counter == 50)
+        if (loop_counter == 32)
         {
             loop_counter = 0;
             const double FPS = (double)SDL_GetPerformanceFrequency() / (double)CounterElapsed;
@@ -232,8 +245,8 @@ int main(int argc, char *argv[])
     }
 
     Free_Mesh(&mesh);
-    free(ren_data.pixels);
-    free(ren_data.z_buffer_array);
+    // free(ren_data.pixels);
+    // free(ren_data.z_buffer_array);
     SDL_CleanUp(&ren);
     return 0;
 }
