@@ -5,20 +5,14 @@
 
 int main()
 {
-    // const char *filename = "../../res/Wooden Box/wooden crate.obj";
-    // const char *filename = "../../res/Wooden Box/wooden crate.obj";
-    const char *filename = "../../res/Crate/Crate1.obj";
+    //const char *filename = "../../res/Wooden Box/wooden crate.obj";
+     const char *filename = "../../res/Crate/Crate1.obj";
 
     Mesh_Data *mesh;
     Get_Object_Data(filename, true, &mesh);
 
     fprintf(stderr, "vertex_count = %d\n", mesh->num_of_triangles);
 
-    // for (unsigned int i = 0; i < 24; i++)
-    //{
-    //     /* code */
-    //     fprintf(stderr, "[%d] %f\n", i, mesh.vertex_coordinates[i]);
-    // }
     fprintf(stderr, "\n");
     fprintf(stderr, "UV COORDINATES\n");
     for (unsigned int i = 0; i < mesh->num_of_triangles; i++)

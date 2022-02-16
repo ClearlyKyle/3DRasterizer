@@ -151,17 +151,22 @@ static void Get_Mesh_Data(const tinyobj_attrib_t *attrib, Mesh_Data **return_mes
         fprintf(stderr, "Using 4 face values setup...\n");
         const unsigned int number_of_f_values = attrib->num_faces / 4;
         const unsigned int number_of_triangles = number_of_f_values * 2;
+
+        fprintf(stderr, "number_of_f_values  : %d\n", number_of_f_values);
+        fprintf(stderr, "number_of_triangles : %d\n", number_of_triangles);
         // const unsigned int number_of_triangles = attrib->num_face_num_verts * 2;
 
         (*return_mesh)->num_of_triangles = number_of_triangles;
         (*return_mesh)->num_of_verticies = number_of_triangles * 3;
 
+        // vert_coords = (float *)_aligned_malloc(sizeof(float), ((number_of_triangles * 3) * 4) + 1);
         vert_coords = (float *)malloc(sizeof(float) * (number_of_triangles * 3) * 4);
         if (!vert_coords)
         {
             fprintf(stderr, "Error alocating memeory for 'vert_coords'\n");
             exit(1);
         }
+        // uv_coords = (float *)_aligned_malloc(sizeof(float), ((number_of_triangles * 3) * 2) + 1);
         uv_coords = (float *)malloc(sizeof(float) * (number_of_triangles * 3) * 2);
         if (!uv_coords)
         {
@@ -172,7 +177,6 @@ static void Get_Mesh_Data(const tinyobj_attrib_t *attrib, Mesh_Data **return_mes
         // 4 face values
         for (unsigned int i = 0; i < number_of_f_values; i++)
         {
-            tinyobj_vertex_index_t tmp = attrib->faces[i * 4];
             const unsigned int f_vert_index1 = attrib->faces[4 * i + 0].v_idx;
             const unsigned int f_vert_index2 = attrib->faces[4 * i + 1].v_idx;
             const unsigned int f_vert_index3 = attrib->faces[4 * i + 2].v_idx;
