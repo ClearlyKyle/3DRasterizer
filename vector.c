@@ -316,5 +316,32 @@ float Calculate_Dot_Product_SIMD(const __m128 v1, const __m128 v2)
 {
     // return hsum_ps_sse3(_mm_mul_ps(v1, v2));
     return hsum_ps_sse3(_mm_dp_ps(v1, v2, 0xf1));
-    // return _mm_cvtss_f32(_mm_dp_ps(v1, v3, 0xf1));
+    // return _mm_cvtss_f32(_mm_dp_ps(v1, v2, 0xf1));
 }
+
+__m128 Normalize_m128(__m128 input)
+{
+    input.m128_f32[3] = 0.0f;
+    const __m128 squared = _mm_mul_ps(input, input); // square the input values
+    const float sum = hsum_ps_sse3(squared);
+    const __m128 inv_sqrt = _mm_rsqrt_ss(_mm_set1_ps(sum));
+    return _mm_mul_ps(inv_sqrt, input); // normalize the input vector
+}
+
+__m128 Clamp_m128(const __m128 vec, float minval, float maxval)
+{
+    // Branchless SSE clamp.
+    // return minss( maxss(val,minval), maxval );
+    return _mm_min_ps(_mm_max_ps(vec, _mm_set1_ps(minval)), _mm_set1_ps(maxval));
+}
+
+// https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/reflect.xhtml
+// I - 2.0 * dot(N, I) * N
+__m128 Reflect_m128(__m128 I, __m128 N)
+{
+    const __m128 left = _mm_sub_ps(I, _mm_set1_ps(2.0f));
+    const __m128 righ = _mm_mul_ps(_mm_set1_ps(Calculate_Dot_Product_SIMD(N, I)), N);
+    return _mm_mul_ps(left, righ);
+}
+
+// 0x00000064a54ff7a0 { -1.00000000, 1.00000000, 4.00000000, 1.00000000 }
