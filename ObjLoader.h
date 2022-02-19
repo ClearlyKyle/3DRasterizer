@@ -28,6 +28,14 @@ typedef struct Mesh_Data_s
 
     float *vertex_coordinates;
     float *uv_coordinates;
+
+    // Materials
+    float ambient[4]; // 4 for easier SIMD loading
+    float diffuse[4];
+    float specular[4];
+    float shininess;
+
+    // tex_name
 } Mesh_Data;
 
 static void loadFile(void *ctx, const char *filename, const int is_mtl, const char *obj_filename, char **buffer, size_t *len)
@@ -269,6 +277,11 @@ void Get_Object_Data(const char *filename, bool print_info, Mesh_Data **output)
     (*output) = (Mesh_Data *)malloc(sizeof(Mesh_Data) * 1);
     Get_Mesh_Data(&attrib, output);
 
+    memcpy((*output)->ambient, (float[4]){material->ambient[0], material->ambient[1], material->ambient[2], 0.0f}, sizeof((*output)->ambient));
+    memcpy((*output)->diffuse, (float[4]){material->diffuse[0], material->diffuse[1], material->diffuse[2]}, sizeof((*output)->diffuse));
+    memcpy((*output)->specular, (float[4]){material->specular[0], material->specular[1], material->specular[2], 0.0f}, sizeof((*output)->specular));
+    (*output)->shininess = material->shininess;
+
     if (print_info)
     {
         Print_Attribute_Info(&attrib);
@@ -276,7 +289,12 @@ void Get_Object_Data(const char *filename, bool print_info, Mesh_Data **output)
 
         fprintf(stderr, "Number of Triangles = %d\n", (*output)->num_of_triangles);
         fprintf(stderr, "Number of Verticies = %d\n", (*output)->num_of_verticies);
+        fprintf(stderr, "ambient  \t: {%f, %f, %f}\n", (*output)->ambient[0], (*output)->ambient[1], (*output)->ambient[2]);
+        fprintf(stderr, "diffuse  \t: {%f, %f, %f}\n", (*output)->diffuse[0], (*output)->diffuse[1], (*output)->diffuse[2]);
+        fprintf(stderr, "specular \t: {%f, %f, %f}\n", (*output)->specular[0], (*output)->specular[1], (*output)->specular[2]);
+        fprintf(stderr, "shininess   \t\t: %f\n", material->shininess);
     }
+
     fprintf(stderr, "Mesh complete!\n");
 }
 
