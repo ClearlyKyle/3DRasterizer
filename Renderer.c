@@ -193,7 +193,8 @@ static __m128i Get_AABB_SIMD(const __m128 v1, const __m128 v2, const __m128 v3, 
 // https://fgiesen.wordpress.com/2013/02/10/optimizing-the-basic-rasterizer/
 void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const __m128 v1, const __m128 v2,
                             const __m128 texture_u, const __m128 texture_v,
-                            const __m128 one_over_w1, const __m128 one_over_w2, const __m128 one_over_w3)
+                            const __m128 one_over_w1, const __m128 one_over_w2, const __m128 one_over_w3,
+                            const __m128 frag_colour)
 {
     // used when checking if w0,w1,w2 is greater than 0;
     const __m128i fxptZero = _mm_setzero_si128();
@@ -314,6 +315,12 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
             //_MM_TRANSPOSE4_PS(w0_area, w1_area, w2_area, _mm_set1_ps(0.0f));
             // __m128 u =
 
+            const __m128 depth_w = _mm_mul_ps(depth, _mm_set1_ps((float)render->tex_w));
+            const __m128 depth_h = _mm_mul_ps(depth, _mm_set1_ps((float)render->tex_h));
+
+            float light_thing[4];
+            _mm_store_ps(light_thing, frag_colour);
+
             if (finalMask.m128i_i32[3])
             // if (mask.m128i_i32[3] && finalMask.m128i_i32[3])
             {
@@ -322,8 +329,8 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 // u = _mm_mul_ps(u, _mm_set1_ps(depth.m128_f32[3]));
                 // u = _mm_mul_ps(u, _mm_set1_ps((float)render->tex_w));
 
-                const __m128 u = _mm_mul_ps(_mm_mul_ps(_mm_mul_ps(texture_u, weights), _mm_set1_ps(depth.m128_f32[3])), _mm_set1_ps((float)render->tex_w));
-                const __m128 v = _mm_mul_ps(_mm_mul_ps(_mm_mul_ps(texture_v, weights), _mm_set1_ps(depth.m128_f32[3])), _mm_set1_ps((float)render->tex_w));
+                const __m128 u = _mm_mul_ps(_mm_mul_ps(texture_u, weights), _mm_shuffle_ps(depth_w, depth_w, _MM_SHUFFLE(3, 3, 3, 3)));
+                const __m128 v = _mm_mul_ps(_mm_mul_ps(texture_v, weights), _mm_shuffle_ps(depth_h, depth_h, _MM_SHUFFLE(3, 3, 3, 3)));
 
                 //__m128 v = _mm_mul_ps(texture_v, weights);
                 // v = _mm_mul_ps(v, _mm_set1_ps(depth.m128_f32[3]));
@@ -334,14 +341,15 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
 
                 const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
 
-                const uint8_t red = (uint8_t)(pixelOffset[0]);
-                const uint8_t gre = (uint8_t)(pixelOffset[1]);
-                const uint8_t blu = (uint8_t)(pixelOffset[2]);
+                const uint8_t red = (uint8_t)(pixelOffset[0] * light_thing[0]);
+                const uint8_t gre = (uint8_t)(pixelOffset[1] * light_thing[1]);
+                const uint8_t blu = (uint8_t)(pixelOffset[2] * light_thing[2]);
                 const uint8_t alp = (uint8_t)(render->tex_bpp == 4 ? pixelOffset[3] : 255);
                 // const uint8_t alp = (uint8_t)(pixelOffset[3]);
 
                 Draw_Pixel_RGBA(render, x + 0, y, red, gre, blu, alp);
-                // Draw_Pixel_Pixel_Data_Light_Value(render->fmt, render->screen_width, render->pixels, x + 0, y, pixelOffset, render->light_value);
+                // Shade();
+                //  Draw_Pixel_Pixel_Data_Light_Value(render->fmt, render->screen_width, render->pixels, x + 0, y, pixelOffset, render->light_value);
             }
 
             if (finalMask.m128i_i32[2])
@@ -356,17 +364,19 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 // v = _mm_mul_ps(v, _mm_set1_ps(depth.m128_f32[2]));
                 // v = _mm_mul_ps(v, _mm_set1_ps((float)render->tex_h));
 
-                const __m128 u = _mm_mul_ps(_mm_mul_ps(_mm_mul_ps(texture_u, weights), _mm_set1_ps(depth.m128_f32[2])), _mm_set1_ps((float)render->tex_w));
-                const __m128 v = _mm_mul_ps(_mm_mul_ps(_mm_mul_ps(texture_v, weights), _mm_set1_ps(depth.m128_f32[2])), _mm_set1_ps((float)render->tex_w));
+                // const __m128 u = _mm_mul_ps(_mm_mul_ps(_mm_mul_ps(texture_u, weights), _mm_set1_ps(depth.m128_f32[2])), _mm_set1_ps((float)render->tex_w));
+                // const __m128 v = _mm_mul_ps(_mm_mul_ps(_mm_mul_ps(texture_v, weights), _mm_set1_ps(depth.m128_f32[2])), _mm_set1_ps((float)render->tex_w));
+                const __m128 u = _mm_mul_ps(_mm_mul_ps(texture_u, weights), _mm_shuffle_ps(depth_w, depth_w, _MM_SHUFFLE(2, 2, 2, 2)));
+                const __m128 v = _mm_mul_ps(_mm_mul_ps(texture_v, weights), _mm_shuffle_ps(depth_h, depth_h, _MM_SHUFFLE(2, 2, 2, 2)));
 
                 const int res_u = (int)hsum_ps_sse3(u);
                 const int res_v = (int)hsum_ps_sse3(v);
 
                 const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
 
-                const uint8_t red = (uint8_t)(pixelOffset[0]);
-                const uint8_t gre = (uint8_t)(pixelOffset[1]);
-                const uint8_t blu = (uint8_t)(pixelOffset[2]);
+                const uint8_t red = (uint8_t)(pixelOffset[0] * light_thing[0]);
+                const uint8_t gre = (uint8_t)(pixelOffset[1] * light_thing[1]);
+                const uint8_t blu = (uint8_t)(pixelOffset[2] * light_thing[2]);
                 const uint8_t alp = (uint8_t)(render->tex_bpp == 4 ? pixelOffset[3] : 255);
                 // const uint8_t alp = (uint8_t)(pixelOffset[3]);
 
@@ -386,17 +396,19 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 // v = _mm_mul_ps(v, _mm_set1_ps(depth.m128_f32[1]));
                 // v = _mm_mul_ps(v, _mm_set1_ps((float)render->tex_h));
 
-                const __m128 u = _mm_mul_ps(_mm_mul_ps(_mm_mul_ps(texture_u, weights), _mm_set1_ps(depth.m128_f32[1])), _mm_set1_ps((float)render->tex_w));
-                const __m128 v = _mm_mul_ps(_mm_mul_ps(_mm_mul_ps(texture_v, weights), _mm_set1_ps(depth.m128_f32[1])), _mm_set1_ps((float)render->tex_w));
+                // const __m128 u = _mm_mul_ps(_mm_mul_ps(_mm_mul_ps(texture_u, weights), _mm_set1_ps(depth.m128_f32[1])), _mm_set1_ps((float)render->tex_w));
+                // const __m128 v = _mm_mul_ps(_mm_mul_ps(_mm_mul_ps(texture_v, weights), _mm_set1_ps(depth.m128_f32[1])), _mm_set1_ps((float)render->tex_w));
+                const __m128 u = _mm_mul_ps(_mm_mul_ps(texture_u, weights), _mm_shuffle_ps(depth_w, depth_w, _MM_SHUFFLE(1, 1, 1, 1)));
+                const __m128 v = _mm_mul_ps(_mm_mul_ps(texture_v, weights), _mm_shuffle_ps(depth_h, depth_h, _MM_SHUFFLE(1, 1, 1, 1)));
 
                 const int res_u = (int)hsum_ps_sse3(u);
                 const int res_v = (int)hsum_ps_sse3(v);
 
                 const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
 
-                const uint8_t red = (uint8_t)(pixelOffset[0]);
-                const uint8_t gre = (uint8_t)(pixelOffset[1]);
-                const uint8_t blu = (uint8_t)(pixelOffset[2]);
+                const uint8_t red = (uint8_t)(pixelOffset[0] * light_thing[0]);
+                const uint8_t gre = (uint8_t)(pixelOffset[1] * light_thing[1]);
+                const uint8_t blu = (uint8_t)(pixelOffset[2] * light_thing[2]);
                 const uint8_t alp = (uint8_t)(render->tex_bpp == 4 ? pixelOffset[3] : 255);
                 // const uint8_t alp = (uint8_t)(pixelOffset[3]);
 
@@ -416,17 +428,19 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 // v = _mm_mul_ps(v, _mm_set1_ps(depth.m128_f32[0]));
                 // v = _mm_mul_ps(v, _mm_set1_ps((float)render->tex_h));
 
-                const __m128 u = _mm_mul_ps(_mm_mul_ps(_mm_mul_ps(texture_u, weights), _mm_set1_ps(depth.m128_f32[0])), _mm_set1_ps((float)render->tex_w));
-                const __m128 v = _mm_mul_ps(_mm_mul_ps(_mm_mul_ps(texture_v, weights), _mm_set1_ps(depth.m128_f32[0])), _mm_set1_ps((float)render->tex_w));
+                // const __m128 u = _mm_mul_ps(_mm_mul_ps(_mm_mul_ps(texture_u, weights), _mm_set1_ps(depth.m128_f32[0])), _mm_set1_ps((float)render->tex_w));
+                //  const __m128 v = _mm_mul_ps(_mm_mul_ps(_mm_mul_ps(texture_v, weights), _mm_set1_ps(depth.m128_f32[0])), _mm_set1_ps((float)render->tex_w));
+                const __m128 u = _mm_mul_ps(_mm_mul_ps(texture_u, weights), _mm_shuffle_ps(depth_w, depth_w, _MM_SHUFFLE(0, 0, 0, 0)));
+                const __m128 v = _mm_mul_ps(_mm_mul_ps(texture_v, weights), _mm_shuffle_ps(depth_h, depth_h, _MM_SHUFFLE(0, 0, 0, 0)));
 
                 const int res_u = (int)hsum_ps_sse3(u);
                 const int res_v = (int)hsum_ps_sse3(v);
 
                 const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
 
-                const uint8_t red = (uint8_t)(pixelOffset[0]);
-                const uint8_t gre = (uint8_t)(pixelOffset[1]);
-                const uint8_t blu = (uint8_t)(pixelOffset[2]);
+                const uint8_t red = (uint8_t)(pixelOffset[0] * light_thing[0]);
+                const uint8_t gre = (uint8_t)(pixelOffset[1] * light_thing[1]);
+                const uint8_t blu = (uint8_t)(pixelOffset[2] * light_thing[2]);
                 const uint8_t alp = (uint8_t)(render->tex_bpp == 4 ? pixelOffset[3] : 255);
                 // const uint8_t alp = (uint8_t)(pixelOffset[3]);
 
