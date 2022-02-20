@@ -7,6 +7,7 @@
 
 #include "SDL2/SDL.h"
 
+#include "lights.h"
 #include "vector.h"
 #include "Renderer.h"
 #include "test_sqaure.h"
@@ -28,8 +29,11 @@ int main(int argc, char *argv[])
 
     // CRATE
     // const char *obj_filename = "../../res/Crate/cube_triang.obj";
-    const char *obj_filename = "../../res/Crate/Crate1.obj";
+    // const char *obj_filename = "../../res/Crate/Crate1.obj";
     const char *tex_filename = "../../res/Crate/crate_1.png";
+
+    // SPHERE
+    const char *obj_filename = "../../res/Sphere/sphere.obj";
 
     // Load texture data
     int tex_w, tex_h, tex_bpp;
@@ -83,8 +87,8 @@ int main(int argc, char *argv[])
     ren_data.z_buffer_array = z_buff;
     // ren_data.z_buffer_array = (float *)_aligned_malloc(sizeof(float), (ren_data.screen_num_pixels));
 
-    // Lights (W, Z, Y, Z)
-    ren_data.light_position = _mm_set_ps(0.0f, -1.0f, 0.5f, 1.0f);
+    // Lights (W, Z, Y, X)
+    ren_data.light_position = _mm_set_ps(0.0f, -1.0f, 0.0f, 1.0f);
     ren_data.light_value = 0.0f;
 
     // Load Mesh
@@ -99,6 +103,15 @@ int main(int argc, char *argv[])
 
     // Camera
     const __m128 camera = _mm_set_ps(1.0f, 0.0f, 0.0f, 0.0f);
+
+    // Lights -------------------------
+    Fragment frag;
+    frag.color = _mm_set1_ps(1.0f);
+    frag.diffuse = _mm_load_ps(mesh->diffuse);
+    // frag.ambient = _mm_load_ps(mesh->ambient);
+    frag.ambient = _mm_set1_ps(0.5f);
+    frag.specular = _mm_load_ps(mesh->specular);
+    // const __m128 light_position = _mm_set_ps(0.0f, 1.0f, 1.0f, 1.0f);
 
     // Line colour for wire model drawing
     const SDL_Colour LINE_COLOUR = {255, 255, 255, 255};
@@ -176,6 +189,25 @@ int main(int argc, char *argv[])
                 // Illumination
                 // vec3 light_direction = {0.0f, 1.0f, -1.0f};
 
+                // AMBIENT
+                const __m128 ambient = _mm_mul_ps(frag.color, frag.ambient);
+
+                // DIFFUSE
+                const __m128 norm = Normalize_m128(surface_normal);
+                // const __m128 lightDir = _mm_sub_ps(ren_data.light_position, tri1);
+                const float diff = (float)fmax((double)Calculate_Dot_Product_SIMD(ren_data.light_position, norm), 0.0);
+                const __m128 diffuse = _mm_mul_ps(frag.diffuse, _mm_set1_ps(diff));
+
+                // SPECULAR
+                // vec3 viewDir = normalize(viewPos - FragPos);
+                const __m128 reflectDir = Reflect_m128(_mm_mul_ps(ren_data.light_position, _mm_set1_ps(-1.0f)), norm); // I - 2.0 * dot(N, I) * N
+
+                const float spec = (float)pow(fmax(Calculate_Dot_Product_SIMD(camera, reflectDir), 0.0), 32);
+                const __m128 specular = _mm_mul_ps(_mm_mul_ps(frag.color, _mm_set1_ps(spec)), frag.specular);
+
+                const __m128 frag_colour = Clamp_m128(_mm_add_ps(ambient, diffuse), 0.0f, 1.0f);
+                // const __m128 frag_colour = Clamp_m128(_mm_add_ps(_mm_add_ps(frag.ambient, diffuse), specular), 0.0f, 1.0f);
+
                 // How similar is normal to light direction
                 const float light_value = max(0.2f, Calculate_Dot_Product_SIMD(ren_data.light_position, surface_normal));
                 ren_data.light_value = light_value;
@@ -215,9 +247,26 @@ int main(int argc, char *argv[])
                 tri2 = _mm_mul_ps(tri2, _mm_set_ps(1.0f, 1.0f, y_adjustment, x_adjustment));
                 tri3 = _mm_mul_ps(tri3, _mm_set_ps(1.0f, 1.0f, y_adjustment, x_adjustment));
 
+                //__m128 edge1 = _mm_add_ps(tri2, tri1);
+                //__m128 edge2 = _mm_add_ps(tri3, tri1);
+                //__m128 deltaUV1 = uv2 - uv1;
+                //__m128 deltaUV2 = uv3 - uv1;
+
+                // float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+
+                // tangent1.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
+                // tangent1.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
+                // tangent1.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
+
+                // bitangent1.x = f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x);
+                // bitangent1.y = f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y);
+                // bitangent1.z = f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);
+
+                // similar procedure for calculating tangent/bitangent for plane's second triangle
+
                 // Draw (CCW) Triangle Order
-                Draw_Textured_Triangle(&ren_data, tri3, tri2, tri1, texture_u, texture_v, one_over_w1, one_over_w2, one_over_w3);
-                // Draw_Triangle_Outline(ren_data.fmt, ren_data.pixels, tri1, tri2, tri3, &LINE_COLOUR);
+                // Draw_Textured_Triangle(&ren_data, tri3, tri2, tri1, texture_u, texture_v, one_over_w1, one_over_w2, one_over_w3, frag_colour);
+                Draw_Triangle_Outline(ren_data.fmt, ren_data.pixels, tri1, tri2, tri3, &LINE_COLOUR);
             }
         }
         // Update Screen
