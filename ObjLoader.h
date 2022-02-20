@@ -73,13 +73,12 @@ static void loadFile(void *ctx, const char *filename, const int is_mtl, const ch
 
 void Print_Attribute_Info(tinyobj_attrib_t *attrib)
 {
-    fprintf(stderr, "tinyobj_attrib_t ____________\n");
+    fprintf(stderr, "\ntinyobj_attrib_t ____________\n");
     fprintf(stderr, "num_vertices   \t\t: %d\n", attrib->num_vertices);
     fprintf(stderr, "num_normals    \t\t: %d\n", attrib->num_normals);
     fprintf(stderr, "num_texcoords  \t\t: %d\n", attrib->num_texcoords);
     fprintf(stderr, "num_faces      \t\t: %d\n", attrib->num_faces);
     fprintf(stderr, "num_face_num_verts\t: %d (number of 'f' rows)\n", attrib->num_face_num_verts);
-    fprintf(stderr, "\n");
 }
 
 void Print_Material_Info(tinyobj_material_t *material)
@@ -105,7 +104,6 @@ void Print_Material_Info(tinyobj_material_t *material)
     printf("map_bump \t\t: %s\n", material->bump_texname);
     printf("disp     \t\t: %s\n", material->displacement_texname);
     printf("map_d    \t\t: %s\n", material->alpha_texname);
-    printf("\n");
 }
 
 static void Get_Mesh_Data(const tinyobj_attrib_t *attrib, Mesh_Data **return_mesh)
@@ -123,35 +121,63 @@ static void Get_Mesh_Data(const tinyobj_attrib_t *attrib, Mesh_Data **return_mes
     {
         // 3 face values
         fprintf(stderr, "Using 3 face values setup...\n");
-        const unsigned int number_of_triangles = attrib->num_face_num_verts;
+        const unsigned int number_of_f_values = attrib->num_faces / 3;
+        const unsigned int number_of_triangles = number_of_f_values;
+
+        fprintf(stderr, "number_of_f_values  : %d\n", number_of_f_values);
+        fprintf(stderr, "number_of_triangles : %d\n", number_of_triangles);
 
         (*return_mesh)->num_of_triangles = number_of_triangles;
         (*return_mesh)->num_of_verticies = number_of_triangles * 3;
 
-        vert_coords = (float *)malloc(sizeof(float) * number_of_triangles * 4);
+        vert_coords = (float *)malloc(sizeof(float) * (number_of_triangles * 3) * 4); // 3 verts per triangle, each with 4 coordinates
         if (!vert_coords)
         {
             fprintf(stderr, "Error alocating memeory for 'vert_coords'\n");
             exit(1);
         }
-        uv_coords = (float *)malloc(sizeof(float) * number_of_triangles * 2);
+        uv_coords = (float *)malloc(sizeof(float) * (number_of_triangles * 3) * 2);
         if (!uv_coords)
         {
             fprintf(stderr, "Error alocating memeory for 'vert_coords'\n");
             exit(1);
         }
 
-        for (size_t i = 0; i < attrib->num_face_num_verts; i++)
+        for (size_t i = 0; i < number_of_f_values; i++)
         {
+            const unsigned int f_vert_index1 = attrib->faces[3 * i + 0].v_idx;
+            const unsigned int f_vert_index2 = attrib->faces[3 * i + 1].v_idx;
+            const unsigned int f_vert_index3 = attrib->faces[3 * i + 2].v_idx;
+
             // verts
-            vert_coords[i * 4 + 0] = attrib->vertices[(int)attrib->faces[i].v_idx * 3 + 0]; // X
-            vert_coords[i * 4 + 1] = attrib->vertices[(int)attrib->faces[i].v_idx * 3 + 1]; // Y
-            vert_coords[i * 4 + 2] = attrib->vertices[(int)attrib->faces[i].v_idx * 3 + 2]; // Z
-            vert_coords[i * 4 + 3] = 1.0f;                                                  // W
+            vert_coords[(i * 12) + 0] = attrib->vertices[f_vert_index1 * 3 + 0]; // X
+            vert_coords[(i * 12) + 1] = attrib->vertices[f_vert_index1 * 3 + 1]; // Y
+            vert_coords[(i * 12) + 2] = attrib->vertices[f_vert_index1 * 3 + 2]; // Z
+            vert_coords[(i * 12) + 3] = 1.0f;                                    // W
+
+            vert_coords[(i * 12) + 4] = attrib->vertices[f_vert_index2 * 3 + 0]; // X
+            vert_coords[(i * 12) + 5] = attrib->vertices[f_vert_index2 * 3 + 1]; // Y
+            vert_coords[(i * 12) + 6] = attrib->vertices[f_vert_index2 * 3 + 2]; // Z
+            vert_coords[(i * 12) + 7] = 1.0f;                                    // W
+
+            vert_coords[(i * 12) + 8] = attrib->vertices[f_vert_index3 * 3 + 0];  // X
+            vert_coords[(i * 12) + 9] = attrib->vertices[f_vert_index3 * 3 + 1];  // Y
+            vert_coords[(i * 12) + 10] = attrib->vertices[f_vert_index3 * 3 + 2]; // Z
+            vert_coords[(i * 12) + 11] = 1.0f;                                    // W
 
             // tex
-            uv_coords[i * 2 + 0] = attrib->texcoords[(int)attrib->faces[i].vt_idx * 2 + 0]; // u
-            uv_coords[i * 2 + 1] = attrib->texcoords[(int)attrib->faces[i].vt_idx * 2 + 1]; // v
+            const unsigned int f_tex_index1 = attrib->faces[3 * i + 0].vt_idx;
+            const unsigned int f_tex_index2 = attrib->faces[3 * i + 1].vt_idx;
+            const unsigned int f_tex_index3 = attrib->faces[3 * i + 2].vt_idx;
+
+            uv_coords[i * 6 + 0] = attrib->texcoords[f_tex_index1 * 2 + 0]; // u
+            uv_coords[i * 6 + 1] = attrib->texcoords[f_tex_index1 * 2 + 1]; // v
+
+            uv_coords[i * 6 + 2] = attrib->texcoords[f_tex_index2 * 2 + 0]; // u
+            uv_coords[i * 6 + 3] = attrib->texcoords[f_tex_index2 * 2 + 1]; // v
+
+            uv_coords[i * 6 + 4] = attrib->texcoords[f_tex_index3 * 2 + 0]; // u
+            uv_coords[i * 6 + 5] = attrib->texcoords[f_tex_index3 * 2 + 1]; // v
         }
     }
     else if (triangulated == 4)
@@ -274,6 +300,16 @@ void Get_Object_Data(const char *filename, bool print_info, Mesh_Data **output)
         exit(1);
     }
 
+    // Display first face 'f' values
+    for (size_t i = 0; i < 4; i++)
+    {
+        const unsigned int f_vert_index1 = attrib.faces[3 * i + 0].v_idx;
+        const unsigned int f_vert_index2 = attrib.faces[3 * i + 1].v_idx;
+        const unsigned int f_vert_index3 = attrib.faces[3 * i + 2].v_idx;
+        // const unsigned int f_vert_index4 = attrib.faces[4 * i + 3].v_idx;
+        fprintf(stderr, "[%zd] %d, %d, %d\n", i, f_vert_index1, f_vert_index2, f_vert_index3);
+    }
+
     (*output) = (Mesh_Data *)malloc(sizeof(Mesh_Data) * 1);
     Get_Mesh_Data(&attrib, output);
 
@@ -285,7 +321,7 @@ void Get_Object_Data(const char *filename, bool print_info, Mesh_Data **output)
     if (print_info)
     {
         Print_Attribute_Info(&attrib);
-        // Print_Material_Info(material);
+        Print_Material_Info(material);
 
         fprintf(stderr, "Number of Triangles = %d\n", (*output)->num_of_triangles);
         fprintf(stderr, "Number of Verticies = %d\n", (*output)->num_of_verticies);
