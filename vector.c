@@ -305,11 +305,13 @@ __m128 Calculate_Surface_Normal_SIMD(const __m128 v1, const __m128 v2, const __m
 {
     const __m128 cross_product_result = Vector_Cross_Product_SIMD(_mm_sub_ps(v1, v2), _mm_sub_ps(v1, v3));
 
-    const __m128 sqrt_result = _mm_sqrt_ps(_mm_mul_ps(cross_product_result, cross_product_result));
+    // const __m128 sqrt_result = _mm_sqrt_ps(_mm_mul_ps(cross_product_result, cross_product_result));
 
-    const float lower_value = hsum_ps_sse3(sqrt_result);
+    // const float lower_value = hsum_ps_sse3(sqrt_result);
 
-    return _mm_div_ps(cross_product_result, _mm_set1_ps(lower_value));
+    // return _mm_div_ps(cross_product_result, _mm_set1_ps(lower_value));
+
+    return Normalize_m128(cross_product_result);
 }
 
 float Calculate_Dot_Product_SIMD(const __m128 v1, const __m128 v2)
@@ -321,7 +323,7 @@ float Calculate_Dot_Product_SIMD(const __m128 v1, const __m128 v2)
 
 __m128 Normalize_m128(__m128 input)
 {
-    input.m128_f32[3] = 0.0f;
+    // input.m128_f32[3] = 0.0f;
     const __m128 squared = _mm_mul_ps(input, input); // square the input values
     const float sum = hsum_ps_sse3(squared);
     const __m128 inv_sqrt = _mm_rsqrt_ss(_mm_set1_ps(sum));
