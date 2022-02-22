@@ -166,7 +166,7 @@ void Draw_Triangle_Outline(const SDL_PixelFormat *fmt, unsigned int *pixels, con
 
     Draw_Line(fmt, pixels, (int)vert1[0], (int)vert1[1], (int)vert2[0], (int)vert2[1], col);
     Draw_Line(fmt, pixels, (int)vert2[0], (int)vert2[1], (int)vert3[0], (int)vert3[1], col);
-    Draw_Line(fmt, pixels, (int)vert1[0], (int)vert1[1], (int)vert3[0], (int)vert3[1], col);
+    Draw_Line(fmt, pixels, (int)vert3[0], (int)vert3[1], (int)vert1[0], (int)vert1[1], col);
 }
 
 union AABB_u
