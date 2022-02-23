@@ -319,11 +319,13 @@ float Calculate_Dot_Product_SIMD(const __m128 v1, const __m128 v2)
 
 __m128 Normalize_m128(__m128 input)
 {
-    // input.m128_f32[3] = 0.0f;
+    input.m128_f32[3] = 0.0f;
     const __m128 squared = _mm_mul_ps(input, input); // square the input values
-    const float sum = hsum_ps_sse3(squared);
-    const __m128 inv_sqrt = _mm_rsqrt_ss(_mm_set1_ps(sum));
-    return _mm_mul_ps(inv_sqrt, input); // normalize the input vector
+
+    const float sqr_sum = hsum_ps_sse3(squared);
+    const __m128 tmp_inv_sqrt = _mm_invsqrt_ps(_mm_set1_ps(sqr_sum));
+
+    return _mm_mul_ps(input, tmp_inv_sqrt);
 }
 
 __m128 Clamp_m128(const __m128 vec, float minval, float maxval)

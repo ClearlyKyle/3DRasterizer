@@ -60,7 +60,10 @@ int main(int argc, char const *argv[])
 
     tri1 = _mm_mul_ps(tri1, _mm_set_ps(1.0f, 1.0f, y_adjustment, x_adjustment));
     tri2 = _mm_mul_ps(tri2, _mm_set_ps(1.0f, 1.0f, y_adjustment, x_adjustment));
-    tri3 = _mm_mul_ps(tri3, _mm_set_ps(1.0f, 1.0f, y_adjustment, x_adjustment)); 
-    
+    tri3 = _mm_mul_ps(tri3, _mm_set_ps(1.0f, 1.0f, y_adjustment, x_adjustment));
+
+    // Expected result: { X = 0.4255664032264045, Y = 0.49649413709747187, Z = 0.756562494624719 }
+    const __m128 test_normalise = Normalize_m128(_mm_set_ps(0.0f, 64.0f, 42.0f, 36.0f));
+
     return 0;
 }

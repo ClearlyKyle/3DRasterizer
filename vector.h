@@ -5,6 +5,7 @@
 #include <xmmintrin.h>
 #include <pmmintrin.h>
 #include <smmintrin.h>
+#include <immintrin.h>
 
 typedef struct
 {
