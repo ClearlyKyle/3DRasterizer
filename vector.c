@@ -337,11 +337,9 @@ __m128 Clamp_m128(const __m128 vec, float minval, float maxval)
 
 // https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/reflect.xhtml
 // I - 2.0 * dot(N, I) * N
-__m128 Reflect_m128(__m128 I, __m128 N)
+__m128 Reflect_m128(const __m128 I, const __m128 N)
 {
-    const __m128 left = _mm_sub_ps(I, _mm_set1_ps(2.0f));
-    const __m128 righ = _mm_mul_ps(_mm_set1_ps(Calculate_Dot_Product_SIMD(N, I)), N);
-    return _mm_mul_ps(left, righ);
+    __m128 righ = _mm_mul_ps(_mm_set1_ps(Calculate_Dot_Product_SIMD(N, I)), N);
+    righ = _mm_mul_ps(_mm_set1_ps(2.0f), righ);
+    return _mm_mul_ps(I, righ);
 }
-
-// 0x00000064a54ff7a0 { -1.00000000, 1.00000000, 4.00000000, 1.00000000 }
