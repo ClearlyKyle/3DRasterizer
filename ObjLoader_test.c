@@ -6,9 +6,10 @@
 int main()
 {
     // const char *filename = "../../res/Wooden Box/wooden crate.obj";
-    //  const char *filename = "../../res/Crate/Crate1.obj";
+    // const char *filename = "../../res/Crate/Crate1.obj";
     // const char *filename = "../../res/Sphere/sphere.obj";
-    const char *filename = "../../res/Sphere/sphere_normals.obj";
+    // const char *filename = "../../res/Sphere/sphere_normals.obj";
+    const char *filename = "../../res/Crate/cube_normals.obj";
 
     Mesh_Data *mesh;
     Get_Object_Data(filename, true, &mesh);
