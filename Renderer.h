@@ -52,5 +52,8 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                             const __m128 texture_u, const __m128 texture_v,
                             const __m128 one_over_w1, const __m128 one_over_w2, const __m128 one_over_w3,
                             const __m128 frag_colour);
+void Draw_Textured_Smooth_Shaded_Triangle(const Rendering_data *render, const __m128 v0, const __m128 v1, const __m128 v2,
+                                          __m128 nrm0, __m128 nrm1, __m128 nrm2,
+                                          const __m128 frag_colour, const __m128 light_direction);
 
 #endif // __RENDERER_H__
