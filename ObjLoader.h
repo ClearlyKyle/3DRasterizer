@@ -195,17 +195,17 @@ static void Get_Mesh_Data(const tinyobj_attrib_t *attrib, Mesh_Data **return_mes
             normal_coords[(i * 12) + 0] = attrib->normals[f_normal_index1 * 3 + 0]; // X
             normal_coords[(i * 12) + 1] = attrib->normals[f_normal_index1 * 3 + 1]; // Y
             normal_coords[(i * 12) + 2] = attrib->normals[f_normal_index1 * 3 + 2]; // Z
-            normal_coords[(i * 12) + 3] = 1.0f;                                      // W
+            normal_coords[(i * 12) + 3] = 0.0f;                                      // W
 
             normal_coords[(i * 12) + 4] = attrib->normals[f_normal_index2 * 3 + 0]; // X
             normal_coords[(i * 12) + 5] = attrib->normals[f_normal_index2 * 3 + 1]; // Y
             normal_coords[(i * 12) + 6] = attrib->normals[f_normal_index2 * 3 + 2]; // Z
-            normal_coords[(i * 12) + 7] = 1.0f;                                      // W
+            normal_coords[(i * 12) + 7] = 0.0f;                                      // W
 
             normal_coords[(i * 12) + 8] = attrib->normals[f_normal_index3 * 3 + 0];  // X
             normal_coords[(i * 12) + 9] = attrib->normals[f_normal_index3 * 3 + 1];  // Y
             normal_coords[(i * 12) + 10] = attrib->normals[f_normal_index3 * 3 + 2]; // Z
-            normal_coords[(i * 12) + 11] = 1.0f;                                      // W
+            normal_coords[(i * 12) + 11] = 0.0f;                                      // W
         }
     }
     else if (triangulated == 4)
