@@ -55,5 +55,5 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
 void Draw_Textured_Smooth_Shaded_Triangle(const Rendering_data *render, const __m128 v0, const __m128 v1, const __m128 v2,
                                           __m128 nrm0, __m128 nrm1, __m128 nrm2,
                                           const __m128 frag_colour, const __m128 light_direction);
-
+void SIMD_OptimisedRasteriser(const Rendering_data *render, const __m128 v0, const __m128 v1, const __m128 v2, const __m128 frag_colour);
 #endif // __RENDERER_H__
