@@ -83,9 +83,7 @@ int main(int argc, char *argv[])
     // Normal Map
 
     // Allocate z buffer
-    __declspec(align(16)) float *z_buff = (float *)malloc(sizeof(float) * (ren_data.screen_num_pixels));
-    ren_data.z_buffer_array = z_buff;
-    // ren_data.z_buffer_array = (float *)_aligned_malloc(sizeof(float), (ren_data.screen_num_pixels));
+    ren_data.z_buffer_array = (unsigned int *)z_buff;
 
     // Lights (W, Z, Y, X)
     ren_data.light_position = _mm_set_ps(0.0f, -1.0f, 0.0f, 1.0f);
@@ -129,18 +127,9 @@ int main(int argc, char *argv[])
     unsigned int loop_counter = 0;
     while (ren.running)
     {
-        // for (size_t i = 0; i < ren_data.screen_num_pixels; i++)
-        //{
-        //    ren_data.z_buffer_array[i] = 0.0f;
-        //}
-
-        for (float *i = ren_data.z_buffer_array, *end = &ren_data.z_buffer_array[ren_data.screen_num_pixels];
-             i < end; i += 4)
-        {
-            _mm_store_ps(i, _mm_set1_ps(0.0f));
-        }
-
-        // memset(ren_data.z_buffer_array, 0, ren_data.screen_num_pixels);
+        // Clear Z Buffer
+        memset(ren_data.z_buffer_array, 0, ren_data.screen_num_pixels * 4);
+        // Clear Pixels
         memset(ren_data.pixels, 0, ren_data.screen_num_pixels * 4);
 
         SDL_Event event;
