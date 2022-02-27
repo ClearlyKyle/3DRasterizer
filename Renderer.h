@@ -26,7 +26,7 @@ typedef struct Rendering_data_s
     unsigned int screen_height;
     unsigned int screen_num_pixels;
 
-    float *z_buffer_array;
+    unsigned int *z_buffer_array;
 
     unsigned char *tex_data;
     unsigned int tex_w;

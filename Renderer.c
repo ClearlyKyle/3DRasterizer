@@ -476,6 +476,8 @@ void Draw_Textured_Shaded_Triangle(const Rendering_data *render, const __m128 v0
     // Y Step
     // const __m128i Y_Step = 1;s
 
+    float *pDepthBuffer = (float *)render->z_buffer_array;
+
     // Rasterize
     for (int y = aabb.minY; y <= aabb.maxY + 1; y += 1)
     {
@@ -511,7 +513,7 @@ void Draw_Textured_Shaded_Triangle(const Rendering_data *render, const __m128 v0
 
             const int z_index = x + render->screen_width * y;
 
-            __m128 previousDepthValue = _mm_load_ps(&render->z_buffer_array[z_index]);
+            __m128 previousDepthValue = _mm_load_ps(&pDepthBuffer[z_index]);
             previousDepthValue = _mm_shuffle_ps(previousDepthValue, previousDepthValue, _MM_SHUFFLE(0, 1, 2, 3));
             const __m128 depthMask = _mm_cmpge_ps(depth, previousDepthValue); // dst[i+31:i] := ( a[i+31:i] >= b[i+31:i] ) ? 0xFFFFFFFF : 0
 
@@ -578,7 +580,7 @@ void Draw_Textured_Shaded_Triangle(const Rendering_data *render, const __m128 v0
 
             depth = _mm_blendv_ps(previousDepthValue, depth, _mm_castsi128_ps(finalMask));
             depth = _mm_shuffle_ps(depth, depth, _MM_SHUFFLE(0, 1, 2, 3)); // reverse finalMask
-            _mm_store_ps(&render->z_buffer_array[z_index], depth);
+            _mm_store_ps(&pDepthBuffer[z_index], depth);
         }
 
         // One row step
@@ -606,6 +608,7 @@ void Draw_Textured_Smooth_Shaded_Triangle(const Rendering_data *render, const __
     const __m128i v1_y = _mm_cvtps_epi32(_mm_shuffle_ps(v1, v1, _MM_SHUFFLE(1, 1, 1, 1)));
     const __m128i v2_y = _mm_cvtps_epi32(_mm_shuffle_ps(v2, v2, _MM_SHUFFLE(1, 1, 1, 1)));
 
+    // This is really the 1/w value?
     __m128 v0_z = _mm_shuffle_ps(v0, v0, _MM_SHUFFLE(2, 2, 2, 2));
     __m128 v1_z = _mm_shuffle_ps(v1, v1, _MM_SHUFFLE(2, 2, 2, 2));
     __m128 v2_z = _mm_shuffle_ps(v2, v2, _MM_SHUFFLE(2, 2, 2, 2));
@@ -658,6 +661,13 @@ void Draw_Textured_Smooth_Shaded_Triangle(const Rendering_data *render, const __
     __m128i sum1Row = _mm_add_epi32(aa1Col, bb1Row);
     __m128i sum2Row = _mm_add_epi32(aa2Col, bb2Row);
 
+    // Tranverse pixels in 2x2 blocks and store 2x2 pixel quad depths contiguously in memory ==> 2*X
+    // This method provides better perfromance
+    int rowIdx = (aabb.minY * render->screen_width + 2 * aabb.minX);
+
+    // Cast depth buffer to float
+    float *pDepthBuffer = (float *)render->z_buffer_array;
+
     // Lights
     const __m128 light_colour = _mm_set1_ps(1.0f);
 
@@ -685,16 +695,19 @@ void Draw_Textured_Smooth_Shaded_Triangle(const Rendering_data *render, const __
 
     // Rasterize
     for (int y = aabb.minY; y < aabb.maxY; y += 2,
+             rowIdx += (2 * render->screen_width),
              sum0Row = _mm_add_epi32(sum0Row, bb0Inc),
              sum1Row = _mm_add_epi32(sum1Row, bb1Inc),
              sum2Row = _mm_add_epi32(sum2Row, bb2Inc))
     {
         // Barycentric coordinates at start of row
+        int index = rowIdx;
         __m128i alpha = sum0Row;
         __m128i beta = sum1Row;
         __m128i gama = sum2Row;
 
         for (int x = aabb.minX; x < aabb.maxX; x += 2,
+                 index += 4,
                  alpha = _mm_add_epi32(alpha, aa0Inc),
                  beta = _mm_add_epi32(beta, aa1Inc),
                  gama = _mm_add_epi32(gama, aa2Inc))
@@ -713,21 +726,14 @@ void Draw_Textured_Smooth_Shaded_Triangle(const Rendering_data *render, const __
             const __m128 w2_area = _mm_mul_ps(_mm_cvtepi32_ps(gama), oneOverTriArea);
 
             // Compute barycentric-interpolated depth
-            __m128 depth = _mm_mul_ps(_mm_cvtepi32_ps(alpha), v2_z);
+            __m128 depth = _mm_mul_ps(_mm_cvtepi32_ps(alpha), v0_z);
             depth = _mm_add_ps(depth, _mm_mul_ps(_mm_cvtepi32_ps(beta), v1_z));
-            depth = _mm_add_ps(depth, _mm_mul_ps(_mm_cvtepi32_ps(gama), v0_z));
-            depth = _mm_rcp_ps(depth);
+            depth = _mm_add_ps(depth, _mm_mul_ps(_mm_cvtepi32_ps(gama), v2_z));
+            // depth = _mm_rcp_ps(depth);
 
-            const int z_index = x + render->screen_width * y;
-
-            __m128 previousDepthValue = _mm_load_ps(&render->z_buffer_array[z_index]);
-            previousDepthValue = _mm_shuffle_ps(previousDepthValue, previousDepthValue, _MM_SHUFFLE(0, 1, 2, 3));
-            const __m128 depthMask = _mm_cmpge_ps(depth, previousDepthValue); // dst[i+31:i] := ( a[i+31:i] >= b[i+31:i] ) ? 0xFFFFFFFF : 0
-
-            // mask = _mm_shuffle_epi32(mask, _MM_SHUFFLE(0, 1, 2, 3)); // reverse the mask
-            // const __m128i finalMask = _mm_and_si128(mask, _mm_castps_si128(depthMask));
-
-            const __m128i finalMask = mask;
+            const __m128 previousDepthValue = _mm_load_ps(&pDepthBuffer[index]);
+            const __m128 mergedDepth = _mm_max_ps(depth, previousDepthValue);
+            const __m128i finalMask = _mm_and_si128(mask, _mm_castps_si128(mergedDepth));
 
             if (finalMask.m128i_i32[3])
             {
@@ -790,7 +796,6 @@ void Draw_Textured_Smooth_Shaded_Triangle(const Rendering_data *render, const __
             }
 
             if (finalMask.m128i_i32[0])
-            // if (mask.m128i_i32[0] && finalMask.m128i_i32[0])
             {
                 const __m128 weight1 = _mm_set1_ps(w0_area.m128_f32[0]);
                 const __m128 weight2 = _mm_set1_ps(w1_area.m128_f32[0]);
@@ -810,9 +815,8 @@ void Draw_Textured_Smooth_Shaded_Triangle(const Rendering_data *render, const __
                 Draw_Pixel_RGBA(render, x + 1, y + 1, red, gre, blu, alp);
             }
 
-            depth = _mm_blendv_ps(previousDepthValue, depth, _mm_castsi128_ps(finalMask));
-            depth = _mm_shuffle_ps(depth, depth, _MM_SHUFFLE(0, 1, 2, 3)); // reverse finalMask
-            _mm_store_ps(&render->z_buffer_array[z_index], depth);
+            const __m128 finaldepth = _mm_blendv_ps(mergedDepth, previousDepthValue, _mm_cvtepi32_ps(finalMask));
+            _mm_store_ps(&pDepthBuffer[index], finaldepth);
         }
     }
 }
