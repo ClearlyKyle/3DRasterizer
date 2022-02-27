@@ -312,8 +312,6 @@ __m128 Calculate_Surface_Normal_SIMD(const __m128 v1, const __m128 v2, const __m
 
 float Calculate_Dot_Product_SIMD(const __m128 v1, const __m128 v2)
 {
-    // return hsum_ps_sse3(_mm_mul_ps(v1, v2));
-    // return hsum_ps_sse3(_mm_dp_ps(v1, v2, 0xf1));
     return _mm_cvtss_f32(_mm_dp_ps(v1, v2, 0xf1));
 }
 
@@ -331,7 +329,6 @@ __m128 Normalize_m128(__m128 input)
 __m128 Clamp_m128(const __m128 vec, float minval, float maxval)
 {
     // Branchless SSE clamp.
-    // return minss( maxss(val,minval), maxval );
     return _mm_min_ps(_mm_max_ps(vec, _mm_set1_ps(minval)), _mm_set1_ps(maxval));
 }
 
