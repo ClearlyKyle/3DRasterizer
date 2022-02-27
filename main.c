@@ -83,6 +83,7 @@ int main(int argc, char *argv[])
     // Normal Map
 
     // Allocate z buffer
+    char *z_buff = (char *)_aligned_malloc(sizeof(char) * ren_data.screen_num_pixels * 4, 16);
     ren_data.z_buffer_array = (unsigned int *)z_buff;
 
     // Lights (W, Z, Y, X)
@@ -97,7 +98,7 @@ int main(int argc, char *argv[])
     const Mat4x4 Projection_matrix = Get_Projection_Matrix(90.0f, (float)ren.HEIGHT / (float)ren.WIDTH, 0.1f, 1000.0f);
 
     // Translation Matrix : Move the object in 3D space X Y Z
-    const Mat4x4 Translation_matrix = Get_Translation_Matrix(0.0f, 0.0f, 5.0f);
+    const Mat4x4 Translation_matrix = Get_Translation_Matrix(0.0f, 0.0f, 3.0f);
 
     // Camera
     const __m128 camera = _mm_set_ps(1.0f, 0.0f, 0.0f, 0.0f);
@@ -143,14 +144,19 @@ int main(int argc, char *argv[])
         }
 
         Mat4x4 World_Matrix = {0.0f};
+        Mat4x4 Rotation_Matrix = {0.0f};
+
         fTheta += (float)MSPerFrame;
         // fTheta += 0.0f;
 
-        const Mat4x4 matRotZ = Get_Rotation_Z_Matrix(fTheta); // Rotation Z
-        const Mat4x4 matRotX = Get_Rotation_X_Matrix(fTheta); // Rotation X
+        const Mat4x4 matRotZ = Get_Rotation_Z_Matrix(0.0f); // Rotation Z
+        const Mat4x4 matRotY = Get_Rotation_Y_Matrix(0.0f); // Rotation Y
+        const Mat4x4 matRotX = Get_Rotation_X_Matrix(0.0f); // Rotation X
 
-        Matrix_Multiply_Matrix(matRotZ.elements, matRotX.elements, World_Matrix.elements);
-        Matrix_Multiply_Matrix(World_Matrix.elements, Translation_matrix.elements, World_Matrix.elements);
+        Matrix_Multiply_Matrix(matRotZ.elements, matRotY.elements, Rotation_Matrix.elements);
+        Matrix_Multiply_Matrix(Rotation_Matrix.elements, matRotX.elements, Rotation_Matrix.elements);
+
+        Matrix_Multiply_Matrix(Rotation_Matrix.elements, Translation_matrix.elements, World_Matrix.elements);
 
         for (size_t i = 0; i < mesh->num_of_triangles; i += 1) // can we jump through triangles?
         {
