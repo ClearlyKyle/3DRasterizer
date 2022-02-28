@@ -146,11 +146,14 @@ int main(int argc, char *argv[])
         fTheta += (float)MSPerFrame;
         // fTheta += 0.0f;
 
-        const Mat4x4 matRotZ = Get_Rotation_Z_Matrix(fTheta); // Rotation Z
-        const Mat4x4 matRotX = Get_Rotation_X_Matrix(fTheta); // Rotation X
+        const Mat4x4 matRotZ = Get_Rotation_Z_Matrix(0.0f); // Rotation Z
+        const Mat4x4 matRotY = Get_Rotation_Y_Matrix(0.0f); // Rotation Y
+        const Mat4x4 matRotX = Get_Rotation_X_Matrix(0.0f); // Rotation X
 
-        Matrix_Multiply_Matrix(matRotZ.elements, matRotX.elements, World_Matrix.elements);
-        Matrix_Multiply_Matrix(World_Matrix.elements, Translation_matrix.elements, World_Matrix.elements);
+        Matrix_Multiply_Matrix(matRotZ.elements, matRotY.elements, Rotation_Matrix.elements);
+        Matrix_Multiply_Matrix(Rotation_Matrix.elements, matRotX.elements, Rotation_Matrix.elements);
+
+        Matrix_Multiply_Matrix(Rotation_Matrix.elements, Translation_matrix.elements, World_Matrix.elements);
 
         for (size_t i = 0; i < mesh->num_of_triangles; i += 1) // can we jump through triangles?
         {
@@ -253,9 +256,29 @@ int main(int argc, char *argv[])
 
                 // similar procedure for calculating tangent/bitangent for plane's second triangle
 
+                __m128 normal0 = _mm_load_ps(&mesh->normal_coordinates[i * 12 + 0]);
+                __m128 normal1 = _mm_load_ps(&mesh->normal_coordinates[i * 12 + 4]);
+                __m128 normal2 = _mm_load_ps(&mesh->normal_coordinates[i * 12 + 8]);
+
+                // Rotation only as we do not change scale or scew
+                normal0 = Matrix_Multiply_Vector_SIMD(Rotation_Matrix.elements, normal0);
+                normal1 = Matrix_Multiply_Vector_SIMD(Rotation_Matrix.elements, normal1);
+                normal2 = Matrix_Multiply_Vector_SIMD(Rotation_Matrix.elements, normal2);
+
+                // Since we do not scale, using the World Matrix on the normals is all we need
+                // normal0 = Matrix_Multiply_Vector_SIMD(World_Matrix.elements, normal0);
+                // normal1 = Matrix_Multiply_Vector_SIMD(World_Matrix.elements, normal1);
+                // normal2 = Matrix_Multiply_Vector_SIMD(World_Matrix.elements, normal2);
+
+                // normal0 = Normalize_m128(normal0);
+                // normal1 = Normalize_m128(normal1);
+                // normal2 = Normalize_m128(normal2);
+
                 // Draw (CCW) Triangle Order
-                // Draw_Textured_Triangle(&ren_data, tri3, tri2, tri1, texture_u, texture_v, one_over_w1, one_over_w2, one_over_w3, frag_colour);
-                Draw_Triangle_Outline(ren_data.fmt, ren_data.pixels, tri1, tri2, tri3, &LINE_COLOUR);
+                // Draw_Textured_Triangle(&ren_data, tri3, tri2, tri1, texture_u, texture_v, one_over_w1, one_over_w2, one_over_w3, frag.color);
+                // Draw_Textured_Shaded_Triangle(&ren_data, tri3, tri2, tri1, frag.color);
+                // Draw_Triangle_Outline(ren_data.fmt, ren_data.pixels, tri1, tri2, tri3, &LINE_COLOUR);
+                Draw_Textured_Smooth_Shaded_Triangle(&ren_data, tri3, tri2, tri1, normal2, normal1, normal0, light_colour, light_direction);
             }
         }
         // Update Screen
