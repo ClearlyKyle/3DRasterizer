@@ -30,10 +30,20 @@ int main(int argc, char *argv[])
     // CRATE
     // const char *obj_filename = "../../res/Crate/cube_triang.obj";
     // const char *obj_filename = "../../res/Crate/Crate1.obj";
+    // const char *obj_filename = "../../res/Crate/Crate_N_T.obj";
+    // const char *obj_filename = "../../res/Crate/cube_normals.obj";
     const char *tex_filename = "../../res/Crate/crate_1.png";
 
     // SPHERE
-    const char *obj_filename = "../../res/Sphere/sphere.obj";
+    // const char *obj_filename = "../../res/Sphere/simple_sphereobj.obj";
+    // const char *obj_filename = "../../res/Sphere/low_poly_sphere.obj";
+    // const char *obj_filename = "../../res/Sphere/sphere_normals.obj";
+    const char *obj_filename = "../../res/Sphere/sphere_smooth.obj";
+
+    // CYLINDER
+    // const char *obj_filename = "../../res/Sphere/simple_sphereobj.obj";
+    // const char *obj_filename = "../../res/Sphere/low_poly_sphere.obj";
+    // const char *obj_filename = "../../res/Cylinder/cylinder_normals.obj";
 
     // Load texture data
     int tex_w, tex_h, tex_bpp;
@@ -83,10 +93,11 @@ int main(int argc, char *argv[])
     // Normal Map
 
     // Allocate z buffer
+    char *z_buff = (char *)_aligned_malloc(sizeof(char) * ren_data.screen_num_pixels * 4, 16);
     ren_data.z_buffer_array = (unsigned int *)z_buff;
 
     // Lights (W, Z, Y, X)
-    ren_data.light_position = _mm_set_ps(0.0f, -1.0f, 0.0f, 1.0f);
+    ren_data.light_position = _mm_set_ps(0.0f, 1.0f, 4.0f, 1.0f);
     ren_data.light_value = 0.0f;
 
     // Load Mesh
@@ -97,19 +108,27 @@ int main(int argc, char *argv[])
     const Mat4x4 Projection_matrix = Get_Projection_Matrix(90.0f, (float)ren.HEIGHT / (float)ren.WIDTH, 0.1f, 1000.0f);
 
     // Translation Matrix : Move the object in 3D space X Y Z
-    const Mat4x4 Translation_matrix = Get_Translation_Matrix(0.0f, 0.0f, 5.0f);
+    const Mat4x4 Translation_matrix = Get_Translation_Matrix(0.0f, 0.0f, 3.0f);
 
     // Camera
-    const __m128 camera = _mm_set_ps(1.0f, 0.0f, 0.0f, 0.0f);
+    const __m128 camera_position = _mm_set_ps(0.0f, 0.0f, 0.0f, 0.0f);
+    const __m128 camera_direction = _mm_set_ps(0.0f, 1.0f, 0.0f, 0.0f);
 
     // Lights -------------------------
     Fragment frag;
-    frag.color = _mm_set1_ps(1.0f);
-    frag.diffuse = _mm_load_ps(mesh->diffuse);
+    const float ambient_strength = 0.1f;
+    const float shininess = 64.0f;
+    const __m128 light_colour = _mm_set1_ps(1.0f);
+    frag.ambient = _mm_mul_ps(light_colour, _mm_set1_ps(ambient_strength));
+
+    const __m128 object_colour = _mm_set_ps(255.0f, 000.0f, 255.0f, 255.0f);
+    frag.color = _mm_mul_ps(object_colour, frag.ambient);
+
+    // frag.diffuse = _mm_load_ps(mesh->diffuse);
     // frag.ambient = _mm_load_ps(mesh->ambient);
-    frag.ambient = _mm_set1_ps(0.5f);
-    frag.specular = _mm_load_ps(mesh->specular);
-    // const __m128 light_position = _mm_set_ps(0.0f, 1.0f, 1.0f, 1.0f);
+    // frag.specular = _mm_load_ps(mesh->specular);
+
+    const __m128 light_direction = _mm_set_ps(0.0f, -1.0f, 0.0f, 0.0f);
 
     // Line colour for wire model drawing
     const SDL_Colour LINE_COLOUR = {255, 255, 255, 255};
@@ -143,6 +162,8 @@ int main(int argc, char *argv[])
         }
 
         Mat4x4 World_Matrix = {0.0f};
+        Mat4x4 Rotation_Matrix = {0.0f};
+
         fTheta += (float)MSPerFrame;
         // fTheta += 0.0f;
 
@@ -166,43 +187,49 @@ int main(int argc, char *argv[])
             tri2 = Matrix_Multiply_Vector_SIMD(World_Matrix.elements, tri2);
             tri3 = Matrix_Multiply_Vector_SIMD(World_Matrix.elements, tri3);
 
-            // tri1 = _mm_add_ps(tri1, _mm_set_ps(0.0f, 5.0f, 0.0f, 0.0f));
-            // tri2 = _mm_add_ps(tri2, _mm_set_ps(0.0f, 5.0f, 0.0f, 0.0f));
-            // tri3 = _mm_add_ps(tri3, _mm_set_ps(0.0f, 5.0f, 0.0f, 0.0f));
-
             // Vector Dot Product between : Surface normal and CameraRay
             const __m128 surface_normal = Calculate_Surface_Normal_SIMD(tri1, tri2, tri3);
-            const __m128 camera_ray = _mm_sub_ps(tri1, camera);
+            const __m128 camera_ray = _mm_sub_ps(tri1, camera_position);
 
             // Back face culling
             const float dot_product_result = Calculate_Dot_Product_SIMD(surface_normal, camera_ray);
-            if (dot_product_result < 0)
+            if (dot_product_result < 0.0f)
             {
                 // Illumination
                 // vec3 light_direction = {0.0f, 1.0f, -1.0f};
 
-                // AMBIENT
-                const __m128 ambient = _mm_mul_ps(frag.color, frag.ambient);
+                ////// AMBIENT
+                // const __m128 ambient = _mm_mul_ps(frag.color, frag.ambient);
 
-                // DIFFUSE
-                const __m128 norm = Normalize_m128(surface_normal);
-                // const __m128 lightDir = _mm_sub_ps(ren_data.light_position, tri1);
-                const float diff = (float)fmax((double)Calculate_Dot_Product_SIMD(ren_data.light_position, norm), 0.0);
-                const __m128 diffuse = _mm_mul_ps(frag.diffuse, _mm_set1_ps(diff));
+                ////// DIFFUSE
+                const __m128 normalised_surface = Normalize_m128(surface_normal);
+                const float diff = (float)fmax((double)Calculate_Dot_Product_SIMD(normalised_surface, light_direction), 0.0);
+                const __m128 diffuse = _mm_mul_ps(light_colour, _mm_set1_ps(diff / 2));
 
-                // SPECULAR
-                // vec3 viewDir = normalize(viewPos - FragPos);
-                const __m128 reflectDir = Reflect_m128(_mm_mul_ps(ren_data.light_position, _mm_set1_ps(-1.0f)), norm); // I - 2.0 * dot(N, I) * N
+                ////// SPECULAR
+                // https://web.engr.oregonstate.edu/~mjb/cs557/Handouts/lighting.1pp.pdf
+                // dot(R, E);
+                // R = Light reflection
+                // E = Eye / Camera vector
+                __m128 reflected_light_direction = Reflect_m128(_mm_mul_ps(Normalize_m128(ren_data.light_position), _mm_set1_ps(-1.0f)), normalised_surface); // I - 2.0 * dot(N, I) * N
+                reflected_light_direction = Normalize_m128(reflected_light_direction);
 
-                const float spec = (float)pow(fmax(Calculate_Dot_Product_SIMD(camera, reflectDir), 0.0), 32);
-                const __m128 specular = _mm_mul_ps(_mm_mul_ps(frag.color, _mm_set1_ps(spec)), frag.specular);
+                const float max_dot = (float)fmax((double)Calculate_Dot_Product_SIMD(reflected_light_direction, camera_direction), 0.0);
 
-                const __m128 frag_colour = Clamp_m128(_mm_add_ps(ambient, diffuse), 0.0f, 1.0f);
-                // const __m128 frag_colour = Clamp_m128(_mm_add_ps(_mm_add_ps(frag.ambient, diffuse), specular), 0.0f, 1.0f);
+                const __m128 power = _mm_pow_ps(_mm_set1_ps(max_dot), _mm_set1_ps(shininess));
+                const __m128 specular = _mm_mul_ps(light_colour, power);
+                // const float spec = (float)pow(fmax(Calculate_Dot_Product_SIMD(camera, reflectDir), 0.0), 32);
+                // const __m128 specular = _mm_mul_ps(_mm_mul_ps(frag.color, _mm_set1_ps(spec)), frag.specular);
+
+                frag.color = Clamp_m128(_mm_add_ps(_mm_add_ps(frag.ambient, diffuse), specular), 0.0f, 1.0f);
+                // frag.color = Clamp_m128(_mm_add_ps(frag.ambient, specular), 0.0f, 1.0f);
+                //  frag.color = _mm_add_ps(_mm_add_ps(frag.ambient, diffuse), specular);
+                //   frag.color = _mm_add_ps(frag.ambient, diffuse);
+                frag.color = _mm_mul_ps(frag.color, object_colour);
 
                 // How similar is normal to light direction
-                const float light_value = max(0.2f, Calculate_Dot_Product_SIMD(ren_data.light_position, surface_normal));
-                ren_data.light_value = light_value;
+                // const float light_value = max(0.2f, Calculate_Dot_Product_SIMD(ren_data.light_position, surface_normal));
+                // ren_data.light_value = light_value;
                 // Convert World Space, into View Space
                 // View Matrix * Each Transformed Vertex = viewed Vertex
 
