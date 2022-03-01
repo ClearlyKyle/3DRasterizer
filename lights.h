@@ -7,17 +7,25 @@
 
 typedef struct Fragment_s
 {
-  __m128 world_traingle[3];
-  __m128 surface_normal;
-  __m128 ambient, color, diffuse, specular;
+    __m128 world_traingle[3];
+    __m128 surface_normal;
+    __m128 ambient, color, diffuse, specular;
 
-  unsigned int pixel_x;
-  unsigned int pixel_y;
-  unsigned int pixel_z;
+    unsigned int pixel_x;
+    unsigned int pixel_y;
+    unsigned int pixel_z;
 
 } Fragment;
 
-__m128 Phong_Equation(const __m128 lights, const __m128 N, const __m128 V, const __m128 vertex_position, const __m128 vertex_color, const __m128 diffuse_color, const __m128 specular_color, const float shininess);
-void Shade(const Fragment frag);
+typedef struct PointLight_s
+{
+    __m128 position;
+
+    float constant_attenuation;
+    float linear_attenuation;
+    float quadradic_attenuation;
+} PointLight;
+
+PointLight Get_Point_Light(float x, float y, float z, float linear_atten, float quad_atten, float constant_atten);
 
 #endif // __LIGHTS_H__
