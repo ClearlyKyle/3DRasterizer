@@ -20,6 +20,7 @@ typedef struct Fragment_s
 typedef struct PointLight_s
 {
     __m128 position;
+    __m128 colour;
 
     float constant_attenuation;
     float linear_attenuation;
@@ -27,5 +28,6 @@ typedef struct PointLight_s
 } PointLight;
 
 PointLight Get_Point_Light(float x, float y, float z, float linear_atten, float quad_atten, float constant_atten);
+__m128 Calculate_Point_Light_Colour(const PointLight pl, const __m128 normal, __m128 vert);
 
 #endif // __LIGHTS_H__
