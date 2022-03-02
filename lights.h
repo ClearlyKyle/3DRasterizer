@@ -27,7 +27,7 @@ typedef struct PointLight_s
     float quadradic_attenuation;
 } PointLight;
 
-PointLight Get_Point_Light(float x, float y, float z, float linear_atten, float quad_atten, float constant_atten);
+PointLight Get_Point_Light(float x, float y, float z, float constant_atten, float linear_atten, float quad_atten);
 __m128 Calculate_Point_Light_Colour(const PointLight pl, const __m128 normal, __m128 vert);
 
 #endif // __LIGHTS_H__
