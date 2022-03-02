@@ -30,4 +30,6 @@ typedef struct PointLight_s
 PointLight Get_Point_Light(float x, float y, float z, float constant_atten, float linear_atten, float quad_atten);
 __m128 Calculate_Point_Light_Colour(const PointLight pl, const __m128 normal, __m128 vert);
 
+__m128 Reflect_m128(const __m128 I, const __m128 N);
+
 #endif // __LIGHTS_H__

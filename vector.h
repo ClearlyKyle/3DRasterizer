@@ -68,7 +68,6 @@ float Calculate_Dot_Product_SIMD(const __m128 v1, const __m128 v2);
 
 __m128 Normalize_m128(const __m128 intput);
 __m128 Clamp_m128(const __m128 vec, float minval, float maxval);
-__m128 Reflect_m128(const __m128 I, const __m128 N);
 float hsum_ps_sse3(const __m128 v);
 
 #endif // __VECTOR_H__

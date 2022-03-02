@@ -37,3 +37,12 @@ __m128 Calculate_Point_Light_Colour(const PointLight pl, const __m128 normal, __
     // return _mm_mul_ps(pl.colour, _mm_set1_ps(dp));
     return _mm_set1_ps(dp);
 }
+
+// https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/reflect.xhtml
+// I - 2.0 * dot(N, I) * N
+__m128 Reflect_m128(const __m128 I, const __m128 N)
+{
+    __m128 righ = _mm_mul_ps(_mm_set1_ps(Calculate_Dot_Product_SIMD(N, I)), N);
+    righ = _mm_mul_ps(_mm_set1_ps(2.0f), righ);
+    return _mm_mul_ps(I, righ);
+}
