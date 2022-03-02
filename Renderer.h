@@ -4,6 +4,7 @@
 #include <stdbool.h>
 
 #include "vector.h"
+#include "lights.h"
 
 #include "SDL2/SDL.h"
 
@@ -57,5 +58,8 @@ void Draw_Textured_Smooth_Shaded_Triangle(const Rendering_data *render, const __
                                           const __m128 frag_colour, const __m128 light_direction);
 void Draw_Triangle_With_Colour(const Rendering_data *render, const __m128 v0, const __m128 v1, const __m128 v2,
                                const __m128 colour1, const __m128 colour2, const __m128 colour3);
+
+void Draw_Triangle_Per_Pixel(const Rendering_data *render, const __m128 *screen_position_vertixies, const __m128 *world_position_verticies,
+                             const __m128 normal1, const __m128 normal2, const __m128 normal3, const PointLight pl);
 
 #endif // __RENDERER_H__
