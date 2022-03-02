@@ -34,6 +34,12 @@ typedef struct Mesh_s
     float *v;
 } Mesh;
 
+// MACROS
+#define M_PI 3.14159265358979323846264338327950288
+#define DEG_to_RAD(angleInDegrees) ((angleInDegrees)*M_PI / 180.0)
+#define RAD_to_DEG(angleInRadians) ((angleInRadians)*180.0 / M_PI)
+
+// FUNCTION HEADERS
 Mat4x4 Get_Rotation_X_Matrix(float angle_rad);
 Mat4x4 Get_Rotation_Y_Matrix(float angle_rad);
 Mat4x4 Get_Rotation_Z_Matrix(float angle_rad);
