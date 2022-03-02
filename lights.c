@@ -35,7 +35,7 @@ __m128 Calculate_Point_Light_Colour(const PointLight pl, const __m128 normal, __
     const float diffuse = attenulation_value * (const float)fmax((double)Calculate_Dot_Product_SIMD(normal, direction_to_light), 0.0);
     const __m128 diffuse_colour = _mm_mul_ps(_mm_set1_ps(diffuse), _mm_set_ps(1.0f, 0.0f, 0.0f, 1.0f));
 
-    const __m128 view_direction = Normalize_m128(_mm_sub_ps(vert, _mm_setzero_ps()));
+    const __m128 view_direction = Normalize_m128(_mm_sub_ps(_mm_setzero_ps(), vert));
     const __m128 spec_colour = Specular_Highlight_Colour(pl, view_direction, direction_to_light, normal);
 
     //// return _mm_mul_ps(pl.colour, _mm_set1_ps(dp));
@@ -49,7 +49,7 @@ __m128 Reflect_m128(const __m128 I, const __m128 N)
 {
     __m128 righ = _mm_mul_ps(_mm_set1_ps(Calculate_Dot_Product_SIMD(N, I)), N);
     righ = _mm_mul_ps(_mm_set1_ps(2.0f), righ);
-    return _mm_mul_ps(I, righ);
+    return _mm_sub_ps(I, righ);
 }
 
 __m128 Specular_Highlight_Colour(const PointLight pl, const __m128 view_direction, const __m128 light_direction, const __m128 normal)
