@@ -69,5 +69,6 @@ float Calculate_Dot_Product_SIMD(const __m128 v1, const __m128 v2);
 __m128 Normalize_m128(const __m128 intput);
 __m128 Clamp_m128(const __m128 vec, float minval, float maxval);
 float hsum_ps_sse3(const __m128 v);
+Mat4x4 Get_TBN_Matrix(__m128 Tangent, const __m128 Normal, const Mat4x4 ViewModelMatrix);
 
 #endif // __VECTOR_H__

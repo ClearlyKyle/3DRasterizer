@@ -331,3 +331,30 @@ __m128 Clamp_m128(const __m128 vec, float minval, float maxval)
     // Branchless SSE clamp.
     return _mm_min_ps(_mm_max_ps(vec, _mm_set1_ps(minval)), _mm_set1_ps(maxval));
 }
+
+Mat4x4 Get_TBN_Matrix(__m128 Tangent, const __m128 Normal, const Mat4x4 ViewModelMatrix)
+{
+    Mat4x4 TBN = {0.0f};
+
+    // Equation bellow : T = normalize(T - dot(T, N) * N);
+    // const __m128 magic_tangent = _mm_mul_ps(_mm_set1_ps(Calculate_Dot_Product_SIMD(Tangent, Normal)), Normal);
+    // Tangent = Normalize_m128(_mm_sub_ps(Tangent, magic_tangent));
+
+    const __m128 Bitangent = Vector_Cross_Product_m128(Normal, Tangent);
+
+    const __m128 Zeros = _mm_setzero_ps();
+
+    //_MM_TRANSPOSE4_PS(Tangent, Bitangent, Normal, Zeros);
+
+    _mm_store_ps(&TBN.elements[0], Matrix_Multiply_Vector_m128(&ViewModelMatrix, Tangent));
+    _mm_store_ps(&TBN.elements[4], Matrix_Multiply_Vector_m128(&ViewModelMatrix, Bitangent));
+    _mm_store_ps(&TBN.elements[8], Matrix_Multiply_Vector_m128(&ViewModelMatrix, Normal));
+    _mm_store_ps(&TBN.elements[12], Zeros);
+
+    // TBN.elements[3] = 0.0f;
+    // TBN.elements[7] = 0.0f;
+    // TBN.elements[11] = 0.0f;
+    // TBN.elements[15] = 0.0f;
+
+    return TBN;
+}
