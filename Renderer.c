@@ -1352,10 +1352,10 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
     __m128i sum2Row = _mm_add_epi32(aa2Col, bb2Row);
 
     const __m128 light_position = _mm_set_ps(0.0f, 0.0f, -1.0f, -1.0f);
-    // const __m128 view_position = _mm_set1_ps(0.0f); // for specular calculation
+    const __m128 view_position = _mm_set1_ps(0.0f); // for specular calculation
 
     const __m128 Tangent_Light_Pos = Matrix_Multiply_Vector_SIMD(TBN.elements, light_position);
-    //__m128 Tangent_View_Pos = Matrix_Multiply_Vector_SIMD(TBN.elements, view_position); // for specular
+    __m128 Tangent_View_Pos = Matrix_Multiply_Vector_SIMD(TBN.elements, view_position); // for specular
 
     const float ambient_value = 0.1f;
     const __m128 ambient = _mm_set1_ps(0.1f);
@@ -1413,8 +1413,8 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
             //  const __m128i finalMask = _mm_and_si128(mask, _mm_castps_si128(depthMask));
             const __m128i finalMask = mask;
 
-            const __m128 depth_w = _mm_mul_ps(depth, _mm_set1_ps((float)render->tex_w));
-            const __m128 depth_h = _mm_mul_ps(depth, _mm_set1_ps((float)render->tex_h));
+            const __m128 depth_w = _mm_mul_ps(depth, _mm_set1_ps((float)render->tex_w - 1));
+            const __m128 depth_h = _mm_mul_ps(depth, _mm_set1_ps((float)render->tex_h - 1));
 
             if (finalMask.m128i_i32[3])
             {
@@ -1436,8 +1436,8 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
                         _mm_mul_ps(weight2, world_position_verticies[1])),
                     _mm_mul_ps(weight3, world_position_verticies[2]));
 
-                const unsigned char *diffuse_texture = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
-                const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
+                const unsigned char *diffuse_texture = render->tex_data + (res_u + (render->tex_w * res_v)) * render->tex_bpp;
+                const unsigned char *normal_texture = render->nrm_data + (res_u + (render->nrm_w * res_v)) * render->nrm_bpp;
 
                 //__m128i colour_test = _mm_load_si128((__m128i *)diffuse_texture);
 
@@ -1457,8 +1457,17 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
                 const float diffuse_amount = (const float)fmax((double)Calculate_Dot_Product_SIMD(normal, light_direction), 0.0);
                 const __m128 diffuse = _mm_mul_ps(_mm_set1_ps(diffuse_amount), diffuse_colour);
 
+                // specular
+                __m128 view_direction = Normalize_m128(_mm_sub_ps(Tangent_View_Pos, position));
+                __m128 reflection_direction = Reflect_m128(_mm_mul_ps(light_direction, _mm_set1_ps(-1.0f)), normal);
+
+                __m128 halfway_direction = Normalize_m128(_mm_add_ps(light_direction, view_direction));
+                const float spec = (const float)pow(fmax(Calculate_Dot_Product_SIMD(normal, reflection_direction), 0.0), 32.0);
+                const __m128 specular = _mm_set1_ps(spec);
+
                 // final colour
-                __m128 colour = _mm_mul_ps(_mm_add_ps(ambient, diffuse), texture_colour);
+                __m128 colour = _mm_mul_ps(_mm_add_ps(_mm_add_ps(ambient, diffuse), specular), texture_colour);
+                //__m128 colour = _mm_mul_ps(_mm_add_ps(ambient, diffuse), texture_colour);
                 colour = Clamp_m128(colour, 0.0f, 255.0f);
 
                 const uint8_t red = (uint8_t)(colour.m128_f32[0]);
@@ -1489,8 +1498,8 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
                         _mm_mul_ps(weight2, world_position_verticies[1])),
                     _mm_mul_ps(weight3, world_position_verticies[2]));
 
-                const unsigned char *diffuse_texture = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
-                const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
+                const unsigned char *diffuse_texture = render->tex_data + (res_u + (render->tex_w * res_v)) * render->tex_bpp;
+                const unsigned char *normal_texture = render->nrm_data + (res_u + (render->nrm_w * res_v)) * render->nrm_bpp;
 
                 __m128 texture_colour = _mm_set_ps(255.0f, diffuse_texture[2], diffuse_texture[1], diffuse_texture[0]);
 
@@ -1507,8 +1516,17 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
                 const float diffuse_amount = (const float)fmax((double)Calculate_Dot_Product_SIMD(normal, light_direction), 0.0);
                 const __m128 diffuse = _mm_mul_ps(_mm_set1_ps(diffuse_amount), diffuse_colour);
 
+                // specular
+                __m128 view_direction = Normalize_m128(_mm_sub_ps(Tangent_View_Pos, position));
+                __m128 reflection_direction = Reflect_m128(_mm_mul_ps(light_direction, _mm_set1_ps(-1.0f)), normal);
+
+                __m128 halfway_direction = Normalize_m128(_mm_add_ps(light_direction, view_direction));
+                const float spec = (const float)pow(fmax(Calculate_Dot_Product_SIMD(normal, reflection_direction), 0.0), 32.0);
+                const __m128 specular = _mm_set1_ps(spec);
+
                 // final colour
-                __m128 colour = _mm_mul_ps(_mm_add_ps(ambient, diffuse), texture_colour);
+                __m128 colour = _mm_mul_ps(_mm_add_ps(_mm_add_ps(ambient, diffuse), specular), texture_colour);
+                //__m128 colour = _mm_mul_ps(_mm_add_ps(ambient, diffuse), texture_colour);
                 colour = Clamp_m128(colour, 0.0f, 255.0f);
 
                 const uint8_t red = (uint8_t)(colour.m128_f32[0]);
@@ -1539,8 +1557,8 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
                         _mm_mul_ps(weight2, world_position_verticies[1])),
                     _mm_mul_ps(weight3, world_position_verticies[2]));
 
-                const unsigned char *diffuse_texture = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
-                const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
+                const unsigned char *diffuse_texture = render->tex_data + (res_u + (render->tex_w * res_v)) * render->tex_bpp;
+                const unsigned char *normal_texture = render->nrm_data + (res_u + (render->nrm_w * res_v)) * render->nrm_bpp;
 
                 __m128 texture_colour = _mm_set_ps(255.0f, diffuse_texture[2], diffuse_texture[1], diffuse_texture[0]);
 
@@ -1557,8 +1575,17 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
                 const float diffuse_amount = (const float)fmax((double)Calculate_Dot_Product_SIMD(normal, light_direction), 0.0);
                 const __m128 diffuse = _mm_mul_ps(_mm_set1_ps(diffuse_amount), diffuse_colour);
 
+                // specular
+                __m128 view_direction = Normalize_m128(_mm_sub_ps(Tangent_View_Pos, position));
+                __m128 reflection_direction = Reflect_m128(_mm_mul_ps(light_direction, _mm_set1_ps(-1.0f)), normal);
+
+                __m128 halfway_direction = Normalize_m128(_mm_add_ps(light_direction, view_direction));
+                const float spec = (const float)pow(fmax(Calculate_Dot_Product_SIMD(normal, reflection_direction), 0.0), 32.0);
+                const __m128 specular = _mm_set1_ps(spec);
+
                 // final colour
-                __m128 colour = _mm_mul_ps(_mm_add_ps(ambient, diffuse), texture_colour);
+                __m128 colour = _mm_mul_ps(_mm_add_ps(_mm_add_ps(ambient, diffuse), specular), texture_colour);
+                //__m128 colour = _mm_mul_ps(_mm_add_ps(ambient, diffuse), texture_colour);
                 colour = Clamp_m128(colour, 0.0f, 255.0f);
 
                 const uint8_t red = (uint8_t)(colour.m128_f32[0]);
@@ -1589,8 +1616,8 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
                         _mm_mul_ps(weight2, world_position_verticies[1])),
                     _mm_mul_ps(weight3, world_position_verticies[2]));
 
-                const unsigned char *diffuse_texture = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
-                const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
+                const unsigned char *diffuse_texture = render->tex_data + (res_u + (render->tex_w * res_v)) * render->tex_bpp;
+                const unsigned char *normal_texture = render->nrm_data + (res_u + (render->nrm_w * res_v)) * render->nrm_bpp;
 
                 __m128 texture_colour = _mm_set_ps(255.0f, diffuse_texture[2], diffuse_texture[1], diffuse_texture[0]);
 
@@ -1607,8 +1634,17 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
                 const float diffuse_amount = (const float)fmax((double)Calculate_Dot_Product_SIMD(normal, light_direction), 0.0);
                 const __m128 diffuse = _mm_mul_ps(_mm_set1_ps(diffuse_amount), diffuse_colour);
 
+                // specular
+                __m128 view_direction = Normalize_m128(_mm_sub_ps(Tangent_View_Pos, position));
+                __m128 reflection_direction = Reflect_m128(_mm_mul_ps(light_direction, _mm_set1_ps(-1.0f)), normal);
+
+                __m128 halfway_direction = Normalize_m128(_mm_add_ps(light_direction, view_direction));
+                const float spec = (const float)pow(fmax(Calculate_Dot_Product_SIMD(normal, reflection_direction), 0.0), 32.0);
+                const __m128 specular = _mm_set1_ps(spec);
+
                 // final colour
-                __m128 colour = _mm_mul_ps(_mm_add_ps(ambient, diffuse), texture_colour);
+                __m128 colour = _mm_mul_ps(_mm_add_ps(_mm_add_ps(ambient, diffuse), specular), texture_colour);
+                //__m128 colour = _mm_mul_ps(_mm_add_ps(ambient, diffuse), texture_colour);
                 colour = Clamp_m128(colour, 0.0f, 255.0f);
 
                 const uint8_t red = (uint8_t)(colour.m128_f32[0]);
