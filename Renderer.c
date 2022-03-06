@@ -472,9 +472,9 @@ void Draw_Textured_Shaded_Triangle(const Rendering_data *render, const __m128 v0
 
     // Rasterize
     for (int y = aabb.minY; y <= aabb.maxY; y += 1,
-             w0_row = _mm_add_epi32(w0_row,B0),
-             w1_row = _mm_add_epi32(w1_row,B1),
-             w2_row = _mm_add_epi32(w2_row,B2))
+             w0_row = _mm_add_epi32(w0_row, B0),
+             w1_row = _mm_add_epi32(w1_row, B1),
+             w2_row = _mm_add_epi32(w2_row, B2))
     {
         // Barycentric coordinates at start of row
         __m128i w0 = w0_row;
@@ -1266,6 +1266,362 @@ void Draw_Triangle_Per_Pixel(const Rendering_data *render, const __m128 *screen_
 
             const __m128 finaldepth = _mm_blendv_ps(mergedDepth, previousDepthValue, _mm_cvtepi32_ps(finalMask));
             _mm_store_ps(&pDepthBuffer[index], finaldepth);
+        }
+    }
+}
+
+void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *screen_position_vertixies, __m128 *world_position_verticies,
+                                 const __m128 *normal_coordinates, const __m128 texture_u, const __m128 texture_v,
+                                 const __m128 one_over_w1, const __m128 one_over_w2, const __m128 one_over_w3,
+                                 const Mat4x4 TBN)
+{
+    __m128 v0 = screen_position_vertixies[2];
+    __m128 v1 = screen_position_vertixies[1];
+    __m128 v2 = screen_position_vertixies[0];
+
+    __m128 normal0 = normal_coordinates[2];
+    __m128 normal1 = normal_coordinates[1];
+    __m128 normal2 = normal_coordinates[0];
+
+    // used when checking if w0,w1,w2 is greater than 0;
+    const __m128i fxptZero = _mm_setzero_si128();
+
+    /* get the bounding box of the triangle */
+    union AABB_u aabb;
+    _mm_storeu_si128((__m128i *)aabb.values, Get_AABB_SIMD(v0, v1, v2, render->screen_width, render->screen_height));
+
+    // X and Y value setup
+    const __m128i v0_x = _mm_cvtps_epi32(_mm_shuffle_ps(v0, v0, _MM_SHUFFLE(0, 0, 0, 0)));
+    const __m128i v1_x = _mm_cvtps_epi32(_mm_shuffle_ps(v1, v1, _MM_SHUFFLE(0, 0, 0, 0)));
+    const __m128i v2_x = _mm_cvtps_epi32(_mm_shuffle_ps(v2, v2, _MM_SHUFFLE(0, 0, 0, 0)));
+
+    const __m128i v0_y = _mm_cvtps_epi32(_mm_shuffle_ps(v0, v0, _MM_SHUFFLE(1, 1, 1, 1)));
+    const __m128i v1_y = _mm_cvtps_epi32(_mm_shuffle_ps(v1, v1, _MM_SHUFFLE(1, 1, 1, 1)));
+    const __m128i v2_y = _mm_cvtps_epi32(_mm_shuffle_ps(v2, v2, _MM_SHUFFLE(1, 1, 1, 1)));
+
+    __m128 v0_z = _mm_shuffle_ps(v0, v0, _MM_SHUFFLE(2, 2, 2, 2));
+    __m128 v1_z = _mm_shuffle_ps(v1, v1, _MM_SHUFFLE(2, 2, 2, 2));
+    __m128 v2_z = _mm_shuffle_ps(v2, v2, _MM_SHUFFLE(2, 2, 2, 2));
+
+    // Edge Setup
+    const __m128i A0 = _mm_sub_epi32(v1_y, v2_y); // A01 = [1].Y - [2].Y
+    const __m128i A1 = _mm_sub_epi32(v2_y, v0_y); // A12 = [2].Y - [0].Y
+    const __m128i A2 = _mm_sub_epi32(v0_y, v1_y); // A20 = [0].Y - [1].Y
+
+    const __m128i B0 = _mm_sub_epi32(v2_x, v1_x);
+    const __m128i B1 = _mm_sub_epi32(v0_x, v2_x);
+    const __m128i B2 = _mm_sub_epi32(v1_x, v0_x);
+
+    const __m128i C0 = _mm_sub_epi32(_mm_mullo_epi32(v1_x, v2_y), _mm_mullo_epi32(v2_x, v1_y));
+    const __m128i C1 = _mm_sub_epi32(_mm_mullo_epi32(v2_x, v0_y), _mm_mullo_epi32(v0_x, v2_y));
+    const __m128i C2 = _mm_sub_epi32(_mm_mullo_epi32(v0_x, v1_y), _mm_mullo_epi32(v1_x, v0_y));
+
+    __m128i triArea = _mm_mullo_epi32(B2, A1);
+    triArea = _mm_sub_epi32(triArea, _mm_mullo_epi32(B1, A2));
+
+    // const __m128 oneOverTriArea = _mm_div_ps(_mm_set1_ps(1.0f), _mm_cvtepi32_ps(triArea));
+    const __m128 oneOverTriArea = _mm_rcp_ps(_mm_cvtepi32_ps(triArea));
+
+    v0_z = _mm_mul_ps(oneOverTriArea, v0_z); // z[0] *= oneOverTotalArea;
+    v1_z = _mm_mul_ps(oneOverTriArea, v1_z); // z[1] *= oneOverTotalArea;
+    v2_z = _mm_mul_ps(oneOverTriArea, v2_z); // z[2] *= oneOverTotalArea;
+
+    const __m128i aa0Inc = _mm_slli_epi32(A0, 1);
+    const __m128i aa1Inc = _mm_slli_epi32(A1, 1);
+    const __m128i aa2Inc = _mm_slli_epi32(A2, 1);
+
+    const __m128i bb0Inc = _mm_slli_epi32(B0, 1);
+    const __m128i bb1Inc = _mm_slli_epi32(B1, 1);
+    const __m128i bb2Inc = _mm_slli_epi32(B2, 1);
+
+    const __m128i colOffset = _mm_set_epi32(0, 1, 0, 1);
+    const __m128i rowOffset = _mm_set_epi32(0, 0, 1, 1);
+
+    const __m128i col = _mm_add_epi32(colOffset, _mm_set1_epi32(aabb.minX));
+    const __m128i aa0Col = _mm_mullo_epi32(A0, col);
+    const __m128i aa1Col = _mm_mullo_epi32(A1, col);
+    const __m128i aa2Col = _mm_mullo_epi32(A2, col);
+
+    __m128i row = _mm_add_epi32(rowOffset, _mm_set1_epi32(aabb.minY));
+    __m128i bb0Row = _mm_add_epi32(_mm_mullo_epi32(B0, row), C0);
+    __m128i bb1Row = _mm_add_epi32(_mm_mullo_epi32(B1, row), C1);
+    __m128i bb2Row = _mm_add_epi32(_mm_mullo_epi32(B2, row), C2);
+
+    __m128i sum0Row = _mm_add_epi32(aa0Col, bb0Row);
+    __m128i sum1Row = _mm_add_epi32(aa1Col, bb1Row);
+    __m128i sum2Row = _mm_add_epi32(aa2Col, bb2Row);
+
+    const __m128 light_position = _mm_set_ps(0.0f, 0.0f, -1.0f, -1.0f);
+    // const __m128 view_position = _mm_set1_ps(0.0f); // for specular calculation
+
+    const __m128 Tangent_Light_Pos = Matrix_Multiply_Vector_SIMD(TBN.elements, light_position);
+    //__m128 Tangent_View_Pos = Matrix_Multiply_Vector_SIMD(TBN.elements, view_position); // for specular
+
+    const float ambient_value = 0.1f;
+    const __m128 ambient = _mm_set1_ps(0.1f);
+    const __m128 diffuse_colour = _mm_set_ps(1.0f, 000.0f, 000.0f, 1.0f);
+
+    world_position_verticies[0] = Matrix_Multiply_Vector_SIMD(TBN.elements, world_position_verticies[0]);
+    world_position_verticies[1] = Matrix_Multiply_Vector_SIMD(TBN.elements, world_position_verticies[1]);
+    world_position_verticies[2] = Matrix_Multiply_Vector_SIMD(TBN.elements, world_position_verticies[2]);
+
+    // Rasterize
+    for (int y = aabb.minY; y < aabb.maxY; y += 2,
+             sum0Row = _mm_add_epi32(sum0Row, bb0Inc),
+             sum1Row = _mm_add_epi32(sum1Row, bb1Inc),
+             sum2Row = _mm_add_epi32(sum2Row, bb2Inc))
+    {
+        // Barycentric coordinates at start of row
+        __m128i alpha = sum0Row;
+        __m128i beta = sum1Row;
+        __m128i gama = sum2Row;
+
+        for (int x = aabb.minX; x < aabb.maxX; x += 2,
+                 alpha = _mm_add_epi32(alpha, aa0Inc),
+                 beta = _mm_add_epi32(beta, aa1Inc),
+                 gama = _mm_add_epi32(gama, aa2Inc))
+        {
+            // Test Pixel inside triangle
+            // __m128i mask = w0 | w1 | w2;
+            // we compare < 0.0f, so we get all the values 0.0f and above, -1 values are "true"
+            const __m128i mask = _mm_cmplt_epi32(fxptZero, _mm_or_si128(_mm_or_si128(alpha, beta), gama));
+
+            // Early out if all of this quad's pixels are outside the triangle.
+            if (_mm_test_all_zeros(mask, mask))
+                continue;
+
+            const __m128 w0_area = _mm_cvtepi32_ps(alpha);
+            const __m128 w1_area = _mm_cvtepi32_ps(beta);
+            const __m128 w2_area = _mm_cvtepi32_ps(gama);
+
+            // Compute barycentric-interpolated depth
+            __m128 depth = _mm_mul_ps(_mm_cvtepi32_ps(alpha), one_over_w3);
+            depth = _mm_add_ps(depth, _mm_mul_ps(_mm_cvtepi32_ps(beta), one_over_w2));
+            depth = _mm_add_ps(depth, _mm_mul_ps(_mm_cvtepi32_ps(gama), one_over_w1));
+            depth = _mm_rcp_ps(depth);
+
+            // const int z_index = x + render->screen_width * y;
+
+            //__m128 previousDepthValue = _mm_load_ps(&render->z_buffer_array[z_index]);
+            // previousDepthValue = _mm_shuffle_ps(previousDepthValue, previousDepthValue, _MM_SHUFFLE(0, 1, 2, 3));
+            // const __m128 depthMask = _mm_cmpge_ps(depth, previousDepthValue); // dst[i+31:i] := ( a[i+31:i] >= b[i+31:i] ) ? 0xFFFFFFFF : 0
+            // early out depth mask check
+            // if (_mm_test_all_zeros(depthMask, depthMask))
+            //     continue;
+
+            //  mask = _mm_shuffle_epi32(mask, _MM_SHUFFLE(0, 1, 2, 3)); // reverse the mask
+            //  const __m128i finalMask = _mm_and_si128(mask, _mm_castps_si128(depthMask));
+            const __m128i finalMask = mask;
+
+            const __m128 depth_w = _mm_mul_ps(depth, _mm_set1_ps((float)render->tex_w));
+            const __m128 depth_h = _mm_mul_ps(depth, _mm_set1_ps((float)render->tex_h));
+
+            if (finalMask.m128i_i32[3])
+            {
+                const __m128 weights = _mm_set_ps(0.0f, w2_area.m128_f32[3], w1_area.m128_f32[3], w0_area.m128_f32[3]);
+
+                const __m128 u = _mm_mul_ps(_mm_mul_ps(texture_u, weights), _mm_shuffle_ps(depth_w, depth_w, _MM_SHUFFLE(3, 3, 3, 3)));
+                const __m128 v = _mm_mul_ps(_mm_mul_ps(texture_v, weights), _mm_shuffle_ps(depth_h, depth_h, _MM_SHUFFLE(3, 3, 3, 3)));
+
+                const int res_u = (int)hsum_ps_sse3(u);
+                const int res_v = (int)hsum_ps_sse3(v);
+
+                const __m128 weight1 = _mm_set1_ps(w0_area.m128_f32[3]);
+                const __m128 weight2 = _mm_set1_ps(w1_area.m128_f32[3]);
+                const __m128 weight3 = _mm_set1_ps(w2_area.m128_f32[3]);
+
+                const __m128 position = _mm_add_ps(
+                    _mm_add_ps(
+                        _mm_mul_ps(weight1, world_position_verticies[0]),
+                        _mm_mul_ps(weight2, world_position_verticies[1])),
+                    _mm_mul_ps(weight3, world_position_verticies[2]));
+
+                const unsigned char *diffuse_texture = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
+                const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
+
+                //__m128i colour_test = _mm_load_si128((__m128i *)diffuse_texture);
+
+                // TODO : Can we go this with __m128i?
+                __m128 texture_colour = _mm_set_ps(255.0f, diffuse_texture[2], diffuse_texture[1], diffuse_texture[0]);
+
+                // transform normal vector to range [-1,1]
+                // normal = normalize(normal * 2.0 - 1.0);  // this normal is in tangent space
+                __m128 normal = _mm_set_ps(0.0f, normal_texture[2], normal_texture[1], normal_texture[0]);
+                normal = Normalize_m128(_mm_sub_ps(_mm_mul_ps(normal, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f)));
+
+                // ambient
+                //__m128 ambient = _mm_mul_ps(_mm_set1_ps(ambient_value), texture_colour);
+
+                // diffuse
+                __m128 light_direction = Normalize_m128(_mm_sub_ps(Tangent_Light_Pos, position));
+                const float diffuse_amount = (const float)fmax((double)Calculate_Dot_Product_SIMD(normal, light_direction), 0.0);
+                const __m128 diffuse = _mm_mul_ps(_mm_set1_ps(diffuse_amount), diffuse_colour);
+
+                // final colour
+                __m128 colour = _mm_mul_ps(_mm_add_ps(ambient, diffuse), texture_colour);
+                colour = Clamp_m128(colour, 0.0f, 255.0f);
+
+                const uint8_t red = (uint8_t)(colour.m128_f32[0]);
+                const uint8_t gre = (uint8_t)(colour.m128_f32[1]);
+                const uint8_t blu = (uint8_t)(colour.m128_f32[2]);
+                const uint8_t alp = (uint8_t)(255);
+
+                Draw_Pixel_RGBA(render, x + 0, y, red, gre, blu, alp);
+            }
+
+            if (finalMask.m128i_i32[2])
+            {
+                const __m128 weights = _mm_set_ps(0.0f, w2_area.m128_f32[2], w1_area.m128_f32[2], w0_area.m128_f32[2]);
+
+                const __m128 u = _mm_mul_ps(_mm_mul_ps(texture_u, weights), _mm_shuffle_ps(depth_w, depth_w, _MM_SHUFFLE(2, 2, 2, 2)));
+                const __m128 v = _mm_mul_ps(_mm_mul_ps(texture_v, weights), _mm_shuffle_ps(depth_h, depth_h, _MM_SHUFFLE(2, 2, 2, 2)));
+
+                const int res_u = (int)hsum_ps_sse3(u);
+                const int res_v = (int)hsum_ps_sse3(v);
+
+                const __m128 weight1 = _mm_set1_ps(w0_area.m128_f32[2]);
+                const __m128 weight2 = _mm_set1_ps(w1_area.m128_f32[2]);
+                const __m128 weight3 = _mm_set1_ps(w2_area.m128_f32[2]);
+
+                const __m128 position = _mm_add_ps(
+                    _mm_add_ps(
+                        _mm_mul_ps(weight1, world_position_verticies[0]),
+                        _mm_mul_ps(weight2, world_position_verticies[1])),
+                    _mm_mul_ps(weight3, world_position_verticies[2]));
+
+                const unsigned char *diffuse_texture = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
+                const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
+
+                __m128 texture_colour = _mm_set_ps(255.0f, diffuse_texture[2], diffuse_texture[1], diffuse_texture[0]);
+
+                // transform normal vector to range [-1,1]
+                // normal = normalize(normal * 2.0 - 1.0);  // this normal is in tangent space
+                __m128 normal = _mm_set_ps(0.0f, normal_texture[2], normal_texture[1], normal_texture[0]);
+                normal = Normalize_m128(_mm_sub_ps(_mm_mul_ps(normal, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f)));
+
+                // ambient
+                //__m128 ambient = _mm_mul_ps(_mm_set1_ps(ambient_value), texture_colour);
+
+                // diffuse
+                __m128 light_direction = Normalize_m128(_mm_sub_ps(Tangent_Light_Pos, position));
+                const float diffuse_amount = (const float)fmax((double)Calculate_Dot_Product_SIMD(normal, light_direction), 0.0);
+                const __m128 diffuse = _mm_mul_ps(_mm_set1_ps(diffuse_amount), diffuse_colour);
+
+                // final colour
+                __m128 colour = _mm_mul_ps(_mm_add_ps(ambient, diffuse), texture_colour);
+                colour = Clamp_m128(colour, 0.0f, 255.0f);
+
+                const uint8_t red = (uint8_t)(colour.m128_f32[0]);
+                const uint8_t gre = (uint8_t)(colour.m128_f32[1]);
+                const uint8_t blu = (uint8_t)(colour.m128_f32[2]);
+                const uint8_t alp = (uint8_t)(255);
+
+                Draw_Pixel_RGBA(render, x + 1, y + 0, red, gre, blu, alp);
+            }
+
+            if (finalMask.m128i_i32[1])
+            {
+                const __m128 weights = _mm_set_ps(0.0f, w2_area.m128_f32[1], w1_area.m128_f32[1], w0_area.m128_f32[1]);
+
+                const __m128 u = _mm_mul_ps(_mm_mul_ps(texture_u, weights), _mm_shuffle_ps(depth_w, depth_w, _MM_SHUFFLE(1, 1, 1, 1)));
+                const __m128 v = _mm_mul_ps(_mm_mul_ps(texture_v, weights), _mm_shuffle_ps(depth_h, depth_h, _MM_SHUFFLE(1, 1, 1, 1)));
+
+                const int res_u = (int)hsum_ps_sse3(u);
+                const int res_v = (int)hsum_ps_sse3(v);
+
+                const __m128 weight1 = _mm_set1_ps(w0_area.m128_f32[1]);
+                const __m128 weight2 = _mm_set1_ps(w1_area.m128_f32[1]);
+                const __m128 weight3 = _mm_set1_ps(w2_area.m128_f32[1]);
+
+                const __m128 position = _mm_add_ps(
+                    _mm_add_ps(
+                        _mm_mul_ps(weight1, world_position_verticies[0]),
+                        _mm_mul_ps(weight2, world_position_verticies[1])),
+                    _mm_mul_ps(weight3, world_position_verticies[2]));
+
+                const unsigned char *diffuse_texture = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
+                const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
+
+                __m128 texture_colour = _mm_set_ps(255.0f, diffuse_texture[2], diffuse_texture[1], diffuse_texture[0]);
+
+                // transform normal vector to range [-1,1]
+                // normal = normalize(normal * 2.0 - 1.0);  // this normal is in tangent space
+                __m128 normal = _mm_set_ps(0.0f, normal_texture[2], normal_texture[1], normal_texture[0]);
+                normal = Normalize_m128(_mm_sub_ps(_mm_mul_ps(normal, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f)));
+
+                // ambient
+                //__m128 ambient = _mm_mul_ps(_mm_set1_ps(ambient_value), texture_colour);
+
+                // diffuse
+                __m128 light_direction = Normalize_m128(_mm_sub_ps(Tangent_Light_Pos, position));
+                const float diffuse_amount = (const float)fmax((double)Calculate_Dot_Product_SIMD(normal, light_direction), 0.0);
+                const __m128 diffuse = _mm_mul_ps(_mm_set1_ps(diffuse_amount), diffuse_colour);
+
+                // final colour
+                __m128 colour = _mm_mul_ps(_mm_add_ps(ambient, diffuse), texture_colour);
+                colour = Clamp_m128(colour, 0.0f, 255.0f);
+
+                const uint8_t red = (uint8_t)(colour.m128_f32[0]);
+                const uint8_t gre = (uint8_t)(colour.m128_f32[1]);
+                const uint8_t blu = (uint8_t)(colour.m128_f32[2]);
+                const uint8_t alp = (uint8_t)(255);
+
+                Draw_Pixel_RGBA(render, x + 0, y + 1, red, gre, blu, alp);
+            }
+
+            if (finalMask.m128i_i32[0])
+            {
+                const __m128 weights = _mm_set_ps(0.0f, w2_area.m128_f32[0], w1_area.m128_f32[0], w0_area.m128_f32[0]);
+
+                const __m128 u = _mm_mul_ps(_mm_mul_ps(texture_u, weights), _mm_shuffle_ps(depth_w, depth_w, _MM_SHUFFLE(0, 0, 0, 0)));
+                const __m128 v = _mm_mul_ps(_mm_mul_ps(texture_v, weights), _mm_shuffle_ps(depth_h, depth_h, _MM_SHUFFLE(0, 0, 0, 0)));
+
+                const int res_u = (int)hsum_ps_sse3(u);
+                const int res_v = (int)hsum_ps_sse3(v);
+
+                const __m128 weight1 = _mm_set1_ps(w0_area.m128_f32[0]);
+                const __m128 weight2 = _mm_set1_ps(w1_area.m128_f32[0]);
+                const __m128 weight3 = _mm_set1_ps(w2_area.m128_f32[0]);
+
+                const __m128 position = _mm_add_ps(
+                    _mm_add_ps(
+                        _mm_mul_ps(weight1, world_position_verticies[0]),
+                        _mm_mul_ps(weight2, world_position_verticies[1])),
+                    _mm_mul_ps(weight3, world_position_verticies[2]));
+
+                const unsigned char *diffuse_texture = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
+                const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
+
+                __m128 texture_colour = _mm_set_ps(255.0f, diffuse_texture[2], diffuse_texture[1], diffuse_texture[0]);
+
+                // transform normal vector to range [-1,1]
+                // normal = normalize(normal * 2.0 - 1.0);  // this normal is in tangent space
+                __m128 normal = _mm_set_ps(0.0f, normal_texture[2], normal_texture[1], normal_texture[0]);
+                normal = Normalize_m128(_mm_sub_ps(_mm_mul_ps(normal, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f)));
+
+                // ambient
+                //__m128 ambient = _mm_mul_ps(_mm_set1_ps(ambient_value), texture_colour);
+
+                // diffuse
+                __m128 light_direction = Normalize_m128(_mm_sub_ps(Tangent_Light_Pos, position));
+                const float diffuse_amount = (const float)fmax((double)Calculate_Dot_Product_SIMD(normal, light_direction), 0.0);
+                const __m128 diffuse = _mm_mul_ps(_mm_set1_ps(diffuse_amount), diffuse_colour);
+
+                // final colour
+                __m128 colour = _mm_mul_ps(_mm_add_ps(ambient, diffuse), texture_colour);
+                colour = Clamp_m128(colour, 0.0f, 255.0f);
+
+                const uint8_t red = (uint8_t)(colour.m128_f32[0]);
+                const uint8_t gre = (uint8_t)(colour.m128_f32[1]);
+                const uint8_t blu = (uint8_t)(colour.m128_f32[2]);
+                const uint8_t alp = (uint8_t)(255);
+
+                Draw_Pixel_RGBA(render, x + 1, y + 1, red, gre, blu, alp);
+            }
+
+            // depth = _mm_blendv_ps(previousDepthValue, depth, _mm_castsi128_ps(finalMask));
+            // depth = _mm_shuffle_ps(depth, depth, _MM_SHUFFLE(0, 1, 2, 3)); // reverse finalMask
+            //_mm_store_ps(&render->z_buffer_array[z_index], depth);
         }
     }
 }
