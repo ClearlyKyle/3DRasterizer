@@ -36,7 +36,7 @@ __m128 Calculate_Point_Light_Colour(const PointLight pl, const __m128 normal, __
     const __m128 diffuse_colour = _mm_mul_ps(_mm_set1_ps(diffuse), _mm_set_ps(1.0f, 0.0f, 0.0f, 1.0f));
 
     const __m128 view_direction = Normalize_m128(_mm_sub_ps(_mm_setzero_ps(), vert));
-    const __m128 spec_colour = Specular_Highlight_Colour(pl, view_direction, direction_to_light, normal);
+    const __m128 spec_colour = Specular_Highlight_Colour(view_direction, direction_to_light, normal);
 
     //// return _mm_mul_ps(pl.colour, _mm_set1_ps(dp));
     // return spec_colour;
@@ -52,7 +52,7 @@ __m128 Reflect_m128(const __m128 I, const __m128 N)
     return _mm_sub_ps(I, righ);
 }
 
-__m128 Specular_Highlight_Colour(const PointLight pl, const __m128 view_direction, const __m128 light_direction, const __m128 normal)
+__m128 Specular_Highlight_Colour(const __m128 view_direction, const __m128 light_direction, const __m128 normal)
 {
     // vec3 viewDir = normalize(viewPos - FragPos);
     const __m128 neg_light_direction = _mm_mul_ps(light_direction, _mm_set1_ps(-1.0f));
