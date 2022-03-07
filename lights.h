@@ -33,4 +33,11 @@ __m128 Specular_Highlight_Colour(const PointLight pl, const __m128 view_directio
 
 __m128 Reflect_m128(const __m128 I, const __m128 N);
 
+__m128 Calculate_Normal_Mapping_Colour(const unsigned char *diffuse_texture,
+                                       const unsigned char *normal_texture,
+                                       const __m128 pixel_world_position,
+                                       const Mat4x4 TBN,
+                                       const __m128 Tangent_Light_Pos,
+                                       const __m128 Tangent_View_Pos);
+
 #endif // __LIGHTS_H__

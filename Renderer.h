@@ -63,7 +63,7 @@ void Draw_Triangle_Per_Pixel(const Rendering_data *render, const __m128 *screen_
                              const __m128 normal1, const __m128 normal2, const __m128 normal3, const PointLight pl);
 
 void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *screen_position_vertixies, __m128 *world_position_verticies,
-                                 const __m128 *normal_coordinates, const __m128 texture_u, const __m128 texture_v,
+                                 const __m128 texture_u, const __m128 texture_v,
                                  const __m128 one_over_w1, const __m128 one_over_w2, const __m128 one_over_w3,
                                  const Mat4x4 TBN);
 

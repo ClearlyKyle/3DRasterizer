@@ -1101,7 +1101,7 @@ void Draw_Triangle_Per_Pixel(const Rendering_data *render, const __m128 *screen_
 
     const __m128 ambient = _mm_set1_ps(0.1f);
 
-    const __m128 camera_position = _mm_setzero_ps();
+    // const __m128 camera_position = _mm_setzero_ps();
 
     // Rasterize
     for (int y = aabb.minY; y < aabb.maxY; y += 2,
@@ -1271,17 +1271,13 @@ void Draw_Triangle_Per_Pixel(const Rendering_data *render, const __m128 *screen_
 }
 
 void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *screen_position_vertixies, __m128 *world_position_verticies,
-                                 const __m128 *normal_coordinates, const __m128 texture_u, const __m128 texture_v,
+                                 const __m128 texture_u, const __m128 texture_v,
                                  const __m128 one_over_w1, const __m128 one_over_w2, const __m128 one_over_w3,
                                  const Mat4x4 TBN)
 {
     __m128 v0 = screen_position_vertixies[2];
     __m128 v1 = screen_position_vertixies[1];
     __m128 v2 = screen_position_vertixies[0];
-
-    __m128 normal0 = normal_coordinates[2];
-    __m128 normal1 = normal_coordinates[1];
-    __m128 normal2 = normal_coordinates[0];
 
     // used when checking if w0,w1,w2 is greater than 0;
     const __m128i fxptZero = _mm_setzero_si128();
@@ -1351,19 +1347,15 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
     __m128i sum1Row = _mm_add_epi32(aa1Col, bb1Row);
     __m128i sum2Row = _mm_add_epi32(aa2Col, bb2Row);
 
-    const __m128 light_position = _mm_set_ps(0.0f, 0.0f, -1.0f, -1.0f);
+    const __m128 light_position = _mm_set_ps(0.0f, 0.0f, 0.0f, -1.0f);
     const __m128 view_position = _mm_set1_ps(0.0f); // for specular calculation
 
     const __m128 Tangent_Light_Pos = Matrix_Multiply_Vector_SIMD(TBN.elements, light_position);
-    __m128 Tangent_View_Pos = Matrix_Multiply_Vector_SIMD(TBN.elements, view_position); // for specular
+    const __m128 Tangent_View_Pos = Matrix_Multiply_Vector_SIMD(TBN.elements, view_position); // for specular
 
-    const float ambient_value = 0.1f;
-    const __m128 ambient = _mm_set1_ps(0.1f);
-    const __m128 diffuse_colour = _mm_set_ps(1.0f, 000.0f, 000.0f, 1.0f);
-
-    world_position_verticies[0] = Matrix_Multiply_Vector_SIMD(TBN.elements, world_position_verticies[0]);
-    world_position_verticies[1] = Matrix_Multiply_Vector_SIMD(TBN.elements, world_position_verticies[1]);
-    world_position_verticies[2] = Matrix_Multiply_Vector_SIMD(TBN.elements, world_position_verticies[2]);
+    //world_position_verticies[0] = Matrix_Multiply_Vector_SIMD(TBN.elements, world_position_verticies[0]);
+    //world_position_verticies[1] = Matrix_Multiply_Vector_SIMD(TBN.elements, world_position_verticies[1]);
+    //world_position_verticies[2] = Matrix_Multiply_Vector_SIMD(TBN.elements, world_position_verticies[2]);
 
     // Rasterize
     for (int y = aabb.minY; y < aabb.maxY; y += 2,
@@ -1436,43 +1428,14 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
                         _mm_mul_ps(weight2, world_position_verticies[1])),
                     _mm_mul_ps(weight3, world_position_verticies[2]));
 
-                const unsigned char *diffuse_texture = render->tex_data + (res_u + (render->tex_w * res_v)) * render->tex_bpp;
-                const unsigned char *normal_texture = render->nrm_data + (res_u + (render->nrm_w * res_v)) * render->nrm_bpp;
+                const unsigned char *diffuse_texture = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
+                const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
 
-                //__m128i colour_test = _mm_load_si128((__m128i *)diffuse_texture);
+                const __m128 colour = Calculate_Normal_Mapping_Colour(diffuse_texture, normal_texture, position, TBN, Tangent_Light_Pos, Tangent_View_Pos);
 
-                // TODO : Can we go this with __m128i?
-                __m128 texture_colour = _mm_set_ps(255.0f, diffuse_texture[2], diffuse_texture[1], diffuse_texture[0]);
-
-                // transform normal vector to range [-1,1]
-                // normal = normalize(normal * 2.0 - 1.0);  // this normal is in tangent space
-                __m128 normal = _mm_set_ps(0.0f, normal_texture[2], normal_texture[1], normal_texture[0]);
-                normal = Normalize_m128(_mm_sub_ps(_mm_mul_ps(normal, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f)));
-
-                // ambient
-                //__m128 ambient = _mm_mul_ps(_mm_set1_ps(ambient_value), texture_colour);
-
-                // diffuse
-                __m128 light_direction = Normalize_m128(_mm_sub_ps(Tangent_Light_Pos, position));
-                const float diffuse_amount = (const float)fmax((double)Calculate_Dot_Product_SIMD(normal, light_direction), 0.0);
-                const __m128 diffuse = _mm_mul_ps(_mm_set1_ps(diffuse_amount), diffuse_colour);
-
-                // specular
-                __m128 view_direction = Normalize_m128(_mm_sub_ps(Tangent_View_Pos, position));
-                __m128 reflection_direction = Reflect_m128(_mm_mul_ps(light_direction, _mm_set1_ps(-1.0f)), normal);
-
-                __m128 halfway_direction = Normalize_m128(_mm_add_ps(light_direction, view_direction));
-                const float spec = (const float)pow(fmax(Calculate_Dot_Product_SIMD(normal, reflection_direction), 0.0), 32.0);
-                const __m128 specular = _mm_set1_ps(spec);
-
-                // final colour
-                __m128 colour = _mm_mul_ps(_mm_add_ps(_mm_add_ps(ambient, diffuse), specular), texture_colour);
-                //__m128 colour = _mm_mul_ps(_mm_add_ps(ambient, diffuse), texture_colour);
-                colour = Clamp_m128(colour, 0.0f, 255.0f);
-
-                const uint8_t red = (uint8_t)(colour.m128_f32[0]);
-                const uint8_t gre = (uint8_t)(colour.m128_f32[1]);
-                const uint8_t blu = (uint8_t)(colour.m128_f32[2]);
+                const uint8_t red = (uint8_t)(colour.m128_f32[0] * 255);
+                const uint8_t gre = (uint8_t)(colour.m128_f32[1] * 255);
+                const uint8_t blu = (uint8_t)(colour.m128_f32[2] * 255);
                 const uint8_t alp = (uint8_t)(255);
 
                 Draw_Pixel_RGBA(render, x + 0, y, red, gre, blu, alp);
@@ -1498,40 +1461,14 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
                         _mm_mul_ps(weight2, world_position_verticies[1])),
                     _mm_mul_ps(weight3, world_position_verticies[2]));
 
-                const unsigned char *diffuse_texture = render->tex_data + (res_u + (render->tex_w * res_v)) * render->tex_bpp;
-                const unsigned char *normal_texture = render->nrm_data + (res_u + (render->nrm_w * res_v)) * render->nrm_bpp;
+                const unsigned char *diffuse_texture = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
+                const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
 
-                __m128 texture_colour = _mm_set_ps(255.0f, diffuse_texture[2], diffuse_texture[1], diffuse_texture[0]);
+                const __m128 colour = Calculate_Normal_Mapping_Colour(diffuse_texture, normal_texture, position, TBN, Tangent_Light_Pos, Tangent_View_Pos);
 
-                // transform normal vector to range [-1,1]
-                // normal = normalize(normal * 2.0 - 1.0);  // this normal is in tangent space
-                __m128 normal = _mm_set_ps(0.0f, normal_texture[2], normal_texture[1], normal_texture[0]);
-                normal = Normalize_m128(_mm_sub_ps(_mm_mul_ps(normal, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f)));
-
-                // ambient
-                //__m128 ambient = _mm_mul_ps(_mm_set1_ps(ambient_value), texture_colour);
-
-                // diffuse
-                __m128 light_direction = Normalize_m128(_mm_sub_ps(Tangent_Light_Pos, position));
-                const float diffuse_amount = (const float)fmax((double)Calculate_Dot_Product_SIMD(normal, light_direction), 0.0);
-                const __m128 diffuse = _mm_mul_ps(_mm_set1_ps(diffuse_amount), diffuse_colour);
-
-                // specular
-                __m128 view_direction = Normalize_m128(_mm_sub_ps(Tangent_View_Pos, position));
-                __m128 reflection_direction = Reflect_m128(_mm_mul_ps(light_direction, _mm_set1_ps(-1.0f)), normal);
-
-                __m128 halfway_direction = Normalize_m128(_mm_add_ps(light_direction, view_direction));
-                const float spec = (const float)pow(fmax(Calculate_Dot_Product_SIMD(normal, reflection_direction), 0.0), 32.0);
-                const __m128 specular = _mm_set1_ps(spec);
-
-                // final colour
-                __m128 colour = _mm_mul_ps(_mm_add_ps(_mm_add_ps(ambient, diffuse), specular), texture_colour);
-                //__m128 colour = _mm_mul_ps(_mm_add_ps(ambient, diffuse), texture_colour);
-                colour = Clamp_m128(colour, 0.0f, 255.0f);
-
-                const uint8_t red = (uint8_t)(colour.m128_f32[0]);
-                const uint8_t gre = (uint8_t)(colour.m128_f32[1]);
-                const uint8_t blu = (uint8_t)(colour.m128_f32[2]);
+                const uint8_t red = (uint8_t)(colour.m128_f32[0] * 255);
+                const uint8_t gre = (uint8_t)(colour.m128_f32[1] * 255);
+                const uint8_t blu = (uint8_t)(colour.m128_f32[2] * 255);
                 const uint8_t alp = (uint8_t)(255);
 
                 Draw_Pixel_RGBA(render, x + 1, y + 0, red, gre, blu, alp);
@@ -1557,40 +1494,14 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
                         _mm_mul_ps(weight2, world_position_verticies[1])),
                     _mm_mul_ps(weight3, world_position_verticies[2]));
 
-                const unsigned char *diffuse_texture = render->tex_data + (res_u + (render->tex_w * res_v)) * render->tex_bpp;
-                const unsigned char *normal_texture = render->nrm_data + (res_u + (render->nrm_w * res_v)) * render->nrm_bpp;
+                const unsigned char *diffuse_texture = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
+                const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
 
-                __m128 texture_colour = _mm_set_ps(255.0f, diffuse_texture[2], diffuse_texture[1], diffuse_texture[0]);
+                const __m128 colour = Calculate_Normal_Mapping_Colour(diffuse_texture, normal_texture, position, TBN, Tangent_Light_Pos, Tangent_View_Pos);
 
-                // transform normal vector to range [-1,1]
-                // normal = normalize(normal * 2.0 - 1.0);  // this normal is in tangent space
-                __m128 normal = _mm_set_ps(0.0f, normal_texture[2], normal_texture[1], normal_texture[0]);
-                normal = Normalize_m128(_mm_sub_ps(_mm_mul_ps(normal, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f)));
-
-                // ambient
-                //__m128 ambient = _mm_mul_ps(_mm_set1_ps(ambient_value), texture_colour);
-
-                // diffuse
-                __m128 light_direction = Normalize_m128(_mm_sub_ps(Tangent_Light_Pos, position));
-                const float diffuse_amount = (const float)fmax((double)Calculate_Dot_Product_SIMD(normal, light_direction), 0.0);
-                const __m128 diffuse = _mm_mul_ps(_mm_set1_ps(diffuse_amount), diffuse_colour);
-
-                // specular
-                __m128 view_direction = Normalize_m128(_mm_sub_ps(Tangent_View_Pos, position));
-                __m128 reflection_direction = Reflect_m128(_mm_mul_ps(light_direction, _mm_set1_ps(-1.0f)), normal);
-
-                __m128 halfway_direction = Normalize_m128(_mm_add_ps(light_direction, view_direction));
-                const float spec = (const float)pow(fmax(Calculate_Dot_Product_SIMD(normal, reflection_direction), 0.0), 32.0);
-                const __m128 specular = _mm_set1_ps(spec);
-
-                // final colour
-                __m128 colour = _mm_mul_ps(_mm_add_ps(_mm_add_ps(ambient, diffuse), specular), texture_colour);
-                //__m128 colour = _mm_mul_ps(_mm_add_ps(ambient, diffuse), texture_colour);
-                colour = Clamp_m128(colour, 0.0f, 255.0f);
-
-                const uint8_t red = (uint8_t)(colour.m128_f32[0]);
-                const uint8_t gre = (uint8_t)(colour.m128_f32[1]);
-                const uint8_t blu = (uint8_t)(colour.m128_f32[2]);
+                const uint8_t red = (uint8_t)(colour.m128_f32[0] * 255);
+                const uint8_t gre = (uint8_t)(colour.m128_f32[1] * 255);
+                const uint8_t blu = (uint8_t)(colour.m128_f32[2] * 255);
                 const uint8_t alp = (uint8_t)(255);
 
                 Draw_Pixel_RGBA(render, x + 0, y + 1, red, gre, blu, alp);
@@ -1616,40 +1527,14 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
                         _mm_mul_ps(weight2, world_position_verticies[1])),
                     _mm_mul_ps(weight3, world_position_verticies[2]));
 
-                const unsigned char *diffuse_texture = render->tex_data + (res_u + (render->tex_w * res_v)) * render->tex_bpp;
-                const unsigned char *normal_texture = render->nrm_data + (res_u + (render->nrm_w * res_v)) * render->nrm_bpp;
+                const unsigned char *diffuse_texture = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
+                const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
 
-                __m128 texture_colour = _mm_set_ps(255.0f, diffuse_texture[2], diffuse_texture[1], diffuse_texture[0]);
+                const __m128 colour = Calculate_Normal_Mapping_Colour(diffuse_texture, normal_texture, position, TBN, Tangent_Light_Pos, Tangent_View_Pos);
 
-                // transform normal vector to range [-1,1]
-                // normal = normalize(normal * 2.0 - 1.0);  // this normal is in tangent space
-                __m128 normal = _mm_set_ps(0.0f, normal_texture[2], normal_texture[1], normal_texture[0]);
-                normal = Normalize_m128(_mm_sub_ps(_mm_mul_ps(normal, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f)));
-
-                // ambient
-                //__m128 ambient = _mm_mul_ps(_mm_set1_ps(ambient_value), texture_colour);
-
-                // diffuse
-                __m128 light_direction = Normalize_m128(_mm_sub_ps(Tangent_Light_Pos, position));
-                const float diffuse_amount = (const float)fmax((double)Calculate_Dot_Product_SIMD(normal, light_direction), 0.0);
-                const __m128 diffuse = _mm_mul_ps(_mm_set1_ps(diffuse_amount), diffuse_colour);
-
-                // specular
-                __m128 view_direction = Normalize_m128(_mm_sub_ps(Tangent_View_Pos, position));
-                __m128 reflection_direction = Reflect_m128(_mm_mul_ps(light_direction, _mm_set1_ps(-1.0f)), normal);
-
-                __m128 halfway_direction = Normalize_m128(_mm_add_ps(light_direction, view_direction));
-                const float spec = (const float)pow(fmax(Calculate_Dot_Product_SIMD(normal, reflection_direction), 0.0), 32.0);
-                const __m128 specular = _mm_set1_ps(spec);
-
-                // final colour
-                __m128 colour = _mm_mul_ps(_mm_add_ps(_mm_add_ps(ambient, diffuse), specular), texture_colour);
-                //__m128 colour = _mm_mul_ps(_mm_add_ps(ambient, diffuse), texture_colour);
-                colour = Clamp_m128(colour, 0.0f, 255.0f);
-
-                const uint8_t red = (uint8_t)(colour.m128_f32[0]);
-                const uint8_t gre = (uint8_t)(colour.m128_f32[1]);
-                const uint8_t blu = (uint8_t)(colour.m128_f32[2]);
+                const uint8_t red = (uint8_t)(colour.m128_f32[0] * 255);
+                const uint8_t gre = (uint8_t)(colour.m128_f32[1] * 255);
+                const uint8_t blu = (uint8_t)(colour.m128_f32[2] * 255);
                 const uint8_t alp = (uint8_t)(255);
 
                 Draw_Pixel_RGBA(render, x + 1, y + 1, red, gre, blu, alp);
