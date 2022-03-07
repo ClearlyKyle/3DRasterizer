@@ -11,6 +11,9 @@ Mat4x4 Get_Translation_Matrix(float x, float y, float z)
     matrix.elements[12] = x;
     matrix.elements[13] = y;
     matrix.elements[14] = z;
+    // matrix.elements[3] = x;
+    // matrix.elements[7] = y;
+    // matrix.elements[11] = z;
 
     return matrix;
 }
@@ -21,8 +24,8 @@ Mat4x4 Get_Rotation_X_Matrix(float angle_rad)
 
     matrix.elements[0] = 1.0f;
     matrix.elements[5] = cosf(angle_rad);
-    matrix.elements[6] = sinf(angle_rad);
-    matrix.elements[9] = -sinf(angle_rad);
+    matrix.elements[6] = -sinf(angle_rad);
+    matrix.elements[9] = sinf(angle_rad);
     matrix.elements[10] = cosf(angle_rad);
     matrix.elements[15] = 1.0f;
 
@@ -332,7 +335,7 @@ __m128 Clamp_m128(const __m128 vec, float minval, float maxval)
     return _mm_min_ps(_mm_max_ps(vec, _mm_set1_ps(minval)), _mm_set1_ps(maxval));
 }
 
-Mat4x4 Get_TBN_Matrix(__m128 Tangent, const __m128 Normal, const Mat4x4 ViewModelMatrix)
+Mat4x4 Get_TBN_Matrix(__m128 Tangent, __m128 Normal, const Mat4x4 ViewModelMatrix)
 {
     Mat4x4 TBN = {0.0f};
 
@@ -340,21 +343,22 @@ Mat4x4 Get_TBN_Matrix(__m128 Tangent, const __m128 Normal, const Mat4x4 ViewMode
     // const __m128 magic_tangent = _mm_mul_ps(_mm_set1_ps(Calculate_Dot_Product_SIMD(Tangent, Normal)), Normal);
     // Tangent = Normalize_m128(_mm_sub_ps(Tangent, magic_tangent));
 
-    const __m128 Bitangent = Vector_Cross_Product_m128(Normal, Tangent);
+    Tangent = Matrix_Multiply_Vector_SIMD(ViewModelMatrix.elements, Tangent);
+    Normal = Matrix_Multiply_Vector_SIMD(ViewModelMatrix.elements, Normal);
 
-    const __m128 Zeros = _mm_setzero_ps();
+    __m128 Bitangent = Vector_Cross_Product_SIMD(Normal, Tangent);
 
-    //_MM_TRANSPOSE4_PS(Tangent, Bitangent, Normal, Zeros);
+    __m128 Zeros = _mm_setzero_ps();
 
-    _mm_store_ps(&TBN.elements[0], Matrix_Multiply_Vector_m128(&ViewModelMatrix, Tangent));
-    _mm_store_ps(&TBN.elements[4], Matrix_Multiply_Vector_m128(&ViewModelMatrix, Bitangent));
-    _mm_store_ps(&TBN.elements[8], Matrix_Multiply_Vector_m128(&ViewModelMatrix, Normal));
+    _mm_store_ps(&TBN.elements[0], Tangent);
+    _mm_store_ps(&TBN.elements[4], Bitangent);
+    _mm_store_ps(&TBN.elements[8], Normal);
     _mm_store_ps(&TBN.elements[12], Zeros);
 
-    // TBN.elements[3] = 0.0f;
-    // TBN.elements[7] = 0.0f;
-    // TBN.elements[11] = 0.0f;
-    // TBN.elements[15] = 0.0f;
+    TBN.elements[3] = 0.0f;
+    TBN.elements[7] = 0.0f;
+    TBN.elements[11] = 0.0f;
+    TBN.elements[15] = 1.0f;
 
     return TBN;
 }
