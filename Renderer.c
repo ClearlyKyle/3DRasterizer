@@ -183,7 +183,7 @@ union AABB_u
 
 static __m128i Get_AABB_SIMD(const __m128 v1, const __m128 v2, const __m128 v3, int screen_width, int screen_height)
 {
-    const __m128i max_values = _mm_cvtps_epi32(_mm_min_ps(_mm_max_ps(_mm_max_ps(v1, v2), v3), _mm_set_ps(0.0f, 0.0f, (float)screen_width, (float)screen_height)));
+    const __m128i max_values = _mm_cvtps_epi32(_mm_min_ps(_mm_max_ps(_mm_max_ps(v1, v2), v3), _mm_set_ps(0.0f, 0.0f, (float)screen_width - 1, (float)screen_height - 1)));
     const __m128i min_values = _mm_cvtps_epi32(_mm_max_ps(_mm_min_ps(_mm_min_ps(v1, v2), v3), _mm_set1_ps(0.0f)));
 
     // Returns {maxX, minX, maxY, minY}
@@ -471,7 +471,7 @@ void Draw_Textured_Shaded_Triangle(const Rendering_data *render, const __m128 v0
     float *pDepthBuffer = (float *)render->z_buffer_array;
 
     // Rasterize
-    for (int y = aabb.minY; y <= aabb.maxY; y += 1,
+    for (int y = aabb.minY; y < aabb.maxY; y += 1,
              w0_row = _mm_add_epi32(w0_row, B0),
              w1_row = _mm_add_epi32(w1_row, B1),
              w2_row = _mm_add_epi32(w2_row, B2))
@@ -481,7 +481,7 @@ void Draw_Textured_Shaded_Triangle(const Rendering_data *render, const __m128 v0
         __m128i w1 = w1_row;
         __m128i w2 = w2_row;
 
-        for (int x = aabb.minX; x <= aabb.maxX; x += 4,
+        for (int x = aabb.minX; x < aabb.maxX; x += 4,
                  w0 = _mm_add_epi32(w0, X_Step_w0),
                  w1 = _mm_add_epi32(w1, X_Step_w1),
                  w2 = _mm_add_epi32(w2, X_Step_w2))
