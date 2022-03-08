@@ -60,6 +60,41 @@ Mat4x4 Get_Rotation_Z_Matrix(float angle_rad)
     return matrix;
 }
 
+Mat4x4 Get_View_Matrix(float angle_rad)
+{
+    Mat4x4 matrix = {0.0f};
+    // 0  1  2  3
+    // 4  5  6  7
+    // 8  9  10 11
+    // 12 13 14 15
+    // RIGHT
+    matrix.elements[0] = 1.0f;
+    matrix.elements[4] = 0.0f;
+    matrix.elements[8] = 0.0f;
+    matrix.elements[12] = 0.0f;
+
+    // UP
+    matrix.elements[1] = 0.0f;
+    matrix.elements[5] = 1.0f;
+    matrix.elements[9] = 0.0f;
+    matrix.elements[13] = 0.0f;
+    // FORWARD
+    matrix.elements[2] = 0.0f;
+    matrix.elements[6] = 0.0f;
+    matrix.elements[10] = 1.0f;
+    matrix.elements[14] = 0.0f;
+    // POSITION
+    matrix.elements[3] = 0.0f;
+    matrix.elements[7] = 0.0f;
+    matrix.elements[11] = 0.0f;
+    matrix.elements[15] = 0.0f;
+
+    matrix.elements[10] = 1.0f;
+    matrix.elements[15] = 1.0f;
+
+    return matrix;
+}
+
 Mat4x4_m128 Get_Translation_Matrix_m128(float x, float y, float z)
 {
     // Mat4x4 matrix = {0.0f};
