@@ -249,22 +249,21 @@ int main(int argc, char *argv[])
                 const __m128 one_over_w3 = _mm_div_ps(_mm_set1_ps(1.0f), _mm_shuffle_ps(tri3, tri3, _MM_SHUFFLE(3, 3, 3, 3)));
 
                 // tex coordinates are read in like : u u u...
-                __m128 texture_u = _mm_set_ps(0.0f, mesh->uv_coordinates[6 * i + 0], mesh->uv_coordinates[6 * i + 2], mesh->uv_coordinates[6 * i + 4]);
-                __m128 texture_v = _mm_set_ps(0.0f, mesh->uv_coordinates[6 * i + 1], mesh->uv_coordinates[6 * i + 3], mesh->uv_coordinates[6 * i + 5]);
+                // uv[0], uv[1], uv[2]
+                __m128 texture_v = _mm_set_ps(0.0f, mesh->uv_coordinates[6 * i + 0], mesh->uv_coordinates[6 * i + 2], mesh->uv_coordinates[6 * i + 4]);
+                __m128 texture_u = _mm_set_ps(0.0f, mesh->uv_coordinates[6 * i + 1], mesh->uv_coordinates[6 * i + 3], mesh->uv_coordinates[6 * i + 5]);
 
                 // NORMAL Mapping
-                __m128 edge1 = _mm_add_ps(tri2, tri1);
-                __m128 edge2 = _mm_add_ps(tri3, tri1);
+                __m128 edge1 = _mm_sub_ps(tri2, tri1);
+                __m128 edge2 = _mm_sub_ps(tri3, tri1);
+                edge1.m128_f32[3] = 0.0f;
+                edge2.m128_f32[3] = 0.0f;
 
-                __m128 deltaUV_values = _mm_sub_ps(
-                    _mm_set_ps(mesh->uv_coordinates[6 * i + 2], mesh->uv_coordinates[6 * i + 3], mesh->uv_coordinates[6 * i + 4], mesh->uv_coordinates[6 * i + 5]),
-                    _mm_set_ps(mesh->uv_coordinates[6 * i + 0], mesh->uv_coordinates[6 * i + 1], mesh->uv_coordinates[6 * i + 0], mesh->uv_coordinates[6 * i + 1]));
+                const float deltaUV1_x = mesh->uv_coordinates[6 * i + 3] - mesh->uv_coordinates[6 * i + 1];
+                const float deltaUV1_y = mesh->uv_coordinates[6 * i + 2] - mesh->uv_coordinates[6 * i + 0];
 
-                const float deltaUV1_x = mesh->uv_coordinates[6 * i + 2] - mesh->uv_coordinates[6 * i + 0];
-                const float deltaUV1_y = mesh->uv_coordinates[6 * i + 3] - mesh->uv_coordinates[6 * i + 1];
-
-                const float deltaUV2_x = mesh->uv_coordinates[6 * i + 4] - mesh->uv_coordinates[6 * i + 0];
-                const float deltaUV2_y = mesh->uv_coordinates[6 * i + 5] - mesh->uv_coordinates[6 * i + 1];
+                const float deltaUV2_x = mesh->uv_coordinates[6 * i + 5] - mesh->uv_coordinates[6 * i + 1];
+                const float deltaUV2_y = mesh->uv_coordinates[6 * i + 4] - mesh->uv_coordinates[6 * i + 0];
 
                 const float f = 1.0f / (deltaUV1_x * deltaUV2_y - deltaUV2_x * deltaUV1_y);
 
@@ -319,9 +318,7 @@ int main(int argc, char *argv[])
                 normal1 = Matrix_Multiply_Vector_SIMD(Rotation_Matrix.elements, normal1);
                 normal2 = Matrix_Multiply_Vector_SIMD(Rotation_Matrix.elements, normal2);
 
-                surface_normal = Matrix_Multiply_Vector_SIMD(Rotation_Matrix.elements, surface_normal);
-                bitanget = Matrix_Multiply_Vector_SIMD(Rotation_Matrix.elements, bitanget);
-                tangent = Matrix_Multiply_Vector_SIMD(Rotation_Matrix.elements, tangent);
+                const Mat4x4 TBN = Get_TBN_Matrix(tangent, normal0, World_Matrix);
                 // Since we do not scale, using the World Matrix on the normals is all we need
                 // normal0 = Matrix_Multiply_Vector_SIMD(World_Matrix.elements, normal0);
                 // normal1 = Matrix_Multiply_Vector_SIMD(World_Matrix.elements, normal1);
@@ -335,7 +332,25 @@ int main(int argc, char *argv[])
                 // Draw_Textured_Triangle(&ren_data, tri3, tri2, tri1, texture_u, texture_v, one_over_w1, one_over_w2, one_over_w3, frag.color);
                 // Draw_Textured_Shaded_Triangle(&ren_data, tri3, tri2, tri1, frag.color);
                 // Draw_Triangle_Outline(ren_data.fmt, ren_data.pixels, tri1, tri2, tri3, &LINE_COLOUR);
-                Draw_Textured_Smooth_Shaded_Triangle(&ren_data, tri3, tri2, tri1, normal2, normal1, normal0, light_colour, light_direction);
+                // Draw_Normal_Mapped_Triangle(&ren_data, tri3, tri2, tri1, texture_u, texture_v, one_over_w1, one_over_w2, one_over_w3, frag.color);
+
+                // const __m128 light_direction = _mm_set_ps(1.0f, 1.0f, 0.0f, 0.0f);
+                // Draw_Textured_Smooth_Shaded_Triangle(&ren_data, tri3, tri2, tri1, normal2, normal1, normal0, light_colour, light_direction);
+                // colour1 = _mm_set1_ps(255.0f);
+                // colour2 = _mm_set1_ps(255.0f);
+                // colour3 = _mm_set1_ps(255.0f);
+                // Draw_Triangle_With_Colour(&ren_data, tri3, tri2, tri1, colour3, colour2, colour1);
+
+                // Screen Vertex Postions
+                const __m128 screen_position_vertixies[3] = {tri1, tri2, tri3};
+                const __m128 normal_coordinates[3] = {normal0, normal1, normal2};
+                //Draw_Triangle_Per_Pixel(&ren_data, screen_position_vertixies, world_position_verticies, normal2, normal1, normal0, point_light);
+                //  Draw_Textured_Shaded_Triangle(&ren_data, tri3, tri2, tri1, frag.color);
+                //  Draw_Textured_Triangle(&ren_data, tri3, tri2, tri1, texture_u, texture_v, one_over_w1, one_over_w2, one_over_w3, frag.color);
+                 Draw_Normal_Mapped_Triangle(&ren_data, screen_position_vertixies, world_position_verticies, texture_u, texture_v, one_over_w1, one_over_w2, one_over_w3, TBN);
+
+                // const __m128 front_colour = _mm_set_ps(255.0f, 255.0f, 102.0f, 102.0f);
+                // Draw_Textured_Shaded_Triangle(&ren_data, tri3, tri2, tri1, front_colour);
             }
         }
         // Update Screen
