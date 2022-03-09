@@ -1347,15 +1347,15 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
     __m128i sum1Row = _mm_add_epi32(aa1Col, bb1Row);
     __m128i sum2Row = _mm_add_epi32(aa2Col, bb2Row);
 
-    const __m128 light_position = _mm_set_ps(0.0f, 0.0f, 0.0f, -1.0f);
+    const __m128 light_position = _mm_set_ps(0.0f, 2.0f, 0.0f, -1.0f);
     const __m128 view_position = _mm_set1_ps(0.0f); // for specular calculation
 
     const __m128 Tangent_Light_Pos = Matrix_Multiply_Vector_SIMD(TBN.elements, light_position);
     const __m128 Tangent_View_Pos = Matrix_Multiply_Vector_SIMD(TBN.elements, view_position); // for specular
 
-    //world_position_verticies[0] = Matrix_Multiply_Vector_SIMD(TBN.elements, world_position_verticies[0]);
-    //world_position_verticies[1] = Matrix_Multiply_Vector_SIMD(TBN.elements, world_position_verticies[1]);
-    //world_position_verticies[2] = Matrix_Multiply_Vector_SIMD(TBN.elements, world_position_verticies[2]);
+    world_position_verticies[0] = Matrix_Multiply_Vector_SIMD(TBN.elements, world_position_verticies[0]);
+    world_position_verticies[1] = Matrix_Multiply_Vector_SIMD(TBN.elements, world_position_verticies[1]);
+    world_position_verticies[2] = Matrix_Multiply_Vector_SIMD(TBN.elements, world_position_verticies[2]);
 
     // Rasterize
     for (int y = aabb.minY; y < aabb.maxY; y += 2,
@@ -1431,7 +1431,7 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
                 const unsigned char *diffuse_texture = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
                 const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
 
-                const __m128 colour = Calculate_Normal_Mapping_Colour(diffuse_texture, normal_texture, position, TBN, Tangent_Light_Pos, Tangent_View_Pos);
+                const __m128 colour = Calculate_Normal_Mapping_Colour(diffuse_texture, normal_texture, TBN, position, Tangent_Light_Pos, Tangent_View_Pos);
 
                 const uint8_t red = (uint8_t)(colour.m128_f32[0] * 255);
                 const uint8_t gre = (uint8_t)(colour.m128_f32[1] * 255);
@@ -1464,7 +1464,7 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
                 const unsigned char *diffuse_texture = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
                 const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
 
-                const __m128 colour = Calculate_Normal_Mapping_Colour(diffuse_texture, normal_texture, position, TBN, Tangent_Light_Pos, Tangent_View_Pos);
+                const __m128 colour = Calculate_Normal_Mapping_Colour(diffuse_texture, normal_texture, TBN, position, Tangent_Light_Pos, Tangent_View_Pos);
 
                 const uint8_t red = (uint8_t)(colour.m128_f32[0] * 255);
                 const uint8_t gre = (uint8_t)(colour.m128_f32[1] * 255);
@@ -1497,7 +1497,7 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
                 const unsigned char *diffuse_texture = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
                 const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
 
-                const __m128 colour = Calculate_Normal_Mapping_Colour(diffuse_texture, normal_texture, position, TBN, Tangent_Light_Pos, Tangent_View_Pos);
+                const __m128 colour = Calculate_Normal_Mapping_Colour(diffuse_texture, normal_texture, TBN, position, Tangent_Light_Pos, Tangent_View_Pos);
 
                 const uint8_t red = (uint8_t)(colour.m128_f32[0] * 255);
                 const uint8_t gre = (uint8_t)(colour.m128_f32[1] * 255);
@@ -1530,7 +1530,7 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
                 const unsigned char *diffuse_texture = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
                 const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
 
-                const __m128 colour = Calculate_Normal_Mapping_Colour(diffuse_texture, normal_texture, position, TBN, Tangent_Light_Pos, Tangent_View_Pos);
+                const __m128 colour = Calculate_Normal_Mapping_Colour(diffuse_texture, normal_texture, TBN, position, Tangent_Light_Pos, Tangent_View_Pos);
 
                 const uint8_t red = (uint8_t)(colour.m128_f32[0] * 255);
                 const uint8_t gre = (uint8_t)(colour.m128_f32[1] * 255);
