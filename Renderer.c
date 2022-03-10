@@ -655,42 +655,66 @@ void Draw_Specular_Shaded(const Rendering_data *render, const __m128 *screen_pos
             _mm_mullo_epi32(A2, p_x), _mm_mullo_epi32(B2, p_y)),
         C2);
 
-    // X Step
-    const __m128i X_Step_w0 = _mm_mullo_epi32(A0, _mm_set1_epi32(4));
-    const __m128i X_Step_w1 = _mm_mullo_epi32(A1, _mm_set1_epi32(4));
-    const __m128i X_Step_w2 = _mm_mullo_epi32(A2, _mm_set1_epi32(4));
+    __m128i aa0Inc = _mm_slli_epi32(aa0, 1);
+    __m128i aa1Inc = _mm_slli_epi32(aa1, 1);
+    __m128i aa2Inc = _mm_slli_epi32(aa2, 1);
+
+    __m128i row, col;
+    const __m128i colOffset = _mm_set_epi32(0, 1, 0, 1);
+    const __m128i rowOffset = _mm_set_epi32(0, 0, 1, 1);
+
+    col = _mm_add_epi32(colOffset, _mm_set1_epi32(aabb.minX));
+    __m128i aa0Col = _mm_mullo_epi32(aa0, col);
+    __m128i aa1Col = _mm_mullo_epi32(aa1, col);
+    __m128i aa2Col = _mm_mullo_epi32(aa2, col);
+
+    row = _mm_add_epi32(rowOffset, _mm_set1_epi32(aabb.minY));
+    __m128i bb0Row = _mm_add_epi32(_mm_mullo_epi32(bb0, row), _mm_set1_epi32(C0.m128i_i32[lane]));
+    __m128i bb1Row = _mm_add_epi32(_mm_mullo_epi32(bb1, row), _mm_set1_epi32(C1.m128i_i32[lane]));
+    __m128i bb2Row = _mm_add_epi32(_mm_mullo_epi32(bb2, row), _mm_set1_epi32(C2.m128i_i32[lane]));
+
+    __m128i sum0Row = _mm_add_epi32(aa0Col, bb0Row);
+    __m128i sum1Row = _mm_add_epi32(aa1Col, bb1Row);
+    __m128i sum2Row = _mm_add_epi32(aa2Col, bb2Row);
+
+    __m128i bb0Inc = _mm_slli_epi32(bb0, 1);
+    __m128i bb1Inc = _mm_slli_epi32(bb1, 1);
+    __m128i bb2Inc = _mm_slli_epi32(bb2, 1);
 
     float *pDepthBuffer = (float *)render->z_buffer_array;
 
     // Rasterize
-    for (int y = aabb.minY; y < aabb.maxY; y += 1,
-             w0_row = _mm_add_epi32(w0_row, B0),
-             w1_row = _mm_add_epi32(w1_row, B1),
-             w2_row = _mm_add_epi32(w2_row, B2))
+    for (int y = aabb.minY; y < aabb.maxY; y += 2,
+             sum0Row = _mm_add_epi32(sum0Row, bb0Inc),
+             sum1Row = _mm_add_epi32(sum1Row, bb1Inc),
+             sum2Row = _mm_add_epi32(sum2Row, bb2Inc))
     {
-        // Barycentric coordinates at start of row
-        __m128i w0 = w0_row;
-        __m128i w1 = w1_row;
-        __m128i w2 = w2_row;
+        // Compute barycentric coordinates
+        __m128i alpha = sum0Row;
+        __m128i betaa = sum1Row;
+        __m128i gamaa = sum2Row;
 
-        for (int x = aabb.minX; x < aabb.maxX; x += 4,
-                 w0 = _mm_add_epi32(w0, X_Step_w0),
-                 w1 = _mm_add_epi32(w1, X_Step_w1),
-                 w2 = _mm_add_epi32(w2, X_Step_w2))
+        for (int x = aabb.minX; x < aabb.maxX; x += 2,
+                 alpha = _mm_add_epi32(alpha, aa0Inc),
+                 betaa = _mm_add_epi32(betaa, aa1Inc),
+                 gamaa = _mm_add_epi32(gamaa, aa2Inc))
         // One step to the right
         {
             // Test Pixel inside triangle
             // __m128i mask = w0 | w1 | w2;
             // we compare < 0.0f, so we get all the values 0.0f and above, -1 values are "true"
-            const __m128i mask = _mm_cmplt_epi32(fxptZero, _mm_or_si128(_mm_or_si128(w0, w1), w2));
+            const __m128i mask = _mm_cmplt_epi32(fxptZero, _mm_or_si128(_mm_or_si128(alpha, betaa), gamaa));
 
             // Early out if all of this quad's pixels are outside the triangle.
             if (_mm_test_all_zeros(mask, mask))
                 continue;
 
-            const __m128 w0_area = _mm_mul_ps(_mm_cvtepi32_ps(w0), oneOverTriArea);
-            const __m128 w1_area = _mm_mul_ps(_mm_cvtepi32_ps(w1), oneOverTriArea);
-            const __m128 w2_area = _mm_mul_ps(_mm_cvtepi32_ps(w2), oneOverTriArea);
+            const __m128 w0_area = _mm_mul_ps(_mm_cvtepi32_ps(alpha), oneOverTriArea);
+            const __m128 w1_area = _mm_mul_ps(_mm_cvtepi32_ps(betaa), oneOverTriArea);
+            const __m128 w2_area = _mm_mul_ps(_mm_cvtepi32_ps(gamaa), oneOverTriArea);
+            // const __m128 w0_area = _mm_cvtepi32_ps(w2);
+            // const __m128 w1_area = _mm_cvtepi32_ps(w1);
+            // const __m128 w2_area = _mm_cvtepi32_ps(w0);
 
             // const int z_index = x + render->screen_width * y;
 
@@ -717,8 +741,8 @@ void Draw_Specular_Shaded(const Rendering_data *render, const __m128 *screen_pos
                 const __m128 position = _mm_add_ps(
                     _mm_add_ps(
                         _mm_mul_ps(weight1, wp0),
-                        _mm_mul_ps(weight2, wp2)),
-                    _mm_mul_ps(weight3, wp1));
+                        _mm_mul_ps(weight2, wp1)),
+                    _mm_mul_ps(weight3, wp2));
 
                 __m128 colour = Calculate_Point_Light_Colour(pl, normal, position);
                 colour = Clamp_m128(colour, 0.0f, 1.0f);
@@ -728,7 +752,7 @@ void Draw_Specular_Shaded(const Rendering_data *render, const __m128 *screen_pos
                 const uint8_t blu = (uint8_t)(colour.m128_f32[2] * 255);
                 const uint8_t alp = (uint8_t)(255);
 
-                Draw_Pixel_RGBA(render, x + 0, y, red, gre, blu, alp);
+                Draw_Pixel_RGBA(render, x + 0, y + 0, red, gre, blu, alp);
             }
 
             if (finalMask.m128i_i32[2])
@@ -746,8 +770,8 @@ void Draw_Specular_Shaded(const Rendering_data *render, const __m128 *screen_pos
                 const __m128 position = _mm_add_ps(
                     _mm_add_ps(
                         _mm_mul_ps(weight1, wp0),
-                        _mm_mul_ps(weight2, wp2)),
-                    _mm_mul_ps(weight3, wp1));
+                        _mm_mul_ps(weight2, wp1)),
+                    _mm_mul_ps(weight3, wp2));
 
                 __m128 colour = Calculate_Point_Light_Colour(pl, normal, position);
                 colour = Clamp_m128(colour, 0.0f, 1.0f);
@@ -757,7 +781,7 @@ void Draw_Specular_Shaded(const Rendering_data *render, const __m128 *screen_pos
                 const uint8_t blu = (uint8_t)(colour.m128_f32[2] * 255);
                 const uint8_t alp = (uint8_t)(255);
 
-                Draw_Pixel_RGBA(render, x + 1, y, red, gre, blu, alp);
+                Draw_Pixel_RGBA(render, x + 1, y + 0, red, gre, blu, alp);
             }
 
             if (finalMask.m128i_i32[1])
@@ -775,8 +799,8 @@ void Draw_Specular_Shaded(const Rendering_data *render, const __m128 *screen_pos
                 const __m128 position = _mm_add_ps(
                     _mm_add_ps(
                         _mm_mul_ps(weight1, wp0),
-                        _mm_mul_ps(weight2, wp2)),
-                    _mm_mul_ps(weight3, wp1));
+                        _mm_mul_ps(weight2, wp1)),
+                    _mm_mul_ps(weight3, wp2));
 
                 __m128 colour = Calculate_Point_Light_Colour(pl, normal, position);
                 colour = Clamp_m128(colour, 0.0f, 1.0f);
@@ -786,7 +810,7 @@ void Draw_Specular_Shaded(const Rendering_data *render, const __m128 *screen_pos
                 const uint8_t blu = (uint8_t)(colour.m128_f32[2] * 255);
                 const uint8_t alp = (uint8_t)(255);
 
-                Draw_Pixel_RGBA(render, x + 2, y, red, gre, blu, alp);
+                Draw_Pixel_RGBA(render, x + 0, y + 1, red, gre, blu, alp);
             }
 
             if (finalMask.m128i_i32[0])
@@ -804,8 +828,8 @@ void Draw_Specular_Shaded(const Rendering_data *render, const __m128 *screen_pos
                 const __m128 position = _mm_add_ps(
                     _mm_add_ps(
                         _mm_mul_ps(weight1, wp0),
-                        _mm_mul_ps(weight2, wp2)),
-                    _mm_mul_ps(weight3, wp1));
+                        _mm_mul_ps(weight2, wp1)),
+                    _mm_mul_ps(weight3, wp2));
 
                 __m128 colour = Calculate_Point_Light_Colour(pl, normal, position);
                 colour = Clamp_m128(colour, 0.0f, 1.0f);
@@ -815,7 +839,7 @@ void Draw_Specular_Shaded(const Rendering_data *render, const __m128 *screen_pos
                 const uint8_t blu = (uint8_t)(colour.m128_f32[2] * 255);
                 const uint8_t alp = (uint8_t)(255);
 
-                Draw_Pixel_RGBA(render, x + 3, y, red, gre, blu, alp);
+                Draw_Pixel_RGBA(render, x + 1, y + 1, red, gre, blu, alp);
             }
 
             // depth = _mm_blendv_ps(previousDepthValue, depth, _mm_castsi128_ps(finalMask));
