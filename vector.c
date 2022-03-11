@@ -381,9 +381,12 @@ Mat4x4 Get_TBN_Matrix(__m128 Tangent, __m128 Normal, const Mat4x4 ViewModelMatri
     Tangent = Matrix_Multiply_Vector_SIMD(ViewModelMatrix.elements, Tangent);
     Normal = Matrix_Multiply_Vector_SIMD(ViewModelMatrix.elements, Normal);
 
+    //__m128 Bitangent = Vector_Cross_Product_SIMD(Tangent, Normal);
     __m128 Bitangent = Vector_Cross_Product_SIMD(Normal, Tangent);
 
     __m128 Zeros = _mm_setzero_ps();
+
+    _MM_TRANSPOSE4_PS(Tangent, Bitangent, Normal, Zeros);
 
     _mm_store_ps(&TBN.elements[0], Tangent);
     _mm_store_ps(&TBN.elements[4], Bitangent);
