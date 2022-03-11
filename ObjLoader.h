@@ -195,17 +195,17 @@ static void Get_Mesh_Data(const tinyobj_attrib_t *attrib, Mesh_Data **return_mes
             normal_coords[(i * 12) + 0] = attrib->normals[f_normal_index1 * 3 + 0]; // X
             normal_coords[(i * 12) + 1] = attrib->normals[f_normal_index1 * 3 + 1]; // Y
             normal_coords[(i * 12) + 2] = attrib->normals[f_normal_index1 * 3 + 2]; // Z
-            normal_coords[(i * 12) + 3] = 0.0f;                                      // W
+            normal_coords[(i * 12) + 3] = 0.0f;                                     // W
 
             normal_coords[(i * 12) + 4] = attrib->normals[f_normal_index2 * 3 + 0]; // X
             normal_coords[(i * 12) + 5] = attrib->normals[f_normal_index2 * 3 + 1]; // Y
             normal_coords[(i * 12) + 6] = attrib->normals[f_normal_index2 * 3 + 2]; // Z
-            normal_coords[(i * 12) + 7] = 0.0f;                                      // W
+            normal_coords[(i * 12) + 7] = 0.0f;                                     // W
 
             normal_coords[(i * 12) + 8] = attrib->normals[f_normal_index3 * 3 + 0];  // X
             normal_coords[(i * 12) + 9] = attrib->normals[f_normal_index3 * 3 + 1];  // Y
             normal_coords[(i * 12) + 10] = attrib->normals[f_normal_index3 * 3 + 2]; // Z
-            normal_coords[(i * 12) + 11] = 0.0f;                                      // W
+            normal_coords[(i * 12) + 11] = 0.0f;                                     // W
         }
     }
     else if (triangulated == 4)
@@ -233,6 +233,12 @@ static void Get_Mesh_Data(const tinyobj_attrib_t *attrib, Mesh_Data **return_mes
         if (!uv_coords)
         {
             fprintf(stderr, "Error alocating memeory for 'vert_coords'\n");
+            exit(1);
+        }
+        normal_coords = (float *)malloc(sizeof(float) * (number_of_triangles * 3) * 4);
+        if (!normal_coords)
+        {
+            fprintf(stderr, "Error alocating memeory for 'normal_coords'\n");
             exit(1);
         }
 
@@ -286,32 +292,32 @@ static void Get_Mesh_Data(const tinyobj_attrib_t *attrib, Mesh_Data **return_mes
             normal_coords[(i * 24) + 0] = attrib->normals[f_normal_index1 * 3 + 0]; // X
             normal_coords[(i * 24) + 1] = attrib->normals[f_normal_index1 * 3 + 1]; // Y
             normal_coords[(i * 24) + 2] = attrib->normals[f_normal_index1 * 3 + 2]; // Z
-            normal_coords[(i * 24) + 3] = 1.0f;                                      // W
+            normal_coords[(i * 24) + 3] = 1.0f;                                     // W
 
             normal_coords[(i * 24) + 4] = attrib->normals[f_normal_index2 * 3 + 0]; // X
             normal_coords[(i * 24) + 5] = attrib->normals[f_normal_index2 * 3 + 1]; // Y
             normal_coords[(i * 24) + 6] = attrib->normals[f_normal_index2 * 3 + 2]; // Z
-            normal_coords[(i * 24) + 7] = 1.0f;                                      // W
+            normal_coords[(i * 24) + 7] = 1.0f;                                     // W
 
             normal_coords[(i * 24) + 8] = attrib->normals[f_normal_index3 * 3 + 0];  // X
             normal_coords[(i * 24) + 9] = attrib->normals[f_normal_index3 * 3 + 1];  // Y
             normal_coords[(i * 24) + 10] = attrib->normals[f_normal_index3 * 3 + 2]; // Z
-            normal_coords[(i * 24) + 11] = 1.0f;                                      // W
+            normal_coords[(i * 24) + 11] = 1.0f;                                     // W
 
             normal_coords[(i * 24) + 12] = attrib->normals[f_normal_index1 * 3 + 0]; // X
             normal_coords[(i * 24) + 13] = attrib->normals[f_normal_index1 * 3 + 1]; // Y
             normal_coords[(i * 24) + 14] = attrib->normals[f_normal_index1 * 3 + 2]; // Z
-            normal_coords[(i * 24) + 15] = 1.0f;                                      // W
+            normal_coords[(i * 24) + 15] = 1.0f;                                     // W
 
             normal_coords[(i * 24) + 16] = attrib->normals[f_normal_index3 * 3 + 0]; // X
             normal_coords[(i * 24) + 17] = attrib->normals[f_normal_index3 * 3 + 1]; // Y
             normal_coords[(i * 24) + 18] = attrib->normals[f_normal_index3 * 3 + 2]; // Z
-            normal_coords[(i * 24) + 19] = 1.0f;                                      // W
+            normal_coords[(i * 24) + 19] = 1.0f;                                     // W
 
             normal_coords[(i * 24) + 20] = attrib->normals[f_normal_index4 * 3 + 0]; // X
             normal_coords[(i * 24) + 21] = attrib->normals[f_normal_index4 * 3 + 1]; // Y
             normal_coords[(i * 24) + 22] = attrib->normals[f_normal_index4 * 3 + 2]; // Z
-            normal_coords[(i * 24) + 23] = 1.0f;                                      // W
+            normal_coords[(i * 24) + 23] = 1.0f;                                     // W
         }
         for (size_t i = 0; i < number_of_f_values; i++) // loop through in steps of 4
         {
