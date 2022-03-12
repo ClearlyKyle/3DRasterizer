@@ -212,10 +212,6 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
     const __m128i v1_y = _mm_cvtps_epi32(_mm_shuffle_ps(v1, v1, _MM_SHUFFLE(1, 1, 1, 1)));
     const __m128i v2_y = _mm_cvtps_epi32(_mm_shuffle_ps(v2, v2, _MM_SHUFFLE(1, 1, 1, 1)));
 
-    __m128 v0_z = _mm_shuffle_ps(v0, v0, _MM_SHUFFLE(2, 2, 2, 2));
-    __m128 v1_z = _mm_shuffle_ps(v1, v1, _MM_SHUFFLE(2, 2, 2, 2));
-    __m128 v2_z = _mm_shuffle_ps(v2, v2, _MM_SHUFFLE(2, 2, 2, 2));
-
     // Edge Setup
     const __m128i A0 = _mm_sub_epi32(v1_y, v2_y); // A01 = [1].Y - [2].Y
     const __m128i A1 = _mm_sub_epi32(v2_y, v0_y); // A12 = [2].Y - [0].Y
@@ -240,10 +236,6 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
 
     // const __m128 oneOverTriArea = _mm_div_ps(_mm_set1_ps(1.0f), _mm_cvtepi32_ps(triArea));
     const __m128 oneOverTriArea = _mm_rcp_ps(_mm_cvtepi32_ps(triArea));
-
-    v0_z = _mm_mul_ps(oneOverTriArea, v0_z); // z[0] *= oneOverTotalArea;
-    v1_z = _mm_mul_ps(oneOverTriArea, v1_z); // z[1] *= oneOverTotalArea;
-    v2_z = _mm_mul_ps(oneOverTriArea, v2_z); // z[2] *= oneOverTotalArea;
 
     const __m128i aa0Inc = _mm_slli_epi32(A0, 1);
     const __m128i aa1Inc = _mm_slli_epi32(A1, 1);
@@ -270,18 +262,25 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
     __m128i sum1Row = _mm_add_epi32(aa1Col, bb1Row);
     __m128i sum2Row = _mm_add_epi32(aa2Col, bb2Row);
 
+    // Cast depth buffer to float
+    float *pDepthBuffer = (float *)render->z_buffer_array;
+    int rowIdx = (aabb.minY * render->screen_width + 2 * aabb.minX);
+
     // Rasterize
     for (int y = aabb.minY; y < aabb.maxY; y += 2,
+             rowIdx += (2 * render->screen_width),
              sum0Row = _mm_add_epi32(sum0Row, bb0Inc),
              sum1Row = _mm_add_epi32(sum1Row, bb1Inc),
              sum2Row = _mm_add_epi32(sum2Row, bb2Inc))
     {
         // Barycentric coordinates at start of row
+        int index = rowIdx;
         __m128i alpha = sum0Row;
         __m128i beta = sum1Row;
         __m128i gama = sum2Row;
 
         for (int x = aabb.minX; x < aabb.maxX; x += 2,
+                 index += 4,
                  alpha = _mm_add_epi32(alpha, aa0Inc),
                  beta = _mm_add_epi32(beta, aa1Inc),
                  gama = _mm_add_epi32(gama, aa2Inc))
@@ -289,39 +288,39 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
             // Test Pixel inside triangle
             // __m128i mask = w0 | w1 | w2;
             // we compare < 0.0f, so we get all the values 0.0f and above, -1 values are "true"
-            const __m128i mask = _mm_cmplt_epi32(fxptZero, _mm_or_si128(_mm_or_si128(alpha, beta), gama));
+            const __m128i mask = _mm_or_si128(_mm_or_si128(alpha, beta), gama);
+            const __m128i mask_check = _mm_cmplt_epi32(fxptZero, mask);
 
             // Early out if all of this quad's pixels are outside the triangle.
-            if (_mm_test_all_zeros(mask, mask))
+            if (_mm_test_all_zeros(mask_check, mask_check))
                 continue;
 
-            const __m128 w0_area = _mm_cvtepi32_ps(alpha);
-            const __m128 w1_area = _mm_cvtepi32_ps(beta);
-            const __m128 w2_area = _mm_cvtepi32_ps(gama);
+            const __m128 w0_area = _mm_mul_ps(_mm_cvtepi32_ps(alpha), oneOverTriArea);
+            const __m128 w1_area = _mm_mul_ps(_mm_cvtepi32_ps(beta), oneOverTriArea);
+            const __m128 w2_area = _mm_mul_ps(_mm_cvtepi32_ps(gama), oneOverTriArea);
 
             // Compute barycentric-interpolated depth
-            __m128 depth = _mm_mul_ps(_mm_cvtepi32_ps(alpha), one_over_w3);
-            depth = _mm_add_ps(depth, _mm_mul_ps(_mm_cvtepi32_ps(beta), one_over_w2));
-            depth = _mm_add_ps(depth, _mm_mul_ps(_mm_cvtepi32_ps(gama), one_over_w1));
+            __m128 depth = _mm_mul_ps(w0_area, one_over_w3);
+            depth = _mm_add_ps(depth, _mm_mul_ps(w1_area, one_over_w2));
+            depth = _mm_add_ps(depth, _mm_mul_ps(w2_area, one_over_w1));
             depth = _mm_rcp_ps(depth);
 
-            // const int z_index = x + render->screen_width * y;
+            //// DEPTH BUFFER
+            const __m128 previousDepthValue = _mm_load_ps(&pDepthBuffer[index]);
 
-            //__m128 previousDepthValue = _mm_load_ps(&render->z_buffer_array[z_index]);
-            // previousDepthValue = _mm_shuffle_ps(previousDepthValue, previousDepthValue, _MM_SHUFFLE(0, 1, 2, 3));
-            // const __m128 depthMask = _mm_cmpge_ps(depth, previousDepthValue); // dst[i+31:i] := ( a[i+31:i] >= b[i+31:i] ) ? 0xFFFFFFFF : 0
-            // early out depth mask check
-            // if (_mm_test_all_zeros(depthMask, depthMask))
-            //     continue;
+            __m128 get_the_zero_value_index = _mm_cmpeq_ps(previousDepthValue, _mm_setzero_ps());
+            __m128 fill_zero_values_with_depths = _mm_blendv_ps(previousDepthValue, depth, get_the_zero_value_index);
+            __m128 which_depths_values_are_min = _mm_cmplt_ps(depth, fill_zero_values_with_depths); // ( a[i+31:i] < b[i+31:i] ) ? 0xFFFFFFFF : 0
 
-            //  mask = _mm_shuffle_epi32(mask, _MM_SHUFFLE(0, 1, 2, 3)); // reverse the mask
-            //  const __m128i finalMask = _mm_and_si128(mask, _mm_castps_si128(depthMask));
-            const __m128i finalMask = mask;
+            __m128 final_mask = _mm_or_ps(_mm_castsi128_ps(mask_check), which_depths_values_are_min);
 
+            __m128 final_depth_values = _mm_blendv_ps(which_depths_values_are_min, previous_depth, _mm_castsi128_ps(mask_check));
+
+            // Precalulate uv constants
             const __m128 depth_w = _mm_mul_ps(depth, _mm_set1_ps((float)render->tex_w - 1));
             const __m128 depth_h = _mm_mul_ps(depth, _mm_set1_ps((float)render->tex_h - 1));
 
-            if (finalMask.m128i_i32[3])
+            if (which_depth_to_draw.m128i_i32[3])
             {
                 const __m128 weights = _mm_set_ps(0.0f, w2_area.m128_f32[3], w1_area.m128_f32[3], w0_area.m128_f32[3]);
 
@@ -338,10 +337,10 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 const uint8_t blu = (uint8_t)(pixelOffset[2]);
                 const uint8_t alp = (uint8_t)(render->tex_bpp == 4 ? pixelOffset[3] : 255);
 
-                Draw_Pixel_RGBA(render, x + 0, y, red, gre, blu, alp);
+                Draw_Pixel_RGBA(render, x + 0, y + 0, red, gre, blu, alp);
             }
 
-            if (finalMask.m128i_i32[2])
+            if (which_depth_to_draw.m128i_i32[2])
             {
                 const __m128 weights = _mm_set_ps(0.0f, w2_area.m128_f32[2], w1_area.m128_f32[2], w0_area.m128_f32[2]);
 
@@ -361,7 +360,7 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 Draw_Pixel_RGBA(render, x + 1, y + 0, red, gre, blu, alp);
             }
 
-            if (finalMask.m128i_i32[1])
+            if (which_depth_to_draw.m128i_i32[1])
             {
                 const __m128 weights = _mm_set_ps(0.0f, w2_area.m128_f32[1], w1_area.m128_f32[1], w0_area.m128_f32[1]);
 
@@ -381,7 +380,7 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 Draw_Pixel_RGBA(render, x + 0, y + 1, red, gre, blu, alp);
             }
 
-            if (finalMask.m128i_i32[0])
+            if (which_depth_to_draw.m128i_i32[0])
             {
                 const __m128 weights = _mm_set_ps(0.0f, w2_area.m128_f32[0], w1_area.m128_f32[0], w0_area.m128_f32[0]);
 
@@ -400,10 +399,6 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
 
                 Draw_Pixel_RGBA(render, x + 1, y + 1, red, gre, blu, alp);
             }
-
-            // depth = _mm_blendv_ps(previousDepthValue, depth, _mm_castsi128_ps(finalMask));
-            // depth = _mm_shuffle_ps(depth, depth, _MM_SHUFFLE(0, 1, 2, 3)); // reverse finalMask
-            //_mm_store_ps(&render->z_buffer_array[z_index], depth);
         }
     }
 }
@@ -514,12 +509,13 @@ void Draw_Textured_Shaded_Triangle(const Rendering_data *render, const __m128 v0
 
             const int z_index = x + render->screen_width * y;
 
-            __m128 previousDepthValue = _mm_load_ps(&pDepthBuffer[z_index]);
-            previousDepthValue = _mm_shuffle_ps(previousDepthValue, previousDepthValue, _MM_SHUFFLE(0, 1, 2, 3));
-            const __m128 depthMask = _mm_cmpge_ps(depth, previousDepthValue); // dst[i+31:i] := ( a[i+31:i] >= b[i+31:i] ) ? 0xFFFFFFFF : 0
+            //__m128 previousDepthValue = _mm_load_ps(&pDepthBuffer[z_index]);
+            // previousDepthValue = _mm_shuffle_ps(previousDepthValue, previousDepthValue, _MM_SHUFFLE(0, 1, 2, 3));
+            // const __m128 depthMask = _mm_cmpge_ps(depth, previousDepthValue); // dst[i+31:i] := ( a[i+31:i] >= b[i+31:i] ) ? 0xFFFFFFFF : 0
 
             // mask = _mm_shuffle_epi32(mask, _MM_SHUFFLE(0, 1, 2, 3)); // reverse the mask
-            const __m128i finalMask = _mm_and_si128(mask, _mm_castps_si128(depthMask));
+            // const __m128i finalMask = _mm_and_si128(mask, _mm_castps_si128(depthMask));
+            const __m128i finalMask = mask;
 
             float light_thing[4];
             _mm_store_ps(light_thing, frag_colour);
@@ -597,9 +593,9 @@ void Draw_Specular_Shaded(const Rendering_data *render, const __m128 *screen_pos
     __m128 wp1 = world_position_verticies[1];
     __m128 wp2 = world_position_verticies[0];
 
-    __m128 nrm0 = normal_vectors[0];
+    __m128 nrm0 = normal_vectors[2];
     __m128 nrm1 = normal_vectors[1];
-    __m128 nrm2 = normal_vectors[2];
+    __m128 nrm2 = normal_vectors[0];
 
     // used when checking if w0,w1,w2 is greater than 0;
     const __m128i fxptZero = _mm_setzero_si128();
@@ -617,10 +613,6 @@ void Draw_Specular_Shaded(const Rendering_data *render, const __m128 *screen_pos
     const __m128i v1_y = _mm_cvtps_epi32(_mm_shuffle_ps(v1, v1, _MM_SHUFFLE(1, 1, 1, 1)));
     const __m128i v2_y = _mm_cvtps_epi32(_mm_shuffle_ps(v2, v2, _MM_SHUFFLE(1, 1, 1, 1)));
 
-    __m128 v0_z = _mm_shuffle_ps(v0, v0, _MM_SHUFFLE(2, 2, 2, 2));
-    __m128 v1_z = _mm_shuffle_ps(v1, v1, _MM_SHUFFLE(2, 2, 2, 2));
-    __m128 v2_z = _mm_shuffle_ps(v2, v2, _MM_SHUFFLE(2, 2, 2, 2));
-
     // Edge Setup
     const __m128i A0 = _mm_sub_epi32(v1_y, v2_y); // A01 = [1].Y - [2].Y
     const __m128i A1 = _mm_sub_epi32(v2_y, v0_y); // A12 = [2].Y - [0].Y
@@ -634,32 +626,22 @@ void Draw_Specular_Shaded(const Rendering_data *render, const __m128 *screen_pos
     const __m128i C1 = _mm_sub_epi32(_mm_mullo_epi32(v2_x, v0_y), _mm_mullo_epi32(v0_x, v2_y));
     const __m128i C2 = _mm_sub_epi32(_mm_mullo_epi32(v0_x, v1_y), _mm_mullo_epi32(v1_x, v0_y));
 
+    // Compute triangle area
     __m128i triArea = _mm_mullo_epi32(B2, A1);
     triArea = _mm_sub_epi32(triArea, _mm_mullo_epi32(B1, A2));
 
     // const __m128 oneOverTriArea = _mm_div_ps(_mm_set1_ps(1.0f), _mm_cvtepi32_ps(triArea));
     const __m128 oneOverTriArea = _mm_rcp_ps(_mm_cvtepi32_ps(triArea));
 
-    const __m128i p_x = _mm_add_epi32(_mm_set1_epi32(aabb.minX), _mm_set_epi32(0, 1, 2, 3));
-    const __m128i p_y = _mm_set1_epi32(aabb.minY);
+    const int lane = 0;
 
-    // Barycentric Setip
-    // Order of triangle sides *IMPORTANT*
-    // v1, v2 :  w0_row = (A12 * p.x) + (B12 * p.y) + C12;
-    // v2, v0 :  w1_row = (A20 * p.x) + (B20 * p.y) + C20;
-    // v0, v1 :  w2_row = (A01 * p.x) + (B01 * p.y) + C01;
-    __m128i w0_row = _mm_add_epi32(
-        _mm_add_epi32(
-            _mm_mullo_epi32(A0, p_x), _mm_mullo_epi32(B0, p_y)),
-        C0);
-    __m128i w1_row = _mm_add_epi32(
-        _mm_add_epi32(
-            _mm_mullo_epi32(A1, p_x), _mm_mullo_epi32(B1, p_y)),
-        C1);
-    __m128i w2_row = _mm_add_epi32(
-        _mm_add_epi32(
-            _mm_mullo_epi32(A2, p_x), _mm_mullo_epi32(B2, p_y)),
-        C2);
+    __m128i aa0 = _mm_set1_epi32(A0.m128i_i32[lane]);
+    __m128i aa1 = _mm_set1_epi32(A1.m128i_i32[lane]);
+    __m128i aa2 = _mm_set1_epi32(A2.m128i_i32[lane]);
+
+    __m128i bb0 = _mm_set1_epi32(B0.m128i_i32[lane]);
+    __m128i bb1 = _mm_set1_epi32(B1.m128i_i32[lane]);
+    __m128i bb2 = _mm_set1_epi32(B2.m128i_i32[lane]);
 
     __m128i aa0Inc = _mm_slli_epi32(aa0, 1);
     __m128i aa1Inc = _mm_slli_epi32(aa1, 1);
@@ -718,9 +700,9 @@ void Draw_Specular_Shaded(const Rendering_data *render, const __m128 *screen_pos
             const __m128 w0_area = _mm_mul_ps(_mm_cvtepi32_ps(alpha), oneOverTriArea);
             const __m128 w1_area = _mm_mul_ps(_mm_cvtepi32_ps(betaa), oneOverTriArea);
             const __m128 w2_area = _mm_mul_ps(_mm_cvtepi32_ps(gamaa), oneOverTriArea);
-            // const __m128 w0_area = _mm_cvtepi32_ps(w2);
-            // const __m128 w1_area = _mm_cvtepi32_ps(w1);
-            // const __m128 w2_area = _mm_cvtepi32_ps(w0);
+            // const __m128 w0_area = _mm_cvtepi32_ps(alpha);
+            // const __m128 w1_area = _mm_cvtepi32_ps(betaa);
+            // const __m128 w2_area = _mm_cvtepi32_ps(gamaa);
 
             // const int z_index = x + render->screen_width * y;
 
@@ -821,9 +803,9 @@ void Draw_Specular_Shaded(const Rendering_data *render, const __m128 *screen_pos
 
             if (finalMask.m128i_i32[0])
             {
-                const __m128 weight1 = _mm_set1_ps(w0_area.m128_f32[1]);
-                const __m128 weight2 = _mm_set1_ps(w1_area.m128_f32[1]);
-                const __m128 weight3 = _mm_set1_ps(w2_area.m128_f32[1]);
+                const __m128 weight1 = _mm_set1_ps(w0_area.m128_f32[0]);
+                const __m128 weight2 = _mm_set1_ps(w1_area.m128_f32[0]);
+                const __m128 weight3 = _mm_set1_ps(w2_area.m128_f32[0]);
 
                 const __m128 normal = _mm_add_ps(
                     _mm_add_ps(
@@ -901,21 +883,21 @@ void Draw_Textured_Smooth_Shaded_Triangle(const Rendering_data *render, const __
     v1_z = _mm_mul_ps(oneOverTriArea, v1_z); // z[1] *= oneOverTotalArea;
     v2_z = _mm_mul_ps(oneOverTriArea, v2_z); // z[2] *= oneOverTotalArea;
 
+    const __m128i colOffset = _mm_set_epi32(0, 1, 0, 1);
+    const __m128i rowOffset = _mm_set_epi32(0, 0, 1, 1);
+
     const __m128i aa0Inc = _mm_slli_epi32(A0, 1);
     const __m128i aa1Inc = _mm_slli_epi32(A1, 1);
     const __m128i aa2Inc = _mm_slli_epi32(A2, 1);
-
-    const __m128i bb0Inc = _mm_slli_epi32(B0, 1);
-    const __m128i bb1Inc = _mm_slli_epi32(B1, 1);
-    const __m128i bb2Inc = _mm_slli_epi32(B2, 1);
-
-    const __m128i colOffset = _mm_set_epi32(0, 1, 0, 1);
-    const __m128i rowOffset = _mm_set_epi32(0, 0, 1, 1);
 
     const __m128i col = _mm_add_epi32(colOffset, _mm_set1_epi32(aabb.minX));
     const __m128i aa0Col = _mm_mullo_epi32(A0, col);
     const __m128i aa1Col = _mm_mullo_epi32(A1, col);
     const __m128i aa2Col = _mm_mullo_epi32(A2, col);
+
+    const __m128i bb0Inc = _mm_slli_epi32(B0, 1);
+    const __m128i bb1Inc = _mm_slli_epi32(B1, 1);
+    const __m128i bb2Inc = _mm_slli_epi32(B2, 1);
 
     __m128i row = _mm_add_epi32(rowOffset, _mm_set1_epi32(aabb.minY));
     __m128i bb0Row = _mm_add_epi32(_mm_mullo_epi32(B0, row), C0);
@@ -994,7 +976,7 @@ void Draw_Textured_Smooth_Shaded_Triangle(const Rendering_data *render, const __
             __m128 depth = _mm_mul_ps(_mm_cvtepi32_ps(alpha), v0_z);
             depth = _mm_add_ps(depth, _mm_mul_ps(_mm_cvtepi32_ps(beta), v1_z));
             depth = _mm_add_ps(depth, _mm_mul_ps(_mm_cvtepi32_ps(gama), v2_z));
-            // depth = _mm_rcp_ps(depth);
+            depth = _mm_rcp_ps(depth);
 
             const __m128 previousDepthValue = _mm_load_ps(&pDepthBuffer[index]);
             const __m128 mergedDepth = _mm_max_ps(depth, previousDepthValue);
@@ -1062,9 +1044,9 @@ void Draw_Textured_Smooth_Shaded_Triangle(const Rendering_data *render, const __
 
             if (finalMask.m128i_i32[0])
             {
-                const __m128 weight1 = _mm_set1_ps(w0_area.m128_f32[0]);
-                const __m128 weight2 = _mm_set1_ps(w1_area.m128_f32[0]);
-                const __m128 weight3 = _mm_set1_ps(w2_area.m128_f32[0]);
+                const __m128 weight1 = _mm_set1_ps(w0_area.m128_f32[1]);
+                const __m128 weight2 = _mm_set1_ps(w1_area.m128_f32[1]);
+                const __m128 weight3 = _mm_set1_ps(w2_area.m128_f32[1]);
 
                 const __m128 colour = _mm_add_ps(
                     _mm_add_ps(
@@ -1125,8 +1107,8 @@ void Draw_Triangle_With_Colour(const Rendering_data *render, const __m128 v0, co
     __m128i triArea = _mm_mullo_epi32(B2, A1);
     triArea = _mm_sub_epi32(triArea, _mm_mullo_epi32(B1, A2));
 
-    // const __m128 oneOverTriArea = _mm_div_ps(_mm_set1_ps(1.0f), _mm_cvtepi32_ps(triArea));
-    const __m128 oneOverTriArea = _mm_rcp_ps(_mm_cvtepi32_ps(triArea));
+    const __m128 oneOverTriArea = _mm_div_ps(_mm_set1_ps(1.0f), _mm_cvtepi32_ps(triArea));
+    // const __m128 oneOverTriArea = _mm_rcp_ps(_mm_cvtepi32_ps(triArea));
 
     v0_z = _mm_mul_ps(oneOverTriArea, v0_z); // z[0] *= oneOverTotalArea;
     v1_z = _mm_mul_ps(oneOverTriArea, v1_z); // z[1] *= oneOverTotalArea;
@@ -1293,11 +1275,19 @@ void Draw_Triangle_With_Colour(const Rendering_data *render, const __m128 v0, co
 }
 
 void Draw_Triangle_Per_Pixel(const Rendering_data *render, const __m128 *screen_position_vertixies, const __m128 *world_position_verticies,
-                             const __m128 normal1, const __m128 normal2, const __m128 normal3, const PointLight pl)
+                             const __m128 *normal_vectors, const PointLight pl)
 {
     __m128 v0 = screen_position_vertixies[2];
     __m128 v1 = screen_position_vertixies[1];
     __m128 v2 = screen_position_vertixies[0];
+
+    __m128 normal1 = normal_vectors[0];
+    __m128 normal2 = normal_vectors[1];
+    __m128 normal3 = normal_vectors[2];
+
+    __m128 world_pos1 = world_position_verticies[0];
+    __m128 world_pos2 = world_position_verticies[1];
+    __m128 world_pos3 = world_position_verticies[2];
 
     // used when checking if w0,w1,w2 is greater than 0;
     __m128i fxptZero = _mm_setzero_si128();
@@ -1335,8 +1325,8 @@ void Draw_Triangle_Per_Pixel(const Rendering_data *render, const __m128 *screen_
     __m128i triArea = _mm_mullo_epi32(B2, A1);
     triArea = _mm_sub_epi32(triArea, _mm_mullo_epi32(B1, A2));
 
-    // const __m128 oneOverTriArea = _mm_div_ps(_mm_set1_ps(1.0f), _mm_cvtepi32_ps(triArea));
-    const __m128 oneOverTriArea = _mm_rcp_ps(_mm_cvtepi32_ps(triArea));
+    const __m128 oneOverTriArea = _mm_div_ps(_mm_set1_ps(1.0f), _mm_cvtepi32_ps(triArea));
+    // const __m128 oneOverTriArea = _mm_rcp_ps(_mm_cvtepi32_ps(triArea));
 
     v0_z = _mm_mul_ps(oneOverTriArea, v0_z); // z[0] *= oneOverTotalArea;
     v1_z = _mm_mul_ps(oneOverTriArea, v1_z); // z[1] *= oneOverTotalArea;
@@ -1406,9 +1396,9 @@ void Draw_Triangle_Per_Pixel(const Rendering_data *render, const __m128 *screen_
             if (_mm_test_all_zeros(mask, mask))
                 continue;
 
-            const __m128 w0_area = _mm_mul_ps(_mm_cvtepi32_ps(alpha), oneOverTriArea);
+            const __m128 w0_area = _mm_mul_ps(_mm_cvtepi32_ps(gama), oneOverTriArea);
             const __m128 w1_area = _mm_mul_ps(_mm_cvtepi32_ps(beta), oneOverTriArea);
-            const __m128 w2_area = _mm_mul_ps(_mm_cvtepi32_ps(gama), oneOverTriArea);
+            const __m128 w2_area = _mm_mul_ps(_mm_cvtepi32_ps(alpha), oneOverTriArea);
 
             // Compute barycentric-interpolated depth
             __m128 depth = _mm_mul_ps(_mm_cvtepi32_ps(alpha), v0_z);
@@ -1434,9 +1424,9 @@ void Draw_Triangle_Per_Pixel(const Rendering_data *render, const __m128 *screen_
 
                 const __m128 position = _mm_add_ps(
                     _mm_add_ps(
-                        _mm_mul_ps(weight1, world_position_verticies[0]),
-                        _mm_mul_ps(weight2, world_position_verticies[1])),
-                    _mm_mul_ps(weight3, world_position_verticies[2]));
+                        _mm_mul_ps(weight1, world_pos1),
+                        _mm_mul_ps(weight2, world_pos2)),
+                    _mm_mul_ps(weight3, world_pos3));
 
                 __m128 colour = Calculate_Point_Light_Colour(pl, normal, position);
                 colour = _mm_add_ps(colour, ambient);
@@ -1464,9 +1454,9 @@ void Draw_Triangle_Per_Pixel(const Rendering_data *render, const __m128 *screen_
 
                 const __m128 position = _mm_add_ps(
                     _mm_add_ps(
-                        _mm_mul_ps(weight1, world_position_verticies[0]),
-                        _mm_mul_ps(weight2, world_position_verticies[1])),
-                    _mm_mul_ps(weight3, world_position_verticies[2]));
+                        _mm_mul_ps(weight1, world_pos1),
+                        _mm_mul_ps(weight2, world_pos2)),
+                    _mm_mul_ps(weight3, world_pos3));
 
                 __m128 colour = Calculate_Point_Light_Colour(pl, normal, position);
                 colour = _mm_add_ps(colour, ambient);
@@ -1494,9 +1484,9 @@ void Draw_Triangle_Per_Pixel(const Rendering_data *render, const __m128 *screen_
 
                 const __m128 position = _mm_add_ps(
                     _mm_add_ps(
-                        _mm_mul_ps(weight1, world_position_verticies[0]),
-                        _mm_mul_ps(weight2, world_position_verticies[1])),
-                    _mm_mul_ps(weight3, world_position_verticies[2]));
+                        _mm_mul_ps(weight1, world_pos1),
+                        _mm_mul_ps(weight2, world_pos2)),
+                    _mm_mul_ps(weight3, world_pos3));
 
                 __m128 colour = Calculate_Point_Light_Colour(pl, normal, position);
                 colour = _mm_add_ps(colour, ambient);
@@ -1524,9 +1514,9 @@ void Draw_Triangle_Per_Pixel(const Rendering_data *render, const __m128 *screen_
 
                 const __m128 position = _mm_add_ps(
                     _mm_add_ps(
-                        _mm_mul_ps(weight1, world_position_verticies[0]),
-                        _mm_mul_ps(weight2, world_position_verticies[1])),
-                    _mm_mul_ps(weight3, world_position_verticies[2]));
+                        _mm_mul_ps(weight1, world_pos1),
+                        _mm_mul_ps(weight2, world_pos2)),
+                    _mm_mul_ps(weight3, world_pos3));
 
                 __m128 colour = Calculate_Point_Light_Colour(pl, normal, position);
                 colour = _mm_add_ps(colour, ambient);
@@ -1553,6 +1543,10 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
     __m128 v0 = screen_position_vertixies[2];
     __m128 v1 = screen_position_vertixies[1];
     __m128 v2 = screen_position_vertixies[0];
+
+    __m128 wp0 = world_position_verticies[2];
+    __m128 wp1 = world_position_verticies[1];
+    __m128 wp2 = world_position_verticies[0];
 
     // used when checking if w0,w1,w2 is greater than 0;
     const __m128i fxptZero = _mm_setzero_si128();
@@ -1597,40 +1591,52 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
     v1_z = _mm_mul_ps(oneOverTriArea, v1_z); // z[1] *= oneOverTotalArea;
     v2_z = _mm_mul_ps(oneOverTriArea, v2_z); // z[2] *= oneOverTotalArea;
 
-    const __m128i aa0Inc = _mm_slli_epi32(A0, 1);
-    const __m128i aa1Inc = _mm_slli_epi32(A1, 1);
-    const __m128i aa2Inc = _mm_slli_epi32(A2, 1);
+    const int lane = 0;
 
-    const __m128i bb0Inc = _mm_slli_epi32(B0, 1);
-    const __m128i bb1Inc = _mm_slli_epi32(B1, 1);
-    const __m128i bb2Inc = _mm_slli_epi32(B2, 1);
+    __m128i aa0 = _mm_set1_epi32(A0.m128i_i32[lane]);
+    __m128i aa1 = _mm_set1_epi32(A1.m128i_i32[lane]);
+    __m128i aa2 = _mm_set1_epi32(A2.m128i_i32[lane]);
 
+    __m128i bb0 = _mm_set1_epi32(B0.m128i_i32[lane]);
+    __m128i bb1 = _mm_set1_epi32(B1.m128i_i32[lane]);
+    __m128i bb2 = _mm_set1_epi32(B2.m128i_i32[lane]);
+
+    __m128i aa0Inc = _mm_slli_epi32(aa0, 1);
+    __m128i aa1Inc = _mm_slli_epi32(aa1, 1);
+    __m128i aa2Inc = _mm_slli_epi32(aa2, 1);
+
+    __m128i row, col;
     const __m128i colOffset = _mm_set_epi32(0, 1, 0, 1);
     const __m128i rowOffset = _mm_set_epi32(0, 0, 1, 1);
 
-    const __m128i col = _mm_add_epi32(colOffset, _mm_set1_epi32(aabb.minX));
-    const __m128i aa0Col = _mm_mullo_epi32(A0, col);
-    const __m128i aa1Col = _mm_mullo_epi32(A1, col);
-    const __m128i aa2Col = _mm_mullo_epi32(A2, col);
+    col = _mm_add_epi32(colOffset, _mm_set1_epi32(aabb.minX));
+    __m128i aa0Col = _mm_mullo_epi32(aa0, col);
+    __m128i aa1Col = _mm_mullo_epi32(aa1, col);
+    __m128i aa2Col = _mm_mullo_epi32(aa2, col);
 
-    __m128i row = _mm_add_epi32(rowOffset, _mm_set1_epi32(aabb.minY));
-    __m128i bb0Row = _mm_add_epi32(_mm_mullo_epi32(B0, row), C0);
-    __m128i bb1Row = _mm_add_epi32(_mm_mullo_epi32(B1, row), C1);
-    __m128i bb2Row = _mm_add_epi32(_mm_mullo_epi32(B2, row), C2);
+    row = _mm_add_epi32(rowOffset, _mm_set1_epi32(aabb.minY));
+    __m128i bb0Row = _mm_add_epi32(_mm_mullo_epi32(bb0, row), _mm_set1_epi32(C0.m128i_i32[lane]));
+    __m128i bb1Row = _mm_add_epi32(_mm_mullo_epi32(bb1, row), _mm_set1_epi32(C1.m128i_i32[lane]));
+    __m128i bb2Row = _mm_add_epi32(_mm_mullo_epi32(bb2, row), _mm_set1_epi32(C2.m128i_i32[lane]));
 
     __m128i sum0Row = _mm_add_epi32(aa0Col, bb0Row);
     __m128i sum1Row = _mm_add_epi32(aa1Col, bb1Row);
     __m128i sum2Row = _mm_add_epi32(aa2Col, bb2Row);
 
+    __m128i bb0Inc = _mm_slli_epi32(bb0, 1);
+    __m128i bb1Inc = _mm_slli_epi32(bb1, 1);
+    __m128i bb2Inc = _mm_slli_epi32(bb2, 1);
+
+    // Taangent Space Calculations
     const __m128 light_position = _mm_set_ps(0.0f, 2.0f, 0.0f, -1.0f);
     const __m128 view_position = _mm_set1_ps(0.0f); // for specular calculation
 
     const __m128 Tangent_Light_Pos = Matrix_Multiply_Vector_SIMD(TBN.elements, light_position);
     const __m128 Tangent_View_Pos = Matrix_Multiply_Vector_SIMD(TBN.elements, view_position); // for specular
 
-    world_position_verticies[0] = Matrix_Multiply_Vector_SIMD(TBN.elements, world_position_verticies[0]);
-    world_position_verticies[1] = Matrix_Multiply_Vector_SIMD(TBN.elements, world_position_verticies[1]);
-    world_position_verticies[2] = Matrix_Multiply_Vector_SIMD(TBN.elements, world_position_verticies[2]);
+    wp0 = Matrix_Multiply_Vector_SIMD(TBN.elements, wp0);
+    wp1 = Matrix_Multiply_Vector_SIMD(TBN.elements, wp1);
+    wp2 = Matrix_Multiply_Vector_SIMD(TBN.elements, wp2);
 
     // Rasterize
     for (int y = aabb.minY; y < aabb.maxY; y += 2,
@@ -1638,33 +1644,33 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
              sum1Row = _mm_add_epi32(sum1Row, bb1Inc),
              sum2Row = _mm_add_epi32(sum2Row, bb2Inc))
     {
-        // Barycentric coordinates at start of row
+        // Compute barycentric coordinates
         __m128i alpha = sum0Row;
-        __m128i beta = sum1Row;
-        __m128i gama = sum2Row;
+        __m128i betaa = sum1Row;
+        __m128i gamaa = sum2Row;
 
         for (int x = aabb.minX; x < aabb.maxX; x += 2,
                  alpha = _mm_add_epi32(alpha, aa0Inc),
-                 beta = _mm_add_epi32(beta, aa1Inc),
-                 gama = _mm_add_epi32(gama, aa2Inc))
+                 betaa = _mm_add_epi32(betaa, aa1Inc),
+                 gamaa = _mm_add_epi32(gamaa, aa2Inc))
         {
             // Test Pixel inside triangle
             // __m128i mask = w0 | w1 | w2;
             // we compare < 0.0f, so we get all the values 0.0f and above, -1 values are "true"
-            const __m128i mask = _mm_cmplt_epi32(fxptZero, _mm_or_si128(_mm_or_si128(alpha, beta), gama));
+            const __m128i mask = _mm_cmplt_epi32(fxptZero, _mm_or_si128(_mm_or_si128(alpha, betaa), gamaa));
 
             // Early out if all of this quad's pixels are outside the triangle.
             if (_mm_test_all_zeros(mask, mask))
                 continue;
 
-            const __m128 w0_area = _mm_cvtepi32_ps(alpha);
-            const __m128 w1_area = _mm_cvtepi32_ps(beta);
-            const __m128 w2_area = _mm_cvtepi32_ps(gama);
+            const __m128 w0_area = _mm_mul_ps(_mm_cvtepi32_ps(alpha), oneOverTriArea);
+            const __m128 w1_area = _mm_mul_ps(_mm_cvtepi32_ps(betaa), oneOverTriArea);
+            const __m128 w2_area = _mm_mul_ps(_mm_cvtepi32_ps(gamaa), oneOverTriArea);
 
             // Compute barycentric-interpolated depth
             __m128 depth = _mm_mul_ps(_mm_cvtepi32_ps(alpha), one_over_w3);
-            depth = _mm_add_ps(depth, _mm_mul_ps(_mm_cvtepi32_ps(beta), one_over_w2));
-            depth = _mm_add_ps(depth, _mm_mul_ps(_mm_cvtepi32_ps(gama), one_over_w1));
+            depth = _mm_add_ps(depth, _mm_mul_ps(_mm_cvtepi32_ps(betaa), one_over_w2));
+            depth = _mm_add_ps(depth, _mm_mul_ps(_mm_cvtepi32_ps(gamaa), one_over_w1));
             depth = _mm_rcp_ps(depth);
 
             // const int z_index = x + render->screen_width * y;
@@ -1685,7 +1691,7 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
 
             if (finalMask.m128i_i32[3])
             {
-                const __m128 weights = _mm_set_ps(0.0f, w2_area.m128_f32[3], w1_area.m128_f32[3], w0_area.m128_f32[3]);
+                const __m128 weights = _mm_set_ps(0.0f, (float)gamaa.m128i_i32[3], (float)betaa.m128i_i32[3], (float)alpha.m128i_i32[3]);
 
                 const __m128 u = _mm_mul_ps(_mm_mul_ps(texture_u, weights), _mm_shuffle_ps(depth_w, depth_w, _MM_SHUFFLE(3, 3, 3, 3)));
                 const __m128 v = _mm_mul_ps(_mm_mul_ps(texture_v, weights), _mm_shuffle_ps(depth_h, depth_h, _MM_SHUFFLE(3, 3, 3, 3)));
@@ -1699,9 +1705,9 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
 
                 const __m128 position = _mm_add_ps(
                     _mm_add_ps(
-                        _mm_mul_ps(weight1, world_position_verticies[0]),
-                        _mm_mul_ps(weight2, world_position_verticies[1])),
-                    _mm_mul_ps(weight3, world_position_verticies[2]));
+                        _mm_mul_ps(weight1, wp0),
+                        _mm_mul_ps(weight2, wp1)),
+                    _mm_mul_ps(weight3, wp2));
 
                 const unsigned char *diffuse_texture = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
                 const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
@@ -1718,7 +1724,7 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
 
             if (finalMask.m128i_i32[2])
             {
-                const __m128 weights = _mm_set_ps(0.0f, w2_area.m128_f32[2], w1_area.m128_f32[2], w0_area.m128_f32[2]);
+                const __m128 weights = _mm_set_ps(0.0f, (float)gamaa.m128i_i32[2], (float)betaa.m128i_i32[2], (float)alpha.m128i_i32[2]);
 
                 const __m128 u = _mm_mul_ps(_mm_mul_ps(texture_u, weights), _mm_shuffle_ps(depth_w, depth_w, _MM_SHUFFLE(2, 2, 2, 2)));
                 const __m128 v = _mm_mul_ps(_mm_mul_ps(texture_v, weights), _mm_shuffle_ps(depth_h, depth_h, _MM_SHUFFLE(2, 2, 2, 2)));
@@ -1732,9 +1738,9 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
 
                 const __m128 position = _mm_add_ps(
                     _mm_add_ps(
-                        _mm_mul_ps(weight1, world_position_verticies[0]),
-                        _mm_mul_ps(weight2, world_position_verticies[1])),
-                    _mm_mul_ps(weight3, world_position_verticies[2]));
+                        _mm_mul_ps(weight1, wp0),
+                        _mm_mul_ps(weight2, wp1)),
+                    _mm_mul_ps(weight3, wp2));
 
                 const unsigned char *diffuse_texture = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
                 const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
@@ -1751,7 +1757,7 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
 
             if (finalMask.m128i_i32[1])
             {
-                const __m128 weights = _mm_set_ps(0.0f, w2_area.m128_f32[1], w1_area.m128_f32[1], w0_area.m128_f32[1]);
+                const __m128 weights = _mm_set_ps(0.0f, (float)gamaa.m128i_i32[1], (float)betaa.m128i_i32[1], (float)alpha.m128i_i32[1]);
 
                 const __m128 u = _mm_mul_ps(_mm_mul_ps(texture_u, weights), _mm_shuffle_ps(depth_w, depth_w, _MM_SHUFFLE(1, 1, 1, 1)));
                 const __m128 v = _mm_mul_ps(_mm_mul_ps(texture_v, weights), _mm_shuffle_ps(depth_h, depth_h, _MM_SHUFFLE(1, 1, 1, 1)));
@@ -1765,9 +1771,9 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
 
                 const __m128 position = _mm_add_ps(
                     _mm_add_ps(
-                        _mm_mul_ps(weight1, world_position_verticies[0]),
-                        _mm_mul_ps(weight2, world_position_verticies[1])),
-                    _mm_mul_ps(weight3, world_position_verticies[2]));
+                        _mm_mul_ps(weight1, wp0),
+                        _mm_mul_ps(weight2, wp1)),
+                    _mm_mul_ps(weight3, wp2));
 
                 const unsigned char *diffuse_texture = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
                 const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
@@ -1784,7 +1790,7 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
 
             if (finalMask.m128i_i32[0])
             {
-                const __m128 weights = _mm_set_ps(0.0f, w2_area.m128_f32[0], w1_area.m128_f32[0], w0_area.m128_f32[0]);
+                const __m128 weights = _mm_set_ps(0.0f, (float)gamaa.m128i_i32[0], (float)betaa.m128i_i32[0], (float)alpha.m128i_i32[0]);
 
                 const __m128 u = _mm_mul_ps(_mm_mul_ps(texture_u, weights), _mm_shuffle_ps(depth_w, depth_w, _MM_SHUFFLE(0, 0, 0, 0)));
                 const __m128 v = _mm_mul_ps(_mm_mul_ps(texture_v, weights), _mm_shuffle_ps(depth_h, depth_h, _MM_SHUFFLE(0, 0, 0, 0)));
@@ -1798,9 +1804,9 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
 
                 const __m128 position = _mm_add_ps(
                     _mm_add_ps(
-                        _mm_mul_ps(weight1, world_position_verticies[0]),
-                        _mm_mul_ps(weight2, world_position_verticies[1])),
-                    _mm_mul_ps(weight3, world_position_verticies[2]));
+                        _mm_mul_ps(weight1, wp0),
+                        _mm_mul_ps(weight2, wp1)),
+                    _mm_mul_ps(weight3, wp2));
 
                 const unsigned char *diffuse_texture = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
                 const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
