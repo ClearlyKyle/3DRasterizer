@@ -232,6 +232,12 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
     __m128i triArea = _mm_mullo_epi32(B2, A1);
     triArea = _mm_sub_epi32(triArea, _mm_mullo_epi32(B1, A2));
 
+    // Skip triangle if area is zero
+    if (triArea.m128i_i32[0] <= 0)
+    {
+        return;
+    }
+
     // const __m128 oneOverTriArea = _mm_div_ps(_mm_set1_ps(1.0f), _mm_cvtepi32_ps(triArea));
     const __m128 oneOverTriArea = _mm_rcp_ps(_mm_cvtepi32_ps(triArea));
 
