@@ -2,9 +2,17 @@
 #include <stdlib.h>
 
 #include "vector.h"
+#include "lights.h"
 
 #define SCREEN_WIDTH 960
 #define SCREEN_HEIGHT 1000
+
+void print128_num(__m128 var)
+{
+    float res[4];
+    _mm_store_ps(res, var);
+    printf("{ %f, %f, %f, %f }\n", res[0], res[1], res[2], res[3]);
+}
 
 int main(int argc, char const *argv[])
 {
@@ -64,6 +72,14 @@ int main(int argc, char const *argv[])
 
     // Expected result: { X = 0.4255664032264045, Y = 0.49649413709747187, Z = 0.756562494624719 }
     const __m128 test_normalise = Normalize_m128(_mm_set_ps(0.0f, 64.0f, 42.0f, 36.0f));
+    print128_num(test_normalise);
+
+    const __m128 normal = _mm_set_ps(0.0f, 0.0f, 1.0f, 0.0f);
+    const __m128 incident = _mm_set_ps(0.0f, 0.0f, -1.0f, -1.0f);
+
+    const __m128 reflected = Reflect_m128(incident, normal);
+
+    print128_num(reflected);
 
     return 0;
 }
