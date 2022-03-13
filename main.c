@@ -151,7 +151,16 @@ int main(int argc, char *argv[])
     while (ren.running)
     {
         // Clear Z Buffer
-        memset(ren_data.z_buffer_array, 0, ren_data.screen_num_pixels * 4);
+        // memset(ren_data.z_buffer_array, 0xF, ren_data.screen_num_pixels * 4);
+
+        __m128 MAX_DEPTH = _mm_set1_ps(1000.0f);
+        for (__m128 *i = (__m128 *)ren_data.z_buffer_array, *end = (__m128 *)&ren_data.z_buffer_array[ren_data.screen_num_pixels];
+             i < end;
+             i++)
+        {
+            *i = MAX_DEPTH;
+        }
+
         // Clear Pixels
         memset(ren_data.pixels, 0, ren_data.screen_num_pixels * 4);
 
