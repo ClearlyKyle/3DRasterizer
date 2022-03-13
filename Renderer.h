@@ -59,8 +59,11 @@ void Draw_Textured_Smooth_Shaded_Triangle(const Rendering_data *render, const __
 void Draw_Triangle_With_Colour(const Rendering_data *render, const __m128 v0, const __m128 v1, const __m128 v2,
                                const __m128 colour1, const __m128 colour2, const __m128 colour3);
 
+void Draw_Specular_Shaded(const Rendering_data *render, const __m128 *screen_position_vertixies, const __m128 *world_position_verticies,
+                          const __m128 *normal_vectors, const PointLight pl);
+
 void Draw_Triangle_Per_Pixel(const Rendering_data *render, const __m128 *screen_position_vertixies, const __m128 *world_position_verticies,
-                             const __m128 normal1, const __m128 normal2, const __m128 normal3, const PointLight pl);
+                             const __m128 *normal_vectors, const PointLight pl);
 
 void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *screen_position_vertixies, __m128 *world_position_verticies,
                                  const __m128 texture_u, const __m128 texture_v,
