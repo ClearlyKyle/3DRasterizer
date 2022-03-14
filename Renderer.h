@@ -27,7 +27,7 @@ typedef struct Rendering_data_s
     unsigned int screen_height;
     unsigned int screen_num_pixels;
 
-    unsigned int *z_buffer_array;
+    float *z_buffer_array;
 
     unsigned char *tex_data;
     unsigned int tex_w;
@@ -46,6 +46,8 @@ typedef struct Rendering_data_s
 
 Renderer SDL_Startup(const char *title, unsigned int width, unsigned int height);
 void SDL_CleanUp(Renderer *renderer);
+
+void Draw_Depth_Buffer(const Rendering_data *render_data);
 
 void Draw_Triangle_Outline(const SDL_PixelFormat *fmt, unsigned int *pixels, const __m128 v1, const __m128 v2, const __m128 v3, const SDL_Colour *col);
 void Draw_Textured_Shaded_Triangle(const Rendering_data *render, const __m128 v0, const __m128 v1, const __m128 v2, const __m128 frag_colour);

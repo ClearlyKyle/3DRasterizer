@@ -169,6 +169,41 @@ void Draw_Triangle_Outline(const SDL_PixelFormat *fmt, unsigned int *pixels, con
     Draw_Line(fmt, pixels, (int)vert3[0], (int)vert3[1], (int)vert1[0], (int)vert1[1], col);
 }
 
+void Draw_Depth_Buffer(const Rendering_data *render_data)
+{
+    const float z_max_depth = 100.0f;
+    const __m128 max_depth = _mm_set1_ps(z_max_depth);
+    const __m128 value_255 = _mm_set1_ps(255.0f);
+
+    float *pDepthBuffer = render_data->z_buffer_array;
+
+    int rowIdx = 0;
+    for (unsigned int y = 0; y < render_data->screen_height; y += 2,
+                      rowIdx += 2 * render_data->screen_width)
+    {
+        int index = rowIdx;
+        for (unsigned int x = 0; x < render_data->screen_width; x += 2,
+                          index += 4)
+        {
+            __m128 depthvalues = _mm_load_ps(&pDepthBuffer[index]);
+            depthvalues = _mm_div_ps(depthvalues, max_depth);
+            depthvalues = _mm_mul_ps(depthvalues, value_255);
+
+            float shading[4];
+            _mm_store_ps(shading, depthvalues);
+
+            Draw_Pixel_RGBA(render_data, x + 0, y + 0, (uint8_t)shading[3], (uint8_t)shading[3], (uint8_t)shading[3], 255);
+            Draw_Pixel_RGBA(render_data, x + 1, y + 0, (uint8_t)shading[2], (uint8_t)shading[2], (uint8_t)shading[2], 255);
+            Draw_Pixel_RGBA(render_data, x + 0, y + 1, (uint8_t)shading[1], (uint8_t)shading[1], (uint8_t)shading[1], 255);
+            Draw_Pixel_RGBA(render_data, x + 1, y + 1, (uint8_t)shading[0], (uint8_t)shading[0], (uint8_t)shading[0], 255);
+            // Draw_Pixel_RGBA(&render_data, x + 0, y + 0, 255, 000, 000, 255);
+            // Draw_Pixel_RGBA(&render_data, x + 1, y + 0, 255, 000, 000, 255);
+            // Draw_Pixel_RGBA(&render_data, x + 0, y + 1, 255, 000, 000, 255);
+            // Draw_Pixel_RGBA(&render_data, x + 1, y + 1, 255, 000, 000, 255);
+        }
+    }
+}
+
 union AABB_u
 {
     struct
