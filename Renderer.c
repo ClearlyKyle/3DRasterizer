@@ -302,12 +302,12 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
     __m128i sum2Row = _mm_add_epi32(aa2Col, bb2Row);
 
     // Cast depth buffer to float
-    float *pDepthBuffer = (float *)render->z_buffer_array;
+    float *pDepthBuffer = render->z_buffer_array;
     int rowIdx = (aabb.minY * render->screen_width + 2 * aabb.minX);
 
     // Rasterize
     for (int y = aabb.minY; y < aabb.maxY; y += 2,
-             rowIdx += (2 * render->screen_width),
+             rowIdx += 2 * render->screen_width,
              sum0Row = _mm_add_epi32(sum0Row, bb0Inc),
              sum1Row = _mm_add_epi32(sum1Row, bb1Inc),
              sum2Row = _mm_add_epi32(sum2Row, bb2Inc))
@@ -327,11 +327,10 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
             // Test Pixel inside triangle
             // __m128i mask = w0 | w1 | w2;
             // we compare < 0.0f, so we get all the values 0.0f and above, -1 values are "true"
-            const __m128i mask = _mm_or_si128(_mm_or_si128(alpha, beta), gama);
-            const __m128i mask_check = _mm_cmplt_epi32(fxptZero, mask);
+            const __m128i mask = _mm_cmplt_epi32(fxptZero, _mm_or_si128(_mm_or_si128(alpha, beta), gama));
 
             // Early out if all of this quad's pixels are outside the triangle.
-            if (_mm_test_all_zeros(mask_check, mask_check))
+            if (_mm_test_all_zeros(mask, mask))
                 continue;
 
             const __m128 w0_area = _mm_mul_ps(_mm_cvtepi32_ps(alpha), oneOverTriArea);
@@ -346,20 +345,18 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
 
             //// DEPTH BUFFER
             const __m128 previousDepthValue = _mm_load_ps(&pDepthBuffer[index]);
+            const __m128 are_new_depths_less_than_old = _mm_cmplt_ps(depth, previousDepthValue);
+            const __m128 which_depths_should_be_drawn = _mm_and_ps(are_new_depths_less_than_old, _mm_cvtepi32_ps(mask));
+            const __m128 updated_depth_values = _mm_blendv_ps(previousDepthValue, depth, which_depths_should_be_drawn);
+            _mm_store_ps(&pDepthBuffer[index], updated_depth_values);
 
-            __m128 get_the_zero_value_index = _mm_cmpeq_ps(previousDepthValue, _mm_setzero_ps());
-            __m128 fill_zero_values_with_depths = _mm_blendv_ps(previousDepthValue, depth, get_the_zero_value_index);
-            __m128 which_depths_values_are_min = _mm_cmplt_ps(depth, fill_zero_values_with_depths); // ( a[i+31:i] < b[i+31:i] ) ? 0xFFFFFFFF : 0
-
-            __m128 final_mask = _mm_or_ps(_mm_castsi128_ps(mask_check), which_depths_values_are_min);
-
-            __m128 final_depth_values = _mm_blendv_ps(which_depths_values_are_min, previous_depth, _mm_castsi128_ps(mask_check));
+            const __m128i finalMask = _mm_cvtps_epi32(which_depths_should_be_drawn);
 
             // Precalulate uv constants
             const __m128 depth_w = _mm_mul_ps(depth, _mm_set1_ps((float)render->tex_w - 1));
             const __m128 depth_h = _mm_mul_ps(depth, _mm_set1_ps((float)render->tex_h - 1));
 
-            if (which_depth_to_draw.m128i_i32[3])
+            if (finalMask.m128i_i32[3])
             {
                 const __m128 weights = _mm_set_ps(0.0f, w2_area.m128_f32[3], w1_area.m128_f32[3], w0_area.m128_f32[3]);
 
@@ -379,7 +376,7 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 Draw_Pixel_RGBA(render, x + 0, y + 0, red, gre, blu, alp);
             }
 
-            if (which_depth_to_draw.m128i_i32[2])
+            if (finalMask.m128i_i32[2])
             {
                 const __m128 weights = _mm_set_ps(0.0f, w2_area.m128_f32[2], w1_area.m128_f32[2], w0_area.m128_f32[2]);
 
@@ -399,7 +396,7 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 Draw_Pixel_RGBA(render, x + 1, y + 0, red, gre, blu, alp);
             }
 
-            if (which_depth_to_draw.m128i_i32[1])
+            if (finalMask.m128i_i32[1])
             {
                 const __m128 weights = _mm_set_ps(0.0f, w2_area.m128_f32[1], w1_area.m128_f32[1], w0_area.m128_f32[1]);
 
@@ -419,7 +416,7 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 Draw_Pixel_RGBA(render, x + 0, y + 1, red, gre, blu, alp);
             }
 
-            if (which_depth_to_draw.m128i_i32[0])
+            if (finalMask.m128i_i32[0])
             {
                 const __m128 weights = _mm_set_ps(0.0f, w2_area.m128_f32[0], w1_area.m128_f32[0], w0_area.m128_f32[0]);
 
