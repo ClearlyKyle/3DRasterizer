@@ -27,6 +27,7 @@ typedef struct Rendering_data_s
     unsigned int screen_height;
     unsigned int screen_num_pixels;
 
+    float max_depth_value;
     float *z_buffer_array;
 
     unsigned char *tex_data;
@@ -71,5 +72,7 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
                                  const __m128 texture_u, const __m128 texture_v,
                                  const __m128 one_over_w1, const __m128 one_over_w2, const __m128 one_over_w3,
                                  const Mat4x4 TBN);
+
+void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, const __m128 *world_space, const __m128 *w_values, const __m128 surface_normal, const PointLight *light);
 
 #endif // __RENDERER_H__
