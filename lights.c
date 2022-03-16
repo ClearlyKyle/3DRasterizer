@@ -124,7 +124,7 @@ __m128 Calculate_Normal_Mapping_Colour(const unsigned char *diffuse_texture,
 
     // DIFFUSE
     const float diffuse_amount = (const float)fmax((double)Calculate_Dot_Product_SIMD(normal, light_direction), 0.0);
-    //const __m128 diffuse_colour = _mm_set_ps(1.0f, 0.0f, 0.0f, 1.0f);
+    // const __m128 diffuse_colour = _mm_set_ps(1.0f, 0.0f, 0.0f, 1.0f);
     const __m128 diffuse = _mm_set1_ps(diffuse_amount);
     // const __m128 diffuse = _mm_mul_ps(_mm_set1_ps(diffuse_amount), diffuse_colour);
 
@@ -137,12 +137,38 @@ __m128 Calculate_Normal_Mapping_Colour(const unsigned char *diffuse_texture,
     // const float spec = (const float)pow(fmax(Calculate_Dot_Product_SIMD(normal, halfwayDir), 0.0), 16);
     const float spec = (const float)pow(fmax(Calculate_Dot_Product_SIMD(view_direction, reflection_direction), 0.0), 16);
 
-    //const __m128 specular_colour = _mm_set_ps(1.0f, 0.0f, 1.0f, 0.0f);
-    // const __m128 specular = _mm_mul_ps(_mm_set1_ps(spec * specular_strength), specular_colour);
+    // const __m128 specular_colour = _mm_set_ps(1.0f, 0.0f, 1.0f, 0.0f);
+    //  const __m128 specular = _mm_mul_ps(_mm_set1_ps(spec * specular_strength), specular_colour);
     const __m128 specular = _mm_set1_ps(spec * specular_strength);
 
     // FINAL COLOUR
     const __m128 final_colour = _mm_add_ps(_mm_mul_ps(_mm_add_ps(ambient, diffuse), texture_colour), specular);
 
     return final_colour;
+}
+
+__m128 Get_Diffuse_Amount(const __m128 light_direction, const __m128 contact_position, const __m128 normal)
+{
+    const float diffuse_amount = (const float)fmax((double)Calculate_Dot_Product_SIMD(normal, light_direction), 0.0);
+
+    // const __m128 diffuse_colour = _mm_set_ps(1.0f, 0.0f, 0.0f, 1.0f);
+    // const __m128 diffuse = _mm_set1_ps(diffuse_amount);
+    const __m128 diffuse = _mm_set_ps(1.0f, diffuse_amount, diffuse_amount, diffuse_amount);
+
+    return diffuse;
+}
+
+__m128 Get_Specular_Amount(const __m128 view_direction, const __m128 light_direction, const __m128 normal, const double strength, const double power_value)
+{
+    const __m128 neg_light_direction = _mm_mul_ps(light_direction, _mm_set1_ps(-1.0f));
+    const __m128 reflect_direction = Reflect_m128(neg_light_direction, normal);
+
+    const float spec = (const float)pow(fmax(Calculate_Dot_Product_SIMD(view_direction, reflect_direction), 0.0), power_value) * strength;
+
+    // const __m128 specular_strength = _mm_set1_ps(strength);
+    //  const __m128 light_colour = _mm_set_ps(1.0f, 1.0f, 0.0f, 0.0f);
+
+    const __m128 specular = _mm_set_ps(1.0f, spec, spec, spec);
+
+    return specular;
 }

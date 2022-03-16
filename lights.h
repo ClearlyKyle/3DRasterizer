@@ -40,4 +40,7 @@ __m128 Calculate_Normal_Mapping_Colour(const unsigned char *diffuse_texture,
                                        const __m128 Tangent_Light_Pos,
                                        const __m128 Tangent_View_Pos);
 
+__m128 Get_Diffuse_Amount(const __m128 light_direction, const __m128 contact_position, const __m128 normal);
+__m128 Get_Specular_Amount(const __m128 view_direction, const __m128 light_direction, const __m128 normal, const double strength, const double power_value);
+
 #endif // __LIGHTS_H__
