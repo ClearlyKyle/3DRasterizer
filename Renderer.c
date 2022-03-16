@@ -233,6 +233,10 @@ void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, 
     const __m128 v1 = screen_space[1];
     const __m128 v2 = screen_space[0];
 
+    __m128 world_v0 = world_space[2];
+    __m128 world_v1 = world_space[1];
+    __m128 world_v2 = world_space[0];
+
     __m128 w0 = w_values[2];
     __m128 w1 = w_values[1];
     __m128 w2 = w_values[0];
@@ -340,9 +344,11 @@ void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, 
     const __m128 Tangent_Light_Pos = Matrix_Multiply_Vector_SIMD(TBN.elements, light->position);
     const __m128 Tangent_View_Pos = Matrix_Multiply_Vector_SIMD(TBN.elements, _mm_setzero_ps()); // for specular
 
-    w0 = Matrix_Multiply_Vector_SIMD(TBN.elements, w0);
-    w1 = Matrix_Multiply_Vector_SIMD(TBN.elements, w1);
-    w2 = Matrix_Multiply_Vector_SIMD(TBN.elements, w2);
+    world_v0 = Matrix_Multiply_Vector_SIMD(TBN.elements, world_v0);
+    world_v1 = Matrix_Multiply_Vector_SIMD(TBN.elements, world_v1);
+    world_v2 = Matrix_Multiply_Vector_SIMD(TBN.elements, world_v2);
+
+    const float ambient_strength = 0.8f;
 
     // Rasterize
     for (int y = aabb.minY; y < aabb.maxY; y += 2,
@@ -411,9 +417,9 @@ void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, 
 
                 const __m128 frag_position = _mm_add_ps(
                     _mm_add_ps(
-                        _mm_mul_ps(weight1, world_space[2]),
-                        _mm_mul_ps(weight2, world_space[1])),
-                    _mm_mul_ps(weight3, world_space[0]));
+                        _mm_mul_ps(weight1, world_v0),
+                        _mm_mul_ps(weight2, world_v1)),
+                    _mm_mul_ps(weight3, world_v2));
 
                 // const __m128 frag_normal = _mm_add_ps(
                 //     _mm_add_ps(
@@ -422,15 +428,17 @@ void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, 
                 //     _mm_mul_ps(weight3, normal3));
 
                 const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
-                __m128 frag_normal = _mm_set_ps(1.0f, normal_texture[2] / 256.0f, normal_texture[1] / 256.0f, normal_texture[0] / 256.0f);
+                //__m128 frag_normal = _mm_set_ps(0.0f, 1.0f, 0.0f, 0.0f);
+                __m128 frag_normal = _mm_set_ps(0.0f, normal_texture[2] / 256.0f, normal_texture[1] / 256.0f, normal_texture[0] / 256.0f);
                 frag_normal = _mm_sub_ps(_mm_mul_ps(frag_normal, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f));
+                frag_normal = Normalize_m128(frag_normal);
 
                 const __m128 view_direction = Normalize_m128(_mm_sub_ps(Tangent_View_Pos, frag_position));
                 const __m128 light_direction = Normalize_m128(_mm_sub_ps(Tangent_Light_Pos, frag_position));
 
                 const __m128 diffuse = Get_Diffuse_Amount(light_direction, frag_position, frag_normal);
                 const __m128 specular = Get_Specular_Amount(view_direction, light_direction, frag_normal, 0.2, 64);
-                const __m128 ambient = _mm_set_ps(1.0f, 0.3f, 0.3f, 0.3f);
+                const __m128 ambient = _mm_set1_ps(ambient_strength);
 
                 const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
                 const __m128 texture_colour = _mm_set_ps(1.0f, pixelOffset[2] / 256.0f, pixelOffset[1] / 256.0f, pixelOffset[0] / 256.0f);
@@ -464,9 +472,9 @@ void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, 
 
                 const __m128 frag_position = _mm_add_ps(
                     _mm_add_ps(
-                        _mm_mul_ps(weight1, world_space[2]),
-                        _mm_mul_ps(weight2, world_space[1])),
-                    _mm_mul_ps(weight3, world_space[0]));
+                        _mm_mul_ps(weight1, world_v0),
+                        _mm_mul_ps(weight2, world_v1)),
+                    _mm_mul_ps(weight3, world_v2));
 
                 // const __m128 frag_normal = _mm_add_ps(
                 //     _mm_add_ps(
@@ -475,15 +483,16 @@ void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, 
                 //     _mm_mul_ps(weight3, normal3));
 
                 const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
-                __m128 frag_normal = _mm_set_ps(1.0f, normal_texture[2] / 256.0f, normal_texture[1] / 256.0f, normal_texture[0] / 256.0f);
+                __m128 frag_normal = _mm_set_ps(0.0f, normal_texture[2] / 256.0f, normal_texture[1] / 256.0f, normal_texture[0] / 256.0f);
                 frag_normal = _mm_sub_ps(_mm_mul_ps(frag_normal, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f));
+                frag_normal = Normalize_m128(frag_normal);
 
                 const __m128 view_direction = Normalize_m128(_mm_sub_ps(Tangent_View_Pos, frag_position));
                 const __m128 light_direction = Normalize_m128(_mm_sub_ps(Tangent_Light_Pos, frag_position));
 
                 const __m128 diffuse = Get_Diffuse_Amount(light_direction, frag_position, frag_normal);
                 const __m128 specular = Get_Specular_Amount(view_direction, light_direction, frag_normal, 0.2, 64);
-                const __m128 ambient = _mm_set_ps(1.0f, 0.3f, 0.3f, 0.3f);
+                const __m128 ambient = _mm_set1_ps(ambient_strength);
 
                 const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
                 const __m128 texture_colour = _mm_set_ps(1.0f, pixelOffset[2] / 256.0f, pixelOffset[1] / 256.0f, pixelOffset[0] / 256.0f);
@@ -517,9 +526,9 @@ void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, 
 
                 const __m128 frag_position = _mm_add_ps(
                     _mm_add_ps(
-                        _mm_mul_ps(weight1, world_space[2]),
-                        _mm_mul_ps(weight2, world_space[1])),
-                    _mm_mul_ps(weight3, world_space[0]));
+                        _mm_mul_ps(weight1, world_v0),
+                        _mm_mul_ps(weight2, world_v1)),
+                    _mm_mul_ps(weight3, world_v2));
 
                 // const __m128 frag_normal = _mm_add_ps(
                 //     _mm_add_ps(
@@ -528,15 +537,16 @@ void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, 
                 //     _mm_mul_ps(weight3, normal3));
 
                 const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
-                __m128 frag_normal = _mm_set_ps(1.0f, normal_texture[2] / 256.0f, normal_texture[1] / 256.0f, normal_texture[0] / 256.0f);
+                __m128 frag_normal = _mm_set_ps(0.0f, normal_texture[2] / 256.0f, normal_texture[1] / 256.0f, normal_texture[0] / 256.0f);
                 frag_normal = _mm_sub_ps(_mm_mul_ps(frag_normal, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f));
+                frag_normal = Normalize_m128(frag_normal);
 
                 const __m128 view_direction = Normalize_m128(_mm_sub_ps(Tangent_View_Pos, frag_position));
                 const __m128 light_direction = Normalize_m128(_mm_sub_ps(Tangent_Light_Pos, frag_position));
 
                 const __m128 diffuse = Get_Diffuse_Amount(light_direction, frag_position, frag_normal);
                 const __m128 specular = Get_Specular_Amount(view_direction, light_direction, frag_normal, 0.2, 64);
-                const __m128 ambient = _mm_set_ps(1.0f, 0.3f, 0.3f, 0.3f);
+                const __m128 ambient = _mm_set1_ps(ambient_strength);
 
                 const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
                 const __m128 texture_colour = _mm_set_ps(1.0f, pixelOffset[2] / 256.0f, pixelOffset[1] / 256.0f, pixelOffset[0] / 256.0f);
@@ -570,9 +580,9 @@ void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, 
 
                 const __m128 frag_position = _mm_add_ps(
                     _mm_add_ps(
-                        _mm_mul_ps(weight1, world_space[2]),
-                        _mm_mul_ps(weight2, world_space[1])),
-                    _mm_mul_ps(weight3, world_space[0]));
+                        _mm_mul_ps(weight1, world_v0),
+                        _mm_mul_ps(weight2, world_v1)),
+                    _mm_mul_ps(weight3, world_v2));
 
                 // const __m128 frag_normal = _mm_add_ps(
                 //     _mm_add_ps(
@@ -581,15 +591,16 @@ void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, 
                 //     _mm_mul_ps(weight3, normal3));
 
                 const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
-                __m128 frag_normal = _mm_set_ps(1.0f, normal_texture[2] / 256.0f, normal_texture[1] / 256.0f, normal_texture[0] / 256.0f);
+                __m128 frag_normal = _mm_set_ps(0.0f, normal_texture[2] / 256.0f, normal_texture[1] / 256.0f, normal_texture[0] / 256.0f);
                 frag_normal = _mm_sub_ps(_mm_mul_ps(frag_normal, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f));
+                frag_normal = Normalize_m128(frag_normal);
 
                 const __m128 view_direction = Normalize_m128(_mm_sub_ps(Tangent_View_Pos, frag_position));
                 const __m128 light_direction = Normalize_m128(_mm_sub_ps(Tangent_Light_Pos, frag_position));
 
                 const __m128 diffuse = Get_Diffuse_Amount(light_direction, frag_position, frag_normal);
                 const __m128 specular = Get_Specular_Amount(view_direction, light_direction, frag_normal, 0.2, 64);
-                const __m128 ambient = _mm_set_ps(1.0f, 0.3f, 0.3f, 0.3f);
+                const __m128 ambient = _mm_set1_ps(ambient_strength);
 
                 const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
                 const __m128 texture_colour = _mm_set_ps(1.0f, pixelOffset[2] / 256.0f, pixelOffset[1] / 256.0f, pixelOffset[0] / 256.0f);
