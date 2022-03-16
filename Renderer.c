@@ -225,12 +225,48 @@ static __m128i Get_AABB_SIMD(const __m128 v1, const __m128 v2, const __m128 v3, 
     return _mm_unpacklo_epi32(max_values, min_values);
 }
 
-// https://fgiesen.wordpress.com/2013/02/10/optimizing-the-basic-rasterizer/
-void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const __m128 v1, const __m128 v2,
-                            const __m128 texture_u, const __m128 texture_v,
-                            const __m128 one_over_w1, const __m128 one_over_w2, const __m128 one_over_w3,
-                            const __m128 frag_colour)
+void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, const __m128 *world_space,
+                      const __m128 *w_values, const __m128 *normal_values, const __m128 texture_u, const __m128 texture_v,
+                      const __m128 surface_normal, const PointLight *light, const Mat4x4 TBN)
 {
+    const __m128 v0 = screen_space[2];
+    const __m128 v1 = screen_space[1];
+    const __m128 v2 = screen_space[0];
+
+    __m128 w0 = w_values[2];
+    __m128 w1 = w_values[1];
+    __m128 w2 = w_values[0];
+
+    const __m128 normal1 = normal_values[2];
+    const __m128 normal2 = normal_values[1];
+    const __m128 normal3 = normal_values[0];
+
+    // LIGHTS (per Vertex)
+#if 0
+    const __m128 diffuse1 = Get_Diffuse_Amount(light->position, world_space[2], Normalize_m128(surface_normal));
+    const __m128 diffuse2 = Get_Diffuse_Amount(light->position, world_space[1], Normalize_m128(surface_normal));
+    const __m128 diffuse3 = Get_Diffuse_Amount(light->position, world_space[0], Normalize_m128(surface_normal));
+
+    __m128 view_direction = Normalize_m128(_mm_sub_ps(_mm_setzero_ps(), world_space[2]));
+    __m128 light_direction = Normalize_m128(_mm_sub_ps(light->position, world_space[2]));
+    const __m128 specular1 = Get_Specular_Amount(view_direction, light_direction, normal1, 0.5, 32);
+
+    view_direction = Normalize_m128(_mm_sub_ps(_mm_setzero_ps(), world_space[2]));
+    light_direction = Normalize_m128(_mm_sub_ps(light->position, world_space[2]));
+    const __m128 specular2 = Get_Specular_Amount(view_direction, light_direction, normal2, 0.5, 32);
+
+    view_direction = Normalize_m128(_mm_sub_ps(_mm_setzero_ps(), world_space[2]));
+    light_direction = Normalize_m128(_mm_sub_ps(light->position, world_space[2]));
+    const __m128 specular3 = Get_Specular_Amount(view_direction, light_direction, normal3, 0.5, 32);
+
+    const __m128 ambient = _mm_set_ps(1.0f, 0.3f, 0.3f, 0.3f);
+
+    const __m128 colour1 = Clamp_m128(_mm_add_ps(diffuse1, _mm_add_ps(ambient, specular1)), 0.0f, 1.0f);
+    const __m128 colour2 = Clamp_m128(_mm_add_ps(diffuse2, _mm_add_ps(ambient, specular2)), 0.0f, 1.0f);
+    const __m128 colour3 = Clamp_m128(_mm_add_ps(diffuse3, _mm_add_ps(ambient, specular3)), 0.0f, 1.0f);
+
+#endif
+
     // used when checking if w0,w1,w2 is greater than 0;
     const __m128i fxptZero = _mm_setzero_si128();
 
@@ -301,6 +337,13 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
     float *pDepthBuffer = render->z_buffer_array;
     int rowIdx = (aabb.minY * render->screen_width + 2 * aabb.minX);
 
+    const __m128 Tangent_Light_Pos = Matrix_Multiply_Vector_SIMD(TBN.elements, light->position);
+    const __m128 Tangent_View_Pos = Matrix_Multiply_Vector_SIMD(TBN.elements, _mm_setzero_ps()); // for specular
+
+    w0 = Matrix_Multiply_Vector_SIMD(TBN.elements, w0);
+    w1 = Matrix_Multiply_Vector_SIMD(TBN.elements, w1);
+    w2 = Matrix_Multiply_Vector_SIMD(TBN.elements, w2);
+
     // Rasterize
     for (int y = aabb.minY; y < aabb.maxY; y += 2,
              rowIdx += 2 * render->screen_width,
@@ -334,9 +377,9 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
             const __m128 w2_area = _mm_mul_ps(_mm_cvtepi32_ps(gama), oneOverTriArea);
 
             // Compute barycentric-interpolated depth
-            __m128 depth = _mm_mul_ps(w0_area, one_over_w3);
-            depth = _mm_add_ps(depth, _mm_mul_ps(w1_area, one_over_w2));
-            depth = _mm_add_ps(depth, _mm_mul_ps(w2_area, one_over_w1));
+            __m128 depth = _mm_mul_ps(w0_area, w0);
+            depth = _mm_add_ps(depth, _mm_mul_ps(w1_area, w1));
+            depth = _mm_add_ps(depth, _mm_mul_ps(w2_area, w2));
             depth = _mm_rcp_ps(depth);
 
             //// DEPTH BUFFER
@@ -354,6 +397,10 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
 
             if (finalMask.m128i_i32[3])
             {
+                const __m128 weight1 = _mm_set1_ps(w0_area.m128_f32[3]);
+                const __m128 weight2 = _mm_set1_ps(w1_area.m128_f32[3]);
+                const __m128 weight3 = _mm_set1_ps(w2_area.m128_f32[3]);
+
                 const __m128 weights = _mm_set_ps(0.0f, w2_area.m128_f32[3], w1_area.m128_f32[3], w0_area.m128_f32[3]);
 
                 const __m128 u = _mm_mul_ps(_mm_mul_ps(texture_u, weights), _mm_shuffle_ps(depth_w, depth_w, _MM_SHUFFLE(3, 3, 3, 3)));
@@ -362,11 +409,40 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 const int res_u = (int)hsum_ps_sse3(u);
                 const int res_v = (int)hsum_ps_sse3(v);
 
-                const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
+                const __m128 frag_position = _mm_add_ps(
+                    _mm_add_ps(
+                        _mm_mul_ps(weight1, world_space[2]),
+                        _mm_mul_ps(weight2, world_space[1])),
+                    _mm_mul_ps(weight3, world_space[0]));
 
-                const uint8_t red = (uint8_t)(pixelOffset[0]);
-                const uint8_t gre = (uint8_t)(pixelOffset[1]);
-                const uint8_t blu = (uint8_t)(pixelOffset[2]);
+                // const __m128 frag_normal = _mm_add_ps(
+                //     _mm_add_ps(
+                //         _mm_mul_ps(weight1, normal1),
+                //         _mm_mul_ps(weight2, normal2)),
+                //     _mm_mul_ps(weight3, normal3));
+
+                const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
+                __m128 frag_normal = _mm_set_ps(1.0f, normal_texture[2] / 256.0f, normal_texture[1] / 256.0f, normal_texture[0] / 256.0f);
+                frag_normal = _mm_sub_ps(_mm_mul_ps(frag_normal, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f));
+
+                const __m128 view_direction = Normalize_m128(_mm_sub_ps(Tangent_View_Pos, frag_position));
+                const __m128 light_direction = Normalize_m128(_mm_sub_ps(Tangent_Light_Pos, frag_position));
+
+                const __m128 diffuse = Get_Diffuse_Amount(light_direction, frag_position, frag_normal);
+                const __m128 specular = Get_Specular_Amount(view_direction, light_direction, frag_normal, 0.2, 64);
+                const __m128 ambient = _mm_set_ps(1.0f, 0.3f, 0.3f, 0.3f);
+
+                const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
+                const __m128 texture_colour = _mm_set_ps(1.0f, pixelOffset[2] / 256.0f, pixelOffset[1] / 256.0f, pixelOffset[0] / 256.0f);
+
+                const __m128 colour = _mm_mul_ps(Clamp_m128(_mm_add_ps(_mm_mul_ps(_mm_add_ps(ambient, diffuse), texture_colour), specular), 0.0f, 1.0f), _mm_set1_ps(255.0f));
+
+                float final_colour[4];
+                _mm_store_ps(final_colour, colour);
+
+                const uint8_t red = (uint8_t)(final_colour[0]);
+                const uint8_t gre = (uint8_t)(final_colour[1]);
+                const uint8_t blu = (uint8_t)(final_colour[2]);
                 const uint8_t alp = (uint8_t)(255);
 
                 Draw_Pixel_RGBA(render, x + 0, y + 0, red, gre, blu, alp);
@@ -374,6 +450,10 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
 
             if (finalMask.m128i_i32[2])
             {
+                const __m128 weight1 = _mm_set1_ps(w0_area.m128_f32[2]);
+                const __m128 weight2 = _mm_set1_ps(w1_area.m128_f32[2]);
+                const __m128 weight3 = _mm_set1_ps(w2_area.m128_f32[2]);
+
                 const __m128 weights = _mm_set_ps(0.0f, w2_area.m128_f32[2], w1_area.m128_f32[2], w0_area.m128_f32[2]);
 
                 const __m128 u = _mm_mul_ps(_mm_mul_ps(texture_u, weights), _mm_shuffle_ps(depth_w, depth_w, _MM_SHUFFLE(2, 2, 2, 2)));
@@ -382,11 +462,40 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 const int res_u = (int)hsum_ps_sse3(u);
                 const int res_v = (int)hsum_ps_sse3(v);
 
-                const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
+                const __m128 frag_position = _mm_add_ps(
+                    _mm_add_ps(
+                        _mm_mul_ps(weight1, world_space[2]),
+                        _mm_mul_ps(weight2, world_space[1])),
+                    _mm_mul_ps(weight3, world_space[0]));
 
-                const uint8_t red = (uint8_t)(pixelOffset[0]);
-                const uint8_t gre = (uint8_t)(pixelOffset[1]);
-                const uint8_t blu = (uint8_t)(pixelOffset[2]);
+                // const __m128 frag_normal = _mm_add_ps(
+                //     _mm_add_ps(
+                //         _mm_mul_ps(weight1, normal1),
+                //         _mm_mul_ps(weight2, normal2)),
+                //     _mm_mul_ps(weight3, normal3));
+
+                const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
+                __m128 frag_normal = _mm_set_ps(1.0f, normal_texture[2] / 256.0f, normal_texture[1] / 256.0f, normal_texture[0] / 256.0f);
+                frag_normal = _mm_sub_ps(_mm_mul_ps(frag_normal, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f));
+
+                const __m128 view_direction = Normalize_m128(_mm_sub_ps(Tangent_View_Pos, frag_position));
+                const __m128 light_direction = Normalize_m128(_mm_sub_ps(Tangent_Light_Pos, frag_position));
+
+                const __m128 diffuse = Get_Diffuse_Amount(light_direction, frag_position, frag_normal);
+                const __m128 specular = Get_Specular_Amount(view_direction, light_direction, frag_normal, 0.2, 64);
+                const __m128 ambient = _mm_set_ps(1.0f, 0.3f, 0.3f, 0.3f);
+
+                const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
+                const __m128 texture_colour = _mm_set_ps(1.0f, pixelOffset[2] / 256.0f, pixelOffset[1] / 256.0f, pixelOffset[0] / 256.0f);
+
+                const __m128 colour = _mm_mul_ps(Clamp_m128(_mm_add_ps(_mm_mul_ps(_mm_add_ps(ambient, diffuse), texture_colour), specular), 0.0f, 1.0f), _mm_set1_ps(255.0f));
+
+                float final_colour[4];
+                _mm_store_ps(final_colour, colour);
+
+                const uint8_t red = (uint8_t)(final_colour[0]);
+                const uint8_t gre = (uint8_t)(final_colour[1]);
+                const uint8_t blu = (uint8_t)(final_colour[2]);
                 const uint8_t alp = (uint8_t)(255);
 
                 Draw_Pixel_RGBA(render, x + 1, y + 0, red, gre, blu, alp);
@@ -394,6 +503,10 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
 
             if (finalMask.m128i_i32[1])
             {
+                const __m128 weight1 = _mm_set1_ps(w0_area.m128_f32[1]);
+                const __m128 weight2 = _mm_set1_ps(w1_area.m128_f32[1]);
+                const __m128 weight3 = _mm_set1_ps(w2_area.m128_f32[1]);
+
                 const __m128 weights = _mm_set_ps(0.0f, w2_area.m128_f32[1], w1_area.m128_f32[1], w0_area.m128_f32[1]);
 
                 const __m128 u = _mm_mul_ps(_mm_mul_ps(texture_u, weights), _mm_shuffle_ps(depth_w, depth_w, _MM_SHUFFLE(1, 1, 1, 1)));
@@ -402,11 +515,40 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 const int res_u = (int)hsum_ps_sse3(u);
                 const int res_v = (int)hsum_ps_sse3(v);
 
-                const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
+                const __m128 frag_position = _mm_add_ps(
+                    _mm_add_ps(
+                        _mm_mul_ps(weight1, world_space[2]),
+                        _mm_mul_ps(weight2, world_space[1])),
+                    _mm_mul_ps(weight3, world_space[0]));
 
-                const uint8_t red = (uint8_t)(pixelOffset[0]);
-                const uint8_t gre = (uint8_t)(pixelOffset[1]);
-                const uint8_t blu = (uint8_t)(pixelOffset[2]);
+                // const __m128 frag_normal = _mm_add_ps(
+                //     _mm_add_ps(
+                //         _mm_mul_ps(weight1, normal1),
+                //         _mm_mul_ps(weight2, normal2)),
+                //     _mm_mul_ps(weight3, normal3));
+
+                const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
+                __m128 frag_normal = _mm_set_ps(1.0f, normal_texture[2] / 256.0f, normal_texture[1] / 256.0f, normal_texture[0] / 256.0f);
+                frag_normal = _mm_sub_ps(_mm_mul_ps(frag_normal, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f));
+
+                const __m128 view_direction = Normalize_m128(_mm_sub_ps(Tangent_View_Pos, frag_position));
+                const __m128 light_direction = Normalize_m128(_mm_sub_ps(Tangent_Light_Pos, frag_position));
+
+                const __m128 diffuse = Get_Diffuse_Amount(light_direction, frag_position, frag_normal);
+                const __m128 specular = Get_Specular_Amount(view_direction, light_direction, frag_normal, 0.2, 64);
+                const __m128 ambient = _mm_set_ps(1.0f, 0.3f, 0.3f, 0.3f);
+
+                const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
+                const __m128 texture_colour = _mm_set_ps(1.0f, pixelOffset[2] / 256.0f, pixelOffset[1] / 256.0f, pixelOffset[0] / 256.0f);
+
+                const __m128 colour = _mm_mul_ps(Clamp_m128(_mm_add_ps(_mm_mul_ps(_mm_add_ps(ambient, diffuse), texture_colour), specular), 0.0f, 1.0f), _mm_set1_ps(255.0f));
+
+                float final_colour[4];
+                _mm_store_ps(final_colour, colour);
+
+                const uint8_t red = (uint8_t)(final_colour[0]);
+                const uint8_t gre = (uint8_t)(final_colour[1]);
+                const uint8_t blu = (uint8_t)(final_colour[2]);
                 const uint8_t alp = (uint8_t)(255);
 
                 Draw_Pixel_RGBA(render, x + 0, y + 1, red, gre, blu, alp);
@@ -414,6 +556,10 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
 
             if (finalMask.m128i_i32[0])
             {
+                const __m128 weight1 = _mm_set1_ps(w0_area.m128_f32[0]);
+                const __m128 weight2 = _mm_set1_ps(w1_area.m128_f32[0]);
+                const __m128 weight3 = _mm_set1_ps(w2_area.m128_f32[0]);
+
                 const __m128 weights = _mm_set_ps(0.0f, w2_area.m128_f32[0], w1_area.m128_f32[0], w0_area.m128_f32[0]);
 
                 const __m128 u = _mm_mul_ps(_mm_mul_ps(texture_u, weights), _mm_shuffle_ps(depth_w, depth_w, _MM_SHUFFLE(0, 0, 0, 0)));
@@ -422,11 +568,40 @@ void Draw_Textured_Triangle(const Rendering_data *render, const __m128 v0, const
                 const int res_u = (int)hsum_ps_sse3(u);
                 const int res_v = (int)hsum_ps_sse3(v);
 
-                const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
+                const __m128 frag_position = _mm_add_ps(
+                    _mm_add_ps(
+                        _mm_mul_ps(weight1, world_space[2]),
+                        _mm_mul_ps(weight2, world_space[1])),
+                    _mm_mul_ps(weight3, world_space[0]));
 
-                const uint8_t red = (uint8_t)(pixelOffset[0]);
-                const uint8_t gre = (uint8_t)(pixelOffset[1]);
-                const uint8_t blu = (uint8_t)(pixelOffset[2]);
+                // const __m128 frag_normal = _mm_add_ps(
+                //     _mm_add_ps(
+                //         _mm_mul_ps(weight1, normal1),
+                //         _mm_mul_ps(weight2, normal2)),
+                //     _mm_mul_ps(weight3, normal3));
+
+                const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
+                __m128 frag_normal = _mm_set_ps(1.0f, normal_texture[2] / 256.0f, normal_texture[1] / 256.0f, normal_texture[0] / 256.0f);
+                frag_normal = _mm_sub_ps(_mm_mul_ps(frag_normal, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f));
+
+                const __m128 view_direction = Normalize_m128(_mm_sub_ps(Tangent_View_Pos, frag_position));
+                const __m128 light_direction = Normalize_m128(_mm_sub_ps(Tangent_Light_Pos, frag_position));
+
+                const __m128 diffuse = Get_Diffuse_Amount(light_direction, frag_position, frag_normal);
+                const __m128 specular = Get_Specular_Amount(view_direction, light_direction, frag_normal, 0.2, 64);
+                const __m128 ambient = _mm_set_ps(1.0f, 0.3f, 0.3f, 0.3f);
+
+                const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
+                const __m128 texture_colour = _mm_set_ps(1.0f, pixelOffset[2] / 256.0f, pixelOffset[1] / 256.0f, pixelOffset[0] / 256.0f);
+
+                const __m128 colour = _mm_mul_ps(Clamp_m128(_mm_add_ps(_mm_mul_ps(_mm_add_ps(ambient, diffuse), texture_colour), specular), 0.0f, 1.0f), _mm_set1_ps(255.0f));
+
+                float final_colour[4];
+                _mm_store_ps(final_colour, colour);
+
+                const uint8_t red = (uint8_t)(final_colour[0]);
+                const uint8_t gre = (uint8_t)(final_colour[1]);
+                const uint8_t blu = (uint8_t)(final_colour[2]);
                 const uint8_t alp = (uint8_t)(255);
 
                 Draw_Pixel_RGBA(render, x + 1, y + 1, red, gre, blu, alp);
@@ -1860,8 +2035,10 @@ void Draw_Normal_Mapped_Triangle(const Rendering_data *render, const __m128 *scr
     }
 }
 
-void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, const __m128 *world_space, const __m128 *w_values, const __m128 surface_normal, const PointLight *light)
+void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, const __m128 *world_space, const __m128 *w_values, const __m128 *normal_values, const __m128 surface_normal, const PointLight *light)
 {
+    bool smooth_shading = false;
+
     // used when checking if w0,w1,w2 is greater than 0;
     const __m128i fxptZero = _mm_setzero_si128();
 
@@ -1873,17 +2050,34 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
     const __m128 one_over_w2 = w_values[1];
     const __m128 one_over_w3 = w_values[0];
 
-    // LIGHTS (per Vertex)
+    const __m128 normal1 = normal_values[2];
+    const __m128 normal2 = normal_values[1];
+    const __m128 normal3 = normal_values[0];
 
+    // Gourand Shading
+#if 0
     const __m128 diffuse1 = Get_Diffuse_Amount(light->position, world_space[2], Normalize_m128(surface_normal));
     const __m128 diffuse2 = Get_Diffuse_Amount(light->position, world_space[1], Normalize_m128(surface_normal));
     const __m128 diffuse3 = Get_Diffuse_Amount(light->position, world_space[0], Normalize_m128(surface_normal));
 
+    __m128 view_direction = Normalize_m128(_mm_sub_ps(_mm_setzero_ps(), world_space[2]));
+    __m128 light_direction = Normalize_m128(_mm_sub_ps(light->position, world_space[2]));
+    const __m128 specular1 = Get_Specular_Amount(view_direction, light_direction, normal1, 0.5, 32);
+
+    view_direction = Normalize_m128(_mm_sub_ps(_mm_setzero_ps(), world_space[2]));
+    light_direction = Normalize_m128(_mm_sub_ps(light->position, world_space[2]));
+    const __m128 specular2 = Get_Specular_Amount(view_direction, light_direction, normal2, 0.5, 32);
+
+    view_direction = Normalize_m128(_mm_sub_ps(_mm_setzero_ps(), world_space[2]));
+    light_direction = Normalize_m128(_mm_sub_ps(light->position, world_space[2]));
+    const __m128 specular3 = Get_Specular_Amount(view_direction, light_direction, normal3, 0.5, 32);
+
     const __m128 ambient = _mm_set_ps(1.0f, 0.3f, 0.3f, 0.3f);
 
-    const __m128 colour1 = _mm_mul_ps(Clamp_m128(_mm_add_ps(diffuse1, ambient), 0.0f, 1.0f), _mm_set1_ps(255.0f));
-    const __m128 colour2 = _mm_mul_ps(Clamp_m128(_mm_add_ps(diffuse2, ambient), 0.0f, 1.0f), _mm_set1_ps(255.0f));
-    const __m128 colour3 = _mm_mul_ps(Clamp_m128(_mm_add_ps(diffuse3, ambient), 0.0f, 1.0f), _mm_set1_ps(255.0f));
+    const __m128 colour1 = _mm_mul_ps(Clamp_m128(_mm_add_ps(diffuse1, _mm_add_ps(ambient, specular1)), 0.0f, 1.0f), _mm_set1_ps(255.0f));
+    const __m128 colour2 = _mm_mul_ps(Clamp_m128(_mm_add_ps(diffuse2, _mm_add_ps(ambient, specular2)), 0.0f, 1.0f), _mm_set1_ps(255.0f));
+    const __m128 colour3 = _mm_mul_ps(Clamp_m128(_mm_add_ps(diffuse3, _mm_add_ps(ambient, specular3)), 0.0f, 1.0f), _mm_set1_ps(255.0f));
+#endif
 
     /* get the bounding box of the triangle */
     union AABB_u aabb;
@@ -1999,9 +2193,6 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
 
             const __m128i finalMask = _mm_cvtps_epi32(which_depths_should_be_drawn);
 
-            // Test This
-            //_MM_TRANSPOSE4_PS(w0_area, w1_area, w2_area, fxptZero);
-
             if (finalMask.m128i_i32[3])
             {
                 // Interpolate shaded colour
@@ -2009,28 +2200,34 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
                 const __m128 weight2 = _mm_set1_ps(w1_area.m128_f32[3]);
                 const __m128 weight3 = _mm_set1_ps(w2_area.m128_f32[3]);
 
-                const __m128 frag_colour = _mm_add_ps(
+                const __m128 frag_position = _mm_add_ps(
                     _mm_add_ps(
-                        _mm_mul_ps(weight1, colour1),
-                        _mm_mul_ps(weight2, colour2)),
-                    _mm_mul_ps(weight3, colour3));
+                        _mm_mul_ps(weight1, world_space[2]),
+                        _mm_mul_ps(weight2, world_space[1])),
+                    _mm_mul_ps(weight3, world_space[0]));
 
-                const int pixel_index = (y + 0) * render->screen_width + (x + 0);
-                _mm_store_si128((__m128i *)&render->pixels[index], _mm_cvtps_epi32(frag_colour));
+                const __m128 frag_normal = _mm_add_ps(
+                    _mm_add_ps(
+                        _mm_mul_ps(weight1, normal1),
+                        _mm_mul_ps(weight2, normal2)),
+                    _mm_mul_ps(weight3, normal3));
 
-                // ren->pixels[index] = (Uint32)((alpha << 24) + (red << 16) + (green << 8) + (blue << 0));
+                const __m128 view_direction = Normalize_m128(_mm_sub_ps(_mm_setzero_ps(), frag_position));
+                const __m128 light_direction = Normalize_m128(_mm_sub_ps(light->position, frag_position));
+                const __m128 diffuse = Get_Diffuse_Amount(light_direction, frag_position, Normalize_m128(frag_normal));
+                const __m128 specular = Get_Specular_Amount(view_direction, light_direction, frag_normal, 0.2, 64);
+                const __m128 ambient = _mm_set_ps(1.0f, 0.3f, 0.3f, 0.3f);
+                const __m128 colour = _mm_mul_ps(Clamp_m128(_mm_add_ps(diffuse, _mm_add_ps(ambient, specular)), 0.0f, 1.0f), _mm_set1_ps(255.0f));
 
-                // Can this be set directly with:  _mm_store_ps(ren_data->pixels[index], frag_colour);
+                float RGBA_colour[4];
+                _mm_store_ps(RGBA_colour, colour);
 
-                // float RGBA_colour[4];
-                //_mm_store_ps(RGBA_colour, frag_colour);
+                const uint8_t red = (uint8_t)RGBA_colour[0];
+                const uint8_t gre = (uint8_t)RGBA_colour[1];
+                const uint8_t blu = (uint8_t)RGBA_colour[2];
+                const uint8_t alp = (uint8_t)RGBA_colour[3];
 
-                // const uint8_t red = (uint8_t)RGBA_colour[0];
-                // const uint8_t gre = (uint8_t)RGBA_colour[1];
-                // const uint8_t blu = (uint8_t)RGBA_colour[2];
-                // const uint8_t alp = (uint8_t)RGBA_colour[3];
-
-                // Draw_Pixel_RGBA(render, x + 0, y + 0, red, gre, blu, alp);
+                Draw_Pixel_RGBA(render, x + 0, y + 0, red, gre, blu, alp);
             }
 
             if (finalMask.m128i_i32[2])
@@ -2039,24 +2236,34 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
                 const __m128 weight2 = _mm_set1_ps(w1_area.m128_f32[2]);
                 const __m128 weight3 = _mm_set1_ps(w2_area.m128_f32[2]);
 
-                const __m128 frag_colour = _mm_add_ps(
+                const __m128 frag_position = _mm_add_ps(
                     _mm_add_ps(
-                        _mm_mul_ps(weight1, colour1),
-                        _mm_mul_ps(weight2, colour2)),
-                    _mm_mul_ps(weight3, colour3));
+                        _mm_mul_ps(weight1, world_space[2]),
+                        _mm_mul_ps(weight2, world_space[1])),
+                    _mm_mul_ps(weight3, world_space[0]));
 
-                const int pixel_index = (y + 0) * render->screen_width + (x + 1);
-                _mm_store_si128((__m128i *)&render->pixels[pixel_index], _mm_cvtps_epi32(frag_colour));
+                const __m128 frag_normal = _mm_add_ps(
+                    _mm_add_ps(
+                        _mm_mul_ps(weight1, normal1),
+                        _mm_mul_ps(weight2, normal2)),
+                    _mm_mul_ps(weight3, normal3));
 
-                // float RGBA_colour[4];
-                //_mm_store_ps(RGBA_colour, frag_colour);
+                const __m128 view_direction = Normalize_m128(_mm_sub_ps(_mm_setzero_ps(), frag_position));
+                const __m128 light_direction = Normalize_m128(_mm_sub_ps(light->position, frag_position));
+                const __m128 diffuse = Get_Diffuse_Amount(light_direction, frag_position, Normalize_m128(frag_normal));
+                const __m128 specular = Get_Specular_Amount(view_direction, light_direction, frag_normal, 0.2, 64);
+                const __m128 ambient = _mm_set_ps(1.0f, 0.3f, 0.3f, 0.3f);
+                const __m128 colour = _mm_mul_ps(Clamp_m128(_mm_add_ps(diffuse, _mm_add_ps(ambient, specular)), 0.0f, 1.0f), _mm_set1_ps(255.0f));
 
-                // const uint8_t red = (uint8_t)RGBA_colour[0];
-                // const uint8_t gre = (uint8_t)RGBA_colour[1];
-                // const uint8_t blu = (uint8_t)RGBA_colour[2];
-                // const uint8_t alp = (uint8_t)RGBA_colour[3];
+                float RGBA_colour[4];
+                _mm_store_ps(RGBA_colour, colour);
 
-                // Draw_Pixel_RGBA(render, x + 1, y + 0, red, gre, blu, alp);
+                const uint8_t red = (uint8_t)RGBA_colour[0];
+                const uint8_t gre = (uint8_t)RGBA_colour[1];
+                const uint8_t blu = (uint8_t)RGBA_colour[2];
+                const uint8_t alp = (uint8_t)RGBA_colour[3];
+
+                Draw_Pixel_RGBA(render, x + 1, y + 0, red, gre, blu, alp);
             }
 
             if (finalMask.m128i_i32[1])
@@ -2065,24 +2272,34 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
                 const __m128 weight2 = _mm_set1_ps(w1_area.m128_f32[1]);
                 const __m128 weight3 = _mm_set1_ps(w2_area.m128_f32[1]);
 
-                const __m128 frag_colour = _mm_add_ps(
+                const __m128 frag_position = _mm_add_ps(
                     _mm_add_ps(
-                        _mm_mul_ps(weight1, colour1),
-                        _mm_mul_ps(weight2, colour2)),
-                    _mm_mul_ps(weight3, colour3));
+                        _mm_mul_ps(weight1, world_space[2]),
+                        _mm_mul_ps(weight2, world_space[1])),
+                    _mm_mul_ps(weight3, world_space[0]));
 
-                const int pixel_index = (y + 1) * render->screen_width + (x + 0);
-                _mm_store_si128((__m128i *)&render->pixels[pixel_index], _mm_cvtps_epi32(frag_colour));
+                const __m128 frag_normal = _mm_add_ps(
+                    _mm_add_ps(
+                        _mm_mul_ps(weight1, normal1),
+                        _mm_mul_ps(weight2, normal2)),
+                    _mm_mul_ps(weight3, normal3));
 
-                // float RGBA_colour[4];
-                //_mm_store_ps(RGBA_colour, frag_colour);
+                const __m128 view_direction = Normalize_m128(_mm_sub_ps(_mm_setzero_ps(), frag_position));
+                const __m128 light_direction = Normalize_m128(_mm_sub_ps(light->position, frag_position));
+                const __m128 diffuse = Get_Diffuse_Amount(light_direction, frag_position, Normalize_m128(frag_normal));
+                const __m128 specular = Get_Specular_Amount(view_direction, light_direction, frag_normal, 0.2, 64);
+                const __m128 ambient = _mm_set_ps(1.0f, 0.3f, 0.3f, 0.3f);
+                const __m128 colour = _mm_mul_ps(Clamp_m128(_mm_add_ps(diffuse, _mm_add_ps(ambient, specular)), 0.0f, 1.0f), _mm_set1_ps(255.0f));
 
-                // const uint8_t red = (uint8_t)RGBA_colour[0];
-                // const uint8_t gre = (uint8_t)RGBA_colour[1];
-                // const uint8_t blu = (uint8_t)RGBA_colour[2];
-                // const uint8_t alp = (uint8_t)RGBA_colour[3];
+                float RGBA_colour[4];
+                _mm_store_ps(RGBA_colour, colour);
 
-                // Draw_Pixel_RGBA(render, x + 0, y + 1, red, gre, blu, alp);
+                const uint8_t red = (uint8_t)RGBA_colour[0];
+                const uint8_t gre = (uint8_t)RGBA_colour[1];
+                const uint8_t blu = (uint8_t)RGBA_colour[2];
+                const uint8_t alp = (uint8_t)RGBA_colour[3];
+
+                Draw_Pixel_RGBA(render, x + 0, y + 1, red, gre, blu, alp);
             }
 
             if (finalMask.m128i_i32[0])
@@ -2091,24 +2308,34 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
                 const __m128 weight2 = _mm_set1_ps(w1_area.m128_f32[0]);
                 const __m128 weight3 = _mm_set1_ps(w2_area.m128_f32[0]);
 
-                const __m128 frag_colour = _mm_add_ps(
+                const __m128 frag_position = _mm_add_ps(
                     _mm_add_ps(
-                        _mm_mul_ps(weight1, colour1),
-                        _mm_mul_ps(weight2, colour2)),
-                    _mm_mul_ps(weight3, colour3));
+                        _mm_mul_ps(weight1, world_space[2]),
+                        _mm_mul_ps(weight2, world_space[1])),
+                    _mm_mul_ps(weight3, world_space[0]));
 
-                const int pixel_index = (y + 1) * render->screen_width + (x + 1);
-                _mm_store_si128((__m128i *)&render->pixels[pixel_index], _mm_cvtps_epi32(frag_colour));
+                const __m128 frag_normal = _mm_add_ps(
+                    _mm_add_ps(
+                        _mm_mul_ps(weight1, normal1),
+                        _mm_mul_ps(weight2, normal2)),
+                    _mm_mul_ps(weight3, normal3));
 
-                // float RGBA_colour[4];
-                //_mm_store_ps(RGBA_colour, frag_colour);
+                const __m128 view_direction = Normalize_m128(_mm_sub_ps(_mm_setzero_ps(), frag_position));
+                const __m128 light_direction = Normalize_m128(_mm_sub_ps(light->position, frag_position));
+                const __m128 diffuse = Get_Diffuse_Amount(light_direction, frag_position, frag_normal);
+                const __m128 specular = Get_Specular_Amount(view_direction, light_direction, frag_normal, 0.2, 64);
+                const __m128 ambient = _mm_set_ps(1.0f, 0.3f, 0.3f, 0.3f);
+                const __m128 colour = _mm_mul_ps(Clamp_m128(_mm_add_ps(diffuse, _mm_add_ps(ambient, specular)), 0.0f, 1.0f), _mm_set1_ps(255.0f));
 
-                // const uint8_t red = (uint8_t)RGBA_colour[0];
-                // const uint8_t gre = (uint8_t)RGBA_colour[1];
-                // const uint8_t blu = (uint8_t)RGBA_colour[2];
-                // const uint8_t alp = (uint8_t)RGBA_colour[3];
+                float RGBA_colour[4];
+                _mm_store_ps(RGBA_colour, colour);
 
-                // Draw_Pixel_RGBA(render, x + 1, y + 1, red, gre, blu, alp);
+                const uint8_t red = (uint8_t)RGBA_colour[0];
+                const uint8_t gre = (uint8_t)RGBA_colour[1];
+                const uint8_t blu = (uint8_t)RGBA_colour[2];
+                const uint8_t alp = (uint8_t)RGBA_colour[3];
+
+                Draw_Pixel_RGBA(render, x + 1, y + 1, red, gre, blu, alp);
             }
         }
     }
