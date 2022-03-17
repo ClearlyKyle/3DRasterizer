@@ -590,10 +590,6 @@ void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, 
 
                 Draw_Pixel_RGBA(render, x + 1, y + 1, red, gre, blu, alp);
             }
-
-            // depth = _mm_blendv_ps(previousDepthValue, depth, _mm_castsi128_ps(finalMask));
-            // depth = _mm_shuffle_ps(depth, depth, _MM_SHUFFLE(0, 1, 2, 3)); // reverse finalMask
-            //_mm_store_ps(&pDepthBuffer[z_index], depth);
         }
     }
 }
