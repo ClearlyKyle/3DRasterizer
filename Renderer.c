@@ -618,29 +618,17 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
     const __m128 normal3 = normal_values[0];
 
     // Gourand Shading
-#if 0
-    const __m128 diffuse1 = Get_Diffuse_Amount(light->position, world_space[2], Normalize_m128(surface_normal));
-    const __m128 diffuse2 = Get_Diffuse_Amount(light->position, world_space[1], Normalize_m128(surface_normal));
-    const __m128 diffuse3 = Get_Diffuse_Amount(light->position, world_space[0], Normalize_m128(surface_normal));
-
-    __m128 view_direction = Normalize_m128(_mm_sub_ps(_mm_setzero_ps(), world_space[2]));
-    __m128 light_direction = Normalize_m128(_mm_sub_ps(light->position, world_space[2]));
-    const __m128 specular1 = Get_Specular_Amount(view_direction, light_direction, normal1, 0.5, 32);
-
-    view_direction = Normalize_m128(_mm_sub_ps(_mm_setzero_ps(), world_space[2]));
-    light_direction = Normalize_m128(_mm_sub_ps(light->position, world_space[2]));
-    const __m128 specular2 = Get_Specular_Amount(view_direction, light_direction, normal2, 0.5, 32);
-
-    view_direction = Normalize_m128(_mm_sub_ps(_mm_setzero_ps(), world_space[2]));
-    light_direction = Normalize_m128(_mm_sub_ps(light->position, world_space[2]));
-    const __m128 specular3 = Get_Specular_Amount(view_direction, light_direction, normal3, 0.5, 32);
-
-    const __m128 ambient = _mm_set_ps(1.0f, 0.3f, 0.3f, 0.3f);
-
-    const __m128 colour1 = _mm_mul_ps(Clamp_m128(_mm_add_ps(diffuse1, _mm_add_ps(ambient, specular1)), 0.0f, 1.0f), _mm_set1_ps(255.0f));
-    const __m128 colour2 = _mm_mul_ps(Clamp_m128(_mm_add_ps(diffuse2, _mm_add_ps(ambient, specular2)), 0.0f, 1.0f), _mm_set1_ps(255.0f));
-    const __m128 colour3 = _mm_mul_ps(Clamp_m128(_mm_add_ps(diffuse3, _mm_add_ps(ambient, specular3)), 0.0f, 1.0f), _mm_set1_ps(255.0f));
-#endif
+    __m128 colour1, colour2, colour3;
+    if (shading == GOURAND)
+    {
+        colour1 = Calculate_Light(light->position, _mm_setzero_ps(), world_space[2], normal1, 0.2f, 1.0f, 0.2f, 64);
+        colour2 = Calculate_Light(light->position, _mm_setzero_ps(), world_space[1], normal2, 0.2f, 1.0f, 0.2f, 64);
+        colour3 = Calculate_Light(light->position, _mm_setzero_ps(), world_space[0], normal3, 0.2f, 1.0f, 0.2f, 64);
+    }
+    if (shading == FLAT)
+    {
+        colour1 = _mm_set_ps(255.f, 000.0f, 000.0f, 128.0f);
+    }
 
     /* get the bounding box of the triangle */
     union AABB_u aabb;
@@ -742,9 +730,9 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
             const __m128 w2_area = _mm_mul_ps(_mm_cvtepi32_ps(gama), oneOverTriArea);
 
             // Compute barycentric-interpolated depth
-            __m128 depth = _mm_mul_ps(w0_area, one_over_w3);
+            __m128 depth = _mm_mul_ps(w0_area, one_over_w1);
             depth = _mm_add_ps(depth, _mm_mul_ps(w1_area, one_over_w2));
-            depth = _mm_add_ps(depth, _mm_mul_ps(w2_area, one_over_w1));
+            depth = _mm_add_ps(depth, _mm_mul_ps(w2_area, one_over_w3));
             depth = _mm_rcp_ps(depth);
 
             //// DEPTH BUFFER
@@ -763,6 +751,23 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
                 const __m128 weight2 = _mm_set1_ps(w1_area.m128_f32[3]);
                 const __m128 weight3 = _mm_set1_ps(w2_area.m128_f32[3]);
 
+                __m128 frag_colour;
+                if (shading == FLAT)
+                {
+                    frag_colour = colour1;
+                }
+
+                if (shading == GOURAND)
+                {
+                    frag_colour = _mm_add_ps(
+                        _mm_add_ps(
+                            _mm_mul_ps(weight1, colour1),
+                            _mm_mul_ps(weight2, colour2)),
+                        _mm_mul_ps(weight3, colour3));
+                }
+
+                if (shading == PHONG)
+                {
                 const __m128 frag_position = _mm_add_ps(
                     _mm_add_ps(
                         _mm_mul_ps(weight1, world_space[2]),
@@ -775,20 +780,13 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
                         _mm_mul_ps(weight2, normal2)),
                     _mm_mul_ps(weight3, normal3));
 
-                const __m128 view_direction = Normalize_m128(_mm_sub_ps(_mm_setzero_ps(), frag_position));
-                const __m128 light_direction = Normalize_m128(_mm_sub_ps(light->position, frag_position));
-                const __m128 diffuse = Get_Diffuse_Amount(light_direction, frag_position, Normalize_m128(frag_normal));
-                const __m128 specular = Get_Specular_Amount(view_direction, light_direction, frag_normal, 0.2, 64);
-                const __m128 ambient = _mm_set_ps(1.0f, 0.3f, 0.3f, 0.3f);
-                const __m128 colour = _mm_mul_ps(Clamp_m128(_mm_add_ps(diffuse, _mm_add_ps(ambient, specular)), 0.0f, 1.0f), _mm_set1_ps(255.0f));
+                    frag_colour = Calculate_Light(light->position, _mm_setzero_ps(), frag_position, frag_normal, 0.8f, 1.0f, 0.2f, 64);
+                }
 
-                float RGBA_colour[4];
-                _mm_store_ps(RGBA_colour, colour);
-
-                const uint8_t red = (uint8_t)RGBA_colour[0];
-                const uint8_t gre = (uint8_t)RGBA_colour[1];
-                const uint8_t blu = (uint8_t)RGBA_colour[2];
-                const uint8_t alp = (uint8_t)RGBA_colour[3];
+                const uint8_t red = (uint8_t)frag_colour.m128_f32[0];
+                const uint8_t gre = (uint8_t)frag_colour.m128_f32[1];
+                const uint8_t blu = (uint8_t)frag_colour.m128_f32[2];
+                const uint8_t alp = (uint8_t)frag_colour.m128_f32[3];
 
                 Draw_Pixel_RGBA(render, x + 0, y + 0, red, gre, blu, alp);
             }
@@ -799,6 +797,23 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
                 const __m128 weight2 = _mm_set1_ps(w1_area.m128_f32[2]);
                 const __m128 weight3 = _mm_set1_ps(w2_area.m128_f32[2]);
 
+                __m128 frag_colour;
+                if (shading == FLAT)
+                {
+                    frag_colour = colour1;
+                }
+
+                if (shading == GOURAND)
+                {
+                    frag_colour = _mm_add_ps(
+                        _mm_add_ps(
+                            _mm_mul_ps(weight1, colour1),
+                            _mm_mul_ps(weight2, colour2)),
+                        _mm_mul_ps(weight3, colour3));
+                }
+
+                if (shading == PHONG)
+                {
                 const __m128 frag_position = _mm_add_ps(
                     _mm_add_ps(
                         _mm_mul_ps(weight1, world_space[2]),
@@ -811,20 +826,13 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
                         _mm_mul_ps(weight2, normal2)),
                     _mm_mul_ps(weight3, normal3));
 
-                const __m128 view_direction = Normalize_m128(_mm_sub_ps(_mm_setzero_ps(), frag_position));
-                const __m128 light_direction = Normalize_m128(_mm_sub_ps(light->position, frag_position));
-                const __m128 diffuse = Get_Diffuse_Amount(light_direction, frag_position, Normalize_m128(frag_normal));
-                const __m128 specular = Get_Specular_Amount(view_direction, light_direction, frag_normal, 0.2, 64);
-                const __m128 ambient = _mm_set_ps(1.0f, 0.3f, 0.3f, 0.3f);
-                const __m128 colour = _mm_mul_ps(Clamp_m128(_mm_add_ps(diffuse, _mm_add_ps(ambient, specular)), 0.0f, 1.0f), _mm_set1_ps(255.0f));
+                    frag_colour = Calculate_Light(light->position, _mm_setzero_ps(), frag_position, frag_normal, 0.8f, 1.0f, 0.2f, 64);
+                }
 
-                float RGBA_colour[4];
-                _mm_store_ps(RGBA_colour, colour);
-
-                const uint8_t red = (uint8_t)RGBA_colour[0];
-                const uint8_t gre = (uint8_t)RGBA_colour[1];
-                const uint8_t blu = (uint8_t)RGBA_colour[2];
-                const uint8_t alp = (uint8_t)RGBA_colour[3];
+                const uint8_t red = (uint8_t)frag_colour.m128_f32[0];
+                const uint8_t gre = (uint8_t)frag_colour.m128_f32[1];
+                const uint8_t blu = (uint8_t)frag_colour.m128_f32[2];
+                const uint8_t alp = (uint8_t)frag_colour.m128_f32[3];
 
                 Draw_Pixel_RGBA(render, x + 1, y + 0, red, gre, blu, alp);
             }
@@ -835,6 +843,23 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
                 const __m128 weight2 = _mm_set1_ps(w1_area.m128_f32[1]);
                 const __m128 weight3 = _mm_set1_ps(w2_area.m128_f32[1]);
 
+                __m128 frag_colour;
+                if (shading == FLAT)
+                {
+                    frag_colour = colour1;
+                }
+
+                if (shading == GOURAND)
+                {
+                    frag_colour = _mm_add_ps(
+                        _mm_add_ps(
+                            _mm_mul_ps(weight1, colour1),
+                            _mm_mul_ps(weight2, colour2)),
+                        _mm_mul_ps(weight3, colour3));
+                }
+
+                if (shading == PHONG)
+                {
                 const __m128 frag_position = _mm_add_ps(
                     _mm_add_ps(
                         _mm_mul_ps(weight1, world_space[2]),
@@ -847,20 +872,13 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
                         _mm_mul_ps(weight2, normal2)),
                     _mm_mul_ps(weight3, normal3));
 
-                const __m128 view_direction = Normalize_m128(_mm_sub_ps(_mm_setzero_ps(), frag_position));
-                const __m128 light_direction = Normalize_m128(_mm_sub_ps(light->position, frag_position));
-                const __m128 diffuse = Get_Diffuse_Amount(light_direction, frag_position, Normalize_m128(frag_normal));
-                const __m128 specular = Get_Specular_Amount(view_direction, light_direction, frag_normal, 0.2, 64);
-                const __m128 ambient = _mm_set_ps(1.0f, 0.3f, 0.3f, 0.3f);
-                const __m128 colour = _mm_mul_ps(Clamp_m128(_mm_add_ps(diffuse, _mm_add_ps(ambient, specular)), 0.0f, 1.0f), _mm_set1_ps(255.0f));
+                    frag_colour = Calculate_Light(light->position, _mm_setzero_ps(), frag_position, frag_normal, 0.8f, 1.0f, 0.2f, 64);
+                }
 
-                float RGBA_colour[4];
-                _mm_store_ps(RGBA_colour, colour);
-
-                const uint8_t red = (uint8_t)RGBA_colour[0];
-                const uint8_t gre = (uint8_t)RGBA_colour[1];
-                const uint8_t blu = (uint8_t)RGBA_colour[2];
-                const uint8_t alp = (uint8_t)RGBA_colour[3];
+                const uint8_t red = (uint8_t)frag_colour.m128_f32[0];
+                const uint8_t gre = (uint8_t)frag_colour.m128_f32[1];
+                const uint8_t blu = (uint8_t)frag_colour.m128_f32[2];
+                const uint8_t alp = (uint8_t)frag_colour.m128_f32[3];
 
                 Draw_Pixel_RGBA(render, x + 0, y + 1, red, gre, blu, alp);
             }
@@ -871,6 +889,23 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
                 const __m128 weight2 = _mm_set1_ps(w1_area.m128_f32[0]);
                 const __m128 weight3 = _mm_set1_ps(w2_area.m128_f32[0]);
 
+                __m128 frag_colour;
+                if (shading == FLAT)
+                {
+                    frag_colour = colour1;
+                }
+
+                if (shading == GOURAND)
+                {
+                    frag_colour = _mm_add_ps(
+                        _mm_add_ps(
+                            _mm_mul_ps(weight1, colour1),
+                            _mm_mul_ps(weight2, colour2)),
+                        _mm_mul_ps(weight3, colour3));
+                }
+
+                if (shading == PHONG)
+                {
                 const __m128 frag_position = _mm_add_ps(
                     _mm_add_ps(
                         _mm_mul_ps(weight1, world_space[2]),
@@ -883,20 +918,13 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
                         _mm_mul_ps(weight2, normal2)),
                     _mm_mul_ps(weight3, normal3));
 
-                const __m128 view_direction = Normalize_m128(_mm_sub_ps(_mm_setzero_ps(), frag_position));
-                const __m128 light_direction = Normalize_m128(_mm_sub_ps(light->position, frag_position));
-                const __m128 diffuse = Get_Diffuse_Amount(light_direction, frag_position, frag_normal);
-                const __m128 specular = Get_Specular_Amount(view_direction, light_direction, frag_normal, 0.2, 64);
-                const __m128 ambient = _mm_set_ps(1.0f, 0.3f, 0.3f, 0.3f);
-                const __m128 colour = _mm_mul_ps(Clamp_m128(_mm_add_ps(diffuse, _mm_add_ps(ambient, specular)), 0.0f, 1.0f), _mm_set1_ps(255.0f));
+                    frag_colour = Calculate_Light(light->position, _mm_setzero_ps(), frag_position, frag_normal, 0.8f, 1.0f, 0.2f, 64);
+                }
 
-                float RGBA_colour[4];
-                _mm_store_ps(RGBA_colour, colour);
-
-                const uint8_t red = (uint8_t)RGBA_colour[0];
-                const uint8_t gre = (uint8_t)RGBA_colour[1];
-                const uint8_t blu = (uint8_t)RGBA_colour[2];
-                const uint8_t alp = (uint8_t)RGBA_colour[3];
+                const uint8_t red = (uint8_t)frag_colour.m128_f32[0];
+                const uint8_t gre = (uint8_t)frag_colour.m128_f32[1];
+                const uint8_t blu = (uint8_t)frag_colour.m128_f32[2];
+                const uint8_t alp = (uint8_t)frag_colour.m128_f32[3];
 
                 Draw_Pixel_RGBA(render, x + 1, y + 1, red, gre, blu, alp);
             }
