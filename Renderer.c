@@ -416,9 +416,14 @@ void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, 
                 float final_colour[4];
                 _mm_store_ps(final_colour, colour);
 
-                const uint8_t red = (uint8_t)(final_colour[0]);
-                const uint8_t gre = (uint8_t)(final_colour[1]);
-                const uint8_t blu = (uint8_t)(final_colour[2]);
+                // const uint8_t red = (uint8_t)(final_colour[0]);
+                // const uint8_t gre = (uint8_t)(final_colour[1]);
+                // const uint8_t blu = (uint8_t)(final_colour[2]);
+                // const uint8_t alp = (uint8_t)(255);
+
+                const uint8_t red = (uint8_t)(pixelOffset[0]);
+                const uint8_t gre = (uint8_t)(pixelOffset[1]);
+                const uint8_t blu = (uint8_t)(pixelOffset[2]);
                 const uint8_t alp = (uint8_t)(255);
 
                 Draw_Pixel_RGBA(render, x + 0, y + 0, red, gre, blu, alp);
@@ -470,9 +475,14 @@ void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, 
                 float final_colour[4];
                 _mm_store_ps(final_colour, colour);
 
-                const uint8_t red = (uint8_t)(final_colour[0]);
-                const uint8_t gre = (uint8_t)(final_colour[1]);
-                const uint8_t blu = (uint8_t)(final_colour[2]);
+                // const uint8_t red = (uint8_t)(final_colour[0]);
+                // const uint8_t gre = (uint8_t)(final_colour[1]);
+                // const uint8_t blu = (uint8_t)(final_colour[2]);
+                // const uint8_t alp = (uint8_t)(255);
+
+                const uint8_t red = (uint8_t)(pixelOffset[0]);
+                const uint8_t gre = (uint8_t)(pixelOffset[1]);
+                const uint8_t blu = (uint8_t)(pixelOffset[2]);
                 const uint8_t alp = (uint8_t)(255);
 
                 Draw_Pixel_RGBA(render, x + 1, y + 0, red, gre, blu, alp);
@@ -524,9 +534,14 @@ void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, 
                 float final_colour[4];
                 _mm_store_ps(final_colour, colour);
 
-                const uint8_t red = (uint8_t)(final_colour[0]);
-                const uint8_t gre = (uint8_t)(final_colour[1]);
-                const uint8_t blu = (uint8_t)(final_colour[2]);
+                // const uint8_t red = (uint8_t)(final_colour[0]);
+                // const uint8_t gre = (uint8_t)(final_colour[1]);
+                // const uint8_t blu = (uint8_t)(final_colour[2]);
+                // const uint8_t alp = (uint8_t)(255);
+
+                const uint8_t red = (uint8_t)(pixelOffset[0]);
+                const uint8_t gre = (uint8_t)(pixelOffset[1]);
+                const uint8_t blu = (uint8_t)(pixelOffset[2]);
                 const uint8_t alp = (uint8_t)(255);
 
                 Draw_Pixel_RGBA(render, x + 0, y + 1, red, gre, blu, alp);
@@ -764,17 +779,17 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
 
                 if (shading == PHONG)
                 {
-                const __m128 frag_position = _mm_add_ps(
-                    _mm_add_ps(
-                        _mm_mul_ps(weight1, world_space[2]),
-                        _mm_mul_ps(weight2, world_space[1])),
-                    _mm_mul_ps(weight3, world_space[0]));
+                    const __m128 frag_position = _mm_add_ps(
+                        _mm_add_ps(
+                            _mm_mul_ps(weight1, world_space[2]),
+                            _mm_mul_ps(weight2, world_space[1])),
+                        _mm_mul_ps(weight3, world_space[0]));
 
-                const __m128 frag_normal = _mm_add_ps(
-                    _mm_add_ps(
-                        _mm_mul_ps(weight1, normal1),
-                        _mm_mul_ps(weight2, normal2)),
-                    _mm_mul_ps(weight3, normal3));
+                    const __m128 frag_normal = _mm_add_ps(
+                        _mm_add_ps(
+                            _mm_mul_ps(weight1, normal1),
+                            _mm_mul_ps(weight2, normal2)),
+                        _mm_mul_ps(weight3, normal3));
 
                     frag_colour = Calculate_Light(light->position, _mm_setzero_ps(), frag_position, frag_normal, 0.8f, 1.0f, 0.2f, 64);
                 }
@@ -810,17 +825,17 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
 
                 if (shading == PHONG)
                 {
-                const __m128 frag_position = _mm_add_ps(
-                    _mm_add_ps(
-                        _mm_mul_ps(weight1, world_space[2]),
-                        _mm_mul_ps(weight2, world_space[1])),
-                    _mm_mul_ps(weight3, world_space[0]));
+                    const __m128 frag_position = _mm_add_ps(
+                        _mm_add_ps(
+                            _mm_mul_ps(weight1, world_space[2]),
+                            _mm_mul_ps(weight2, world_space[1])),
+                        _mm_mul_ps(weight3, world_space[0]));
 
-                const __m128 frag_normal = _mm_add_ps(
-                    _mm_add_ps(
-                        _mm_mul_ps(weight1, normal1),
-                        _mm_mul_ps(weight2, normal2)),
-                    _mm_mul_ps(weight3, normal3));
+                    const __m128 frag_normal = _mm_add_ps(
+                        _mm_add_ps(
+                            _mm_mul_ps(weight1, normal1),
+                            _mm_mul_ps(weight2, normal2)),
+                        _mm_mul_ps(weight3, normal3));
 
                     frag_colour = Calculate_Light(light->position, _mm_setzero_ps(), frag_position, frag_normal, 0.8f, 1.0f, 0.2f, 64);
                 }
@@ -856,17 +871,17 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
 
                 if (shading == PHONG)
                 {
-                const __m128 frag_position = _mm_add_ps(
-                    _mm_add_ps(
-                        _mm_mul_ps(weight1, world_space[2]),
-                        _mm_mul_ps(weight2, world_space[1])),
-                    _mm_mul_ps(weight3, world_space[0]));
+                    const __m128 frag_position = _mm_add_ps(
+                        _mm_add_ps(
+                            _mm_mul_ps(weight1, world_space[2]),
+                            _mm_mul_ps(weight2, world_space[1])),
+                        _mm_mul_ps(weight3, world_space[0]));
 
-                const __m128 frag_normal = _mm_add_ps(
-                    _mm_add_ps(
-                        _mm_mul_ps(weight1, normal1),
-                        _mm_mul_ps(weight2, normal2)),
-                    _mm_mul_ps(weight3, normal3));
+                    const __m128 frag_normal = _mm_add_ps(
+                        _mm_add_ps(
+                            _mm_mul_ps(weight1, normal1),
+                            _mm_mul_ps(weight2, normal2)),
+                        _mm_mul_ps(weight3, normal3));
 
                     frag_colour = Calculate_Light(light->position, _mm_setzero_ps(), frag_position, frag_normal, 0.8f, 1.0f, 0.2f, 64);
                 }
@@ -902,17 +917,17 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
 
                 if (shading == PHONG)
                 {
-                const __m128 frag_position = _mm_add_ps(
-                    _mm_add_ps(
-                        _mm_mul_ps(weight1, world_space[2]),
-                        _mm_mul_ps(weight2, world_space[1])),
-                    _mm_mul_ps(weight3, world_space[0]));
+                    const __m128 frag_position = _mm_add_ps(
+                        _mm_add_ps(
+                            _mm_mul_ps(weight1, world_space[2]),
+                            _mm_mul_ps(weight2, world_space[1])),
+                        _mm_mul_ps(weight3, world_space[0]));
 
-                const __m128 frag_normal = _mm_add_ps(
-                    _mm_add_ps(
-                        _mm_mul_ps(weight1, normal1),
-                        _mm_mul_ps(weight2, normal2)),
-                    _mm_mul_ps(weight3, normal3));
+                    const __m128 frag_normal = _mm_add_ps(
+                        _mm_add_ps(
+                            _mm_mul_ps(weight1, normal1),
+                            _mm_mul_ps(weight2, normal2)),
+                        _mm_mul_ps(weight3, normal3));
 
                     frag_colour = Calculate_Light(light->position, _mm_setzero_ps(), frag_position, frag_normal, 0.8f, 1.0f, 0.2f, 64);
                 }
