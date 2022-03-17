@@ -45,6 +45,19 @@ typedef struct Rendering_data_s
 
 } Rendering_data;
 
+typedef enum
+{
+    WIRE_FRAME,
+    FLAT,
+    GOURAND,
+    PHONG,
+    // BLIN_PHONG,
+    // TEXTURED,
+    // TEXTURED_PHONG,
+    // NORMAL_MAPPING,
+    SHADING_COUNT
+} Shading_Mode;
+
 Renderer SDL_Startup(const char *title, unsigned int width, unsigned int height);
 void SDL_CleanUp(Renderer *renderer);
 
