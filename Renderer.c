@@ -123,18 +123,18 @@ static void Draw_Line(const Rendering_data *ren, int x, int y, int x2, int y2, c
     }
 }
 
-void Draw_Triangle_Outline(const SDL_PixelFormat *fmt, unsigned int *pixels, const __m128 v1, const __m128 v2, const __m128 v3, const SDL_Colour *col)
+void Draw_Triangle_Outline(const Rendering_data *ren, const __m128 *verticies, const SDL_Colour *col)
 {
     float vert1[4];
-    _mm_store_ps(vert1, v1);
+    _mm_store_ps(vert1, verticies[0]);
     float vert2[4];
-    _mm_store_ps(vert2, v2);
+    _mm_store_ps(vert2, verticies[1]);
     float vert3[4];
-    _mm_store_ps(vert3, v3);
+    _mm_store_ps(vert3, verticies[2]);
 
-    Draw_Line(fmt, pixels, (int)vert1[0], (int)vert1[1], (int)vert2[0], (int)vert2[1], col);
-    Draw_Line(fmt, pixels, (int)vert2[0], (int)vert2[1], (int)vert3[0], (int)vert3[1], col);
-    Draw_Line(fmt, pixels, (int)vert3[0], (int)vert3[1], (int)vert1[0], (int)vert1[1], col);
+    Draw_Line(ren, (int)vert1[0], (int)vert1[1], (int)vert2[0], (int)vert2[1], col);
+    Draw_Line(ren, (int)vert2[0], (int)vert2[1], (int)vert3[0], (int)vert3[1], col);
+    Draw_Line(ren, (int)vert3[0], (int)vert3[1], (int)vert1[0], (int)vert1[1], col);
 }
 
 void Draw_Depth_Buffer(const Rendering_data *render_data)
