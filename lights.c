@@ -77,74 +77,25 @@ __m128 Reflect_m128(const __m128 I, __m128 N)
     return _mm_sub_ps(I, righ);
 }
 
-__m128 Specular_Highlight_Colour(const __m128 view_direction, const __m128 light_direction, const __m128 normal)
+__m128 Calculate_Light(const __m128 light_position, const __m128 camera_position, const __m128 frag_position, const __m128 normal,
+                       const float ambient_strength, const float diffuse_strength, const float specular_strength, const double specular_power)
 {
-    // vec3 viewDir = normalize(viewPos - FragPos);
-    const __m128 neg_light_direction = _mm_mul_ps(light_direction, _mm_set1_ps(-1.0f));
-    const __m128 reflect_direction = Reflect_m128(neg_light_direction, normal);
+    // POINT LIGHT
+    // const float distance_to_light = (const float)sqrt((double)hsum_ps_sse3(_mm_mul_ps(vert_to_light, vert_to_light)));
+    // const float attenulation_value = 1.0f / (pl.constant_attenuation +
+    //                                          pl.linear_attenuation * distance_to_light +
+    //                                          pl.quadradic_attenuation * distance_to_light * distance_to_light);
 
-    const float spec = (const float)pow(fmax(Calculate_Dot_Product_SIMD(view_direction, reflect_direction), 0.0), 16);
+    const __m128 view_direction = Normalize_m128(_mm_sub_ps(camera_position, frag_position));
+    const __m128 light_direction = Normalize_m128(_mm_sub_ps(light_position, frag_position));
 
-    const __m128 specular_strength = _mm_set1_ps(0.5f);
-    const __m128 light_colour = _mm_set_ps(1.0f, 1.0f, 0.0f, 0.0f);
+    const __m128 diffuse = Get_Diffuse_Amount(light_direction, frag_position, normal);
+    const __m128 specular = Get_Specular_Amount(view_direction, light_direction, normal, 0.2, 64);
+    const __m128 ambient = _mm_set1_ps(ambient_strength);
 
-    return _mm_mul_ps(specular_strength, _mm_mul_ps(light_colour, _mm_set1_ps(spec)));
-}
+    const __m128 colour = _mm_mul_ps(Clamp_m128(_mm_add_ps(_mm_add_ps(ambient, diffuse), specular), 0.0f, 1.0f), _mm_set1_ps(255.0f));
 
-static double clampf(double d, double min, double max)
-{
-    const double t = d < min ? min : d;
-    return t > max ? max : t;
-}
-
-__m128 Calculate_Normal_Mapping_Colour(const unsigned char *diffuse_texture,
-                                       const unsigned char *normal_texture,
-                                       const Mat4x4 TBN,
-                                       const __m128 Tangent_Frag_Pos,
-                                       const __m128 Tangent_Light_Pos,
-                                       const __m128 Tangent_View_Pos)
-{
-    const float specular_strength = 0.2f;
-    const float ambient_value = 0.1f;
-
-    // AMBIENT
-    const __m128 ambient = _mm_set1_ps(ambient_value);
-
-    // COLOUR FROM TEXTURE
-    //__m128i colour_test = _mm_load_si128((__m128i *)diffuse_texture);
-    __m128 texture_colour = _mm_set_ps(1.0f, diffuse_texture[2] / 255.0f, diffuse_texture[1] / 255.0f, diffuse_texture[0] / 255.0f);
-
-    // NORMAL FROM TEXTURE : transform normal vector to range [-1,1]
-    //__m128 normal = _mm_set_ps(0.0f, 1.0f, 0.0f, 0.0f);
-    __m128 normal = _mm_set_ps(1.0f, normal_texture[2] / 256.0f, normal_texture[1] / 256.0f, normal_texture[0] / 256.0f);
-    normal = _mm_sub_ps(_mm_mul_ps(normal, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f));
-
-    const __m128 light_direction = Normalize_m128(_mm_sub_ps(Tangent_Light_Pos, Tangent_Frag_Pos));
-    const __m128 negative_light_direction = _mm_mul_ps(light_direction, _mm_set1_ps(-1.0f));
-
-    // DIFFUSE
-    const float diffuse_amount = (const float)fmax((double)Calculate_Dot_Product_SIMD(normal, light_direction), 0.0);
-    // const __m128 diffuse_colour = _mm_set_ps(1.0f, 0.0f, 0.0f, 1.0f);
-    const __m128 diffuse = _mm_set1_ps(diffuse_amount);
-    // const __m128 diffuse = _mm_mul_ps(_mm_set1_ps(diffuse_amount), diffuse_colour);
-
-    // SPECULAR
-    const __m128 view_direction = Normalize_m128(_mm_sub_ps(Tangent_View_Pos, Tangent_Frag_Pos));
-    // const __m128 half_way_direction = Normalize_m128(_mm_add_ps(light_direction, view_direction));
-
-    const __m128 reflection_direction = Normalize_m128(Reflect_m128(negative_light_direction, normal));
-
-    // const float spec = (const float)pow(fmax(Calculate_Dot_Product_SIMD(normal, halfwayDir), 0.0), 16);
-    const float spec = (const float)pow(fmax(Calculate_Dot_Product_SIMD(view_direction, reflection_direction), 0.0), 16);
-
-    // const __m128 specular_colour = _mm_set_ps(1.0f, 0.0f, 1.0f, 0.0f);
-    //  const __m128 specular = _mm_mul_ps(_mm_set1_ps(spec * specular_strength), specular_colour);
-    const __m128 specular = _mm_set1_ps(spec * specular_strength);
-
-    // FINAL COLOUR
-    const __m128 final_colour = _mm_add_ps(_mm_mul_ps(_mm_add_ps(ambient, diffuse), texture_colour), specular);
-
-    return final_colour;
+    return colour;
 }
 
 __m128 Get_Diffuse_Amount(const __m128 light_direction, const __m128 contact_position, const __m128 normal)
