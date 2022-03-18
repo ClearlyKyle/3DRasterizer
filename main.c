@@ -98,8 +98,9 @@ int main(int argc, char *argv[])
     // Normal Map
 
     // Allocate z buffer
-    char *z_buff = (char *)_aligned_malloc(sizeof(char) * ren_data.screen_num_pixels * 4, 16);
-    ren_data.z_buffer_array = (unsigned int *)z_buff;
+    float *z_buff = (float *)_aligned_malloc(sizeof(float) * ren_data.screen_num_pixels, 16);
+    ren_data.z_buffer_array = z_buff;
+    ren_data.max_depth_value = 10.0f;
 
     // Lights (W, Z, Y, X)
     ren_data.light_position = _mm_set_ps(0.0f, 1.0f, 4.0f, 1.0f);
@@ -157,11 +158,10 @@ int main(int argc, char *argv[])
     {
         // Clear Z Buffer
         // memset(ren_data.z_buffer_array, 0xF, ren_data.screen_num_pixels * 4);
-
-        __m128 MAX_DEPTH = _mm_set1_ps(1000.0f);
+        __m128 MAX_DEPTH = _mm_set1_ps(ren_data.max_depth_value);
         for (__m128 *i = (__m128 *)ren_data.z_buffer_array, *end = (__m128 *)&ren_data.z_buffer_array[ren_data.screen_num_pixels];
              i < end;
-             i++)
+             i += 1)
         {
             *i = MAX_DEPTH;
         }
