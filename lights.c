@@ -62,13 +62,20 @@ __m128 Get_Diffuse_Amount(const __m128 light_direction, const __m128 contact_pos
 
 __m128 Get_Specular_Amount(const __m128 view_direction, const __m128 light_direction, const __m128 normal, const double strength, const double power_value)
 {
-    const __m128 neg_light_direction = _mm_mul_ps(light_direction, _mm_set1_ps(-1.0f));
-    const __m128 reflect_direction = Reflect_m128(neg_light_direction, normal);
+    const bool blinn = false;
 
-    const float spec = (const float)pow(fmax(Calculate_Dot_Product_SIMD(view_direction, reflect_direction), 0.0), power_value) * strength;
-
-    // const __m128 specular_strength = _mm_set1_ps(strength);
-    //  const __m128 light_colour = _mm_set_ps(1.0f, 1.0f, 0.0f, 0.0f);
+    float spec = 0.0f;
+    if (blinn)
+    {
+        const __m128 half_way_direction = Normalize_m128(_mm_add_ps(light_direction, view_direction));
+        spec = (const float)pow(fmax(Calculate_Dot_Product_SIMD(normal, half_way_direction), 0.0), power_value) * strength;
+    }
+    else
+    {
+        const __m128 neg_light_direction = _mm_mul_ps(light_direction, _mm_set1_ps(-1.0f));
+        const __m128 reflect_direction = Reflect_m128(neg_light_direction, normal);
+        spec = (const float)pow(fmax(Calculate_Dot_Product_SIMD(view_direction, reflect_direction), 0.0), power_value) * strength;
+    }
 
     const __m128 specular = _mm_set_ps(1.0f, spec, spec, spec);
 
