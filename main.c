@@ -69,6 +69,11 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    fprintf(stderr, "Normal Map Loaded : %s\n", nrm_filename);
+    fprintf(stderr, "Normal Map width  : %d\n", nrm_w);
+    fprintf(stderr, "Normal Map height : %d\n", nrm_h);
+    fprintf(stderr, "Normal Map bbp    : %d\n", nrm_bpp);
+
     Rendering_data ren_data;
 
     // Get window data
