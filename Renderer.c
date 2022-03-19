@@ -213,31 +213,13 @@ void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, 
     const __m128 normal2 = normal_values[1];
     const __m128 normal3 = normal_values[0];
 
-    // LIGHTS (per Vertex)
-#if 0
-    const __m128 diffuse1 = Get_Diffuse_Amount(light->position, world_space[2], Normalize_m128(surface_normal));
-    const __m128 diffuse2 = Get_Diffuse_Amount(light->position, world_space[1], Normalize_m128(surface_normal));
-    const __m128 diffuse3 = Get_Diffuse_Amount(light->position, world_space[0], Normalize_m128(surface_normal));
-
-    __m128 view_direction = Normalize_m128(_mm_sub_ps(_mm_setzero_ps(), world_space[2]));
-    __m128 light_direction = Normalize_m128(_mm_sub_ps(light->position, world_space[2]));
-    const __m128 specular1 = Get_Specular_Amount(view_direction, light_direction, normal1, 0.5, 32);
-
-    view_direction = Normalize_m128(_mm_sub_ps(_mm_setzero_ps(), world_space[2]));
-    light_direction = Normalize_m128(_mm_sub_ps(light->position, world_space[2]));
-    const __m128 specular2 = Get_Specular_Amount(view_direction, light_direction, normal2, 0.5, 32);
-
-    view_direction = Normalize_m128(_mm_sub_ps(_mm_setzero_ps(), world_space[2]));
-    light_direction = Normalize_m128(_mm_sub_ps(light->position, world_space[2]));
-    const __m128 specular3 = Get_Specular_Amount(view_direction, light_direction, normal3, 0.5, 32);
-
-    const __m128 ambient = _mm_set_ps(1.0f, 0.3f, 0.3f, 0.3f);
-
-    const __m128 colour1 = Clamp_m128(_mm_add_ps(diffuse1, _mm_add_ps(ambient, specular1)), 0.0f, 1.0f);
-    const __m128 colour2 = Clamp_m128(_mm_add_ps(diffuse2, _mm_add_ps(ambient, specular2)), 0.0f, 1.0f);
-    const __m128 colour3 = Clamp_m128(_mm_add_ps(diffuse3, _mm_add_ps(ambient, specular3)), 0.0f, 1.0f);
-
-#endif
+    __m128 colour1, colour2, colour3;
+    if (render->shading == GOURAND)
+    {
+        colour1 = Calculate_Light(light->position, _mm_setzero_ps(), world_space[2], normal1, 0.3, 0.5, 0.8, 64);
+        colour1 = Calculate_Light(light->position, _mm_setzero_ps(), world_space[1], normal2, 0.3, 0.5, 0.8, 64);
+        colour1 = Calculate_Light(light->position, _mm_setzero_ps(), world_space[0], normal3, 0.3, 0.5, 0.8, 64);
+    }
 
     // used when checking if w0,w1,w2 is greater than 0;
     const __m128i fxptZero = _mm_setzero_si128();
@@ -309,8 +291,11 @@ void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, 
     float *pDepthBuffer = render->z_buffer_array;
     int rowIdx = (aabb.minY * render->screen_width + 2 * aabb.minX);
 
-    const __m128 Tangent_Light_Pos = Matrix_Multiply_Vector_SIMD(TBN.elements, light->position);
-    const __m128 Tangent_View_Pos = Matrix_Multiply_Vector_SIMD(TBN.elements, _mm_setzero_ps()); // for specular
+    __m128 light_position, camera_position;
+    if (render->shading == NORMAL_MAPPING)
+    {
+        light_position = Matrix_Multiply_Vector_SIMD(TBN.elements, light->position);   // Tangent light position
+        camera_position = Matrix_Multiply_Vector_SIMD(TBN.elements, _mm_setzero_ps()); // Tangent camera position
 
     world_v0 = Matrix_Multiply_Vector_SIMD(TBN.elements, world_v0);
     world_v1 = Matrix_Multiply_Vector_SIMD(TBN.elements, world_v1);
