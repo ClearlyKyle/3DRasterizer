@@ -154,6 +154,10 @@ int main(int argc, char *argv[])
 
     ren.running = true;
     unsigned int loop_counter = 0;
+    unsigned int shading_switch_counter = 1;
+
+    ren_data.shading = WIRE_FRAME;
+
     while (ren.running)
     {
         // Clear Z Buffer
@@ -178,6 +182,19 @@ int main(int argc, char *argv[])
                 break;
             }
         }
+
+        // Automated Switching Shading mode
+        if (shading_switch_counter % 2000 == 0)
+        {
+            shading_switch_counter = 0;
+            ren_data.shading++;
+
+            if (ren_data.shading == SHADING_COUNT)
+            {
+                ren_data.shading = WIRE_FRAME;
+            }
+        }
+        shading_switch_counter += 1;
 
         Mat4x4 World_Matrix = {0.0f};
         Mat4x4 Rotation_Matrix = {0.0f};

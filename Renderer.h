@@ -43,6 +43,8 @@ typedef struct Rendering_data_s
     __m128 light_position;
     float light_value;
 
+    Shading_Mode shading;
+
 } Rendering_data;
 
 typedef enum
@@ -51,10 +53,10 @@ typedef enum
     FLAT,
     GOURAND,
     PHONG,
-    // BLIN_PHONG,
-    // TEXTURED,
-    // TEXTURED_PHONG,
-    // NORMAL_MAPPING,
+    BLIN_PHONG,
+    TEXTURED,
+    TEXTURED_PHONG,
+    NORMAL_MAPPING,
     SHADING_COUNT
 } Shading_Mode;
 

@@ -615,13 +615,13 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
 
     // Gourand Shading
     __m128 colour1, colour2, colour3;
-    if (shading == GOURAND)
+    if (render->shading == GOURAND)
     {
         colour1 = Calculate_Light(light->position, _mm_setzero_ps(), world_space[2], normal1, 0.2f, 1.0f, 0.2f, 64);
         colour2 = Calculate_Light(light->position, _mm_setzero_ps(), world_space[1], normal2, 0.2f, 1.0f, 0.2f, 64);
         colour3 = Calculate_Light(light->position, _mm_setzero_ps(), world_space[0], normal3, 0.2f, 1.0f, 0.2f, 64);
     }
-    if (shading == FLAT)
+    if (render->shading == FLAT)
     {
         colour1 = _mm_set_ps(255.f, 000.0f, 000.0f, 128.0f);
     }
@@ -748,12 +748,12 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
                 const __m128 weight3 = _mm_set1_ps(w2_area.m128_f32[3]);
 
                 __m128 frag_colour;
-                if (shading == FLAT)
+                if (render->shading == FLAT)
                 {
                     frag_colour = colour1;
                 }
 
-                if (shading == GOURAND)
+                if (render->shading == GOURAND)
                 {
                     frag_colour = _mm_add_ps(
                         _mm_add_ps(
@@ -762,7 +762,7 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
                         _mm_mul_ps(weight3, colour3));
                 }
 
-                if (shading == PHONG)
+                if (render->shading == PHONG)
                 {
                     const __m128 frag_position = _mm_add_ps(
                         _mm_add_ps(
@@ -794,12 +794,12 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
                 const __m128 weight3 = _mm_set1_ps(w2_area.m128_f32[2]);
 
                 __m128 frag_colour;
-                if (shading == FLAT)
+                if (render->shading == FLAT)
                 {
                     frag_colour = colour1;
                 }
 
-                if (shading == GOURAND)
+                if (render->shading == GOURAND)
                 {
                     frag_colour = _mm_add_ps(
                         _mm_add_ps(
@@ -808,7 +808,7 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
                         _mm_mul_ps(weight3, colour3));
                 }
 
-                if (shading == PHONG)
+                if (render->shading == PHONG)
                 {
                     const __m128 frag_position = _mm_add_ps(
                         _mm_add_ps(
@@ -840,12 +840,12 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
                 const __m128 weight3 = _mm_set1_ps(w2_area.m128_f32[1]);
 
                 __m128 frag_colour;
-                if (shading == FLAT)
+                if (render->shading == FLAT)
                 {
                     frag_colour = colour1;
                 }
 
-                if (shading == GOURAND)
+                if (render->shading == GOURAND)
                 {
                     frag_colour = _mm_add_ps(
                         _mm_add_ps(
@@ -854,7 +854,7 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
                         _mm_mul_ps(weight3, colour3));
                 }
 
-                if (shading == PHONG)
+                if (render->shading == PHONG)
                 {
                     const __m128 frag_position = _mm_add_ps(
                         _mm_add_ps(
@@ -886,12 +886,12 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
                 const __m128 weight3 = _mm_set1_ps(w2_area.m128_f32[0]);
 
                 __m128 frag_colour;
-                if (shading == FLAT)
+                if (render->shading == FLAT)
                 {
                     frag_colour = colour1;
                 }
 
-                if (shading == GOURAND)
+                if (render->shading == GOURAND)
                 {
                     frag_colour = _mm_add_ps(
                         _mm_add_ps(
@@ -900,7 +900,7 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
                         _mm_mul_ps(weight3, colour3));
                 }
 
-                if (shading == PHONG)
+                if (render->shading == PHONG)
                 {
                     const __m128 frag_position = _mm_add_ps(
                         _mm_add_ps(
