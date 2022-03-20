@@ -60,12 +60,10 @@ __m128 Get_Diffuse_Amount(const __m128 light_direction, const __m128 contact_pos
     return diffuse;
 }
 
-__m128 Get_Specular_Amount(const __m128 view_direction, const __m128 light_direction, const __m128 normal, const double strength, const double power_value)
+__m128 Get_Specular_Amount(const __m128 view_direction, const __m128 light_direction, const __m128 normal, const double strength, const double power_value, const Shading_Mode shading)
 {
-    const bool blinn = false;
-
     float spec = 0.0f;
-    if (blinn)
+    if (shading == BLIN_PHONG)
     {
         const __m128 half_way_direction = Normalize_m128(_mm_add_ps(light_direction, view_direction));
         spec = (const float)pow(fmax(Calculate_Dot_Product_SIMD(normal, half_way_direction), 0.0), power_value) * strength;

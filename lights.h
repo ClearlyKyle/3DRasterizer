@@ -3,6 +3,7 @@
 
 #include <xmmintrin.h>
 
+#include "Renderer.h"
 #include "vector.h"
 
 typedef struct Fragment_s
