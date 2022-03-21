@@ -23,32 +23,49 @@ int main(int argc, char *argv[])
     SDL_Surface *window_surface = SDL_GetWindowSurface(ren.window);
 
     // WOODEN BOX
-    // const char *obj_filename = "../../res/Wooden Box/wooden crate.obj";
+    const char *obj_filename = "../../res/Wooden Box/wooden crate.obj";
+    //// const char *obj_filename = "../../res/Wooden Box/box_triange.obj";
     // const char *tex_filename = "../../res/Wooden Box/crate_BaseColor.png";
-    const char *nrm_filename = "../../res/Wooden Box/crate_Normal.png";
+    // const char *nrm_filename = "../../res/Wooden Box/crate_Normal.png";
+
+    // DOG HOUSE
+    // const char *obj_filename = "../../res/Dog House/Doghouse.obj";
+    const char *tex_filename = "../../res/Dog House/Doghouse_PBR_BaseColor.png";
+    const char *nrm_filename = "../../res/Dog House/Doghouse_PBR_Normal.png";
 
     // CRATE
     // const char *obj_filename = "../../res/Crate/cube_triang.obj";
     // const char *obj_filename = "../../res/Crate/Crate1.obj";
     // const char *obj_filename = "../../res/Crate/Crate_N_T.obj";
     // const char *obj_filename = "../../res/Crate/cube_normals.obj";
-    const char *tex_filename = "../../res/Crate/crate_1.png";
+    // const char *tex_filename = "../../res/Crate/crate_1.png";
 
     // SPHERE
     // const char *obj_filename = "../../res/Sphere/simple_sphereobj.obj";
     // const char *obj_filename = "../../res/Sphere/low_poly_sphere.obj";
     // const char *obj_filename = "../../res/Sphere/sphere_normals.obj";
-    const char *obj_filename = "../../res/Sphere/sphere_smooth.obj";
+    // const char *obj_filename = "../../res/Sphere/sphere_smooth.obj";
 
     // CYLINDER
     // const char *obj_filename = "../../res/Sphere/simple_sphereobj.obj";
     // const char *obj_filename = "../../res/Sphere/low_poly_sphere.obj";
     // const char *obj_filename = "../../res/Cylinder/cylinder_normals.obj";
 
+    // PLANE
+    // const char *obj_filename = "../../res/NormalMappingTestPlane/Normal_Plane.obj";
+    // const char *tex_filename = "../../res/NormalMappingTestPlane/brickwall.png";
+    // const char *nrm_filename = "../../res/NormalMappingTestPlane/brickwall_normal.png";
+
+    // CONE
+    // const char *obj_filename = "../../res/Cone/Cone.obj";
+
+    // textures oriented tha same as you view them in paint
+    stbi_set_flip_vertically_on_load(1);
+
     // Load texture data
     int tex_w, tex_h, tex_bpp;
     // unsigned char *texture_data = stbi_load(tex_filename, &tex_w, &tex_h, &tex_bpp, STBI_rgb);
-    unsigned char *texture_data = stbi_load(tex_filename, &tex_w, &tex_h, &tex_bpp, STBI_rgb_alpha);
+    unsigned char *texture_data = stbi_load(tex_filename, &tex_w, &tex_h, &tex_bpp, STBI_rgb);
     if (!texture_data)
     {
         fprintf(stderr, "ERROR! Loading image : %s\n", stbi_failure_reason());
@@ -62,7 +79,7 @@ int main(int argc, char *argv[])
 
     // Load Normal map
     int nrm_w, nrm_h, nrm_bpp;
-    unsigned char *normal_data = stbi_load(nrm_filename, &nrm_w, &nrm_h, &nrm_bpp, STBI_rgb_alpha);
+    unsigned char *normal_data = stbi_load(nrm_filename, &nrm_w, &nrm_h, &nrm_bpp, STBI_rgb);
     if (!texture_data)
     {
         fprintf(stderr, "Loading image : %s\n", stbi_failure_reason());
@@ -114,11 +131,11 @@ int main(int argc, char *argv[])
     const Mat4x4 Projection_matrix = Get_Projection_Matrix(90.0f, (float)ren.HEIGHT / (float)ren.WIDTH, 0.1f, 1000.0f);
 
     // Translation Matrix : Move the object in 3D space X Y Z
-    const Mat4x4 Translation_matrix = Get_Translation_Matrix(0.0f, 0.0f, 3.0f);
+    const Mat4x4 Translation_matrix = Get_Translation_Matrix(0.0f, 0.5f, 3.5f);
 
     // Camera
     const __m128 camera_position = _mm_set_ps(0.0f, 0.0f, 0.0f, 0.0f);
-    const __m128 camera_direction = _mm_set_ps(0.0f, 1.0f, 0.0f, 0.0f);
+    // const __m128 camera_direction = _mm_set_ps(0.0f, -1.0f, 0.0f, 0.0f);
 
     // Lights -------------------------
     Fragment frag;
@@ -129,16 +146,10 @@ int main(int argc, char *argv[])
 
     // Point Light
     // const PointLight point_light = Get_Point_Light(-2.0f, -2.0f, -10.0f, 1.0f, 0.045f, 0.0075f);
-    const PointLight point_light = Get_Point_Light(-2.0f, -2.0f, -2.0f, 1.0f, 0.045f, 0.0075f);
+    const PointLight point_light = Get_Point_Light(-1.0f, 0.0f, 1.0f, 1.0f, 0.045f, 0.0075f);
 
     const __m128 object_colour = _mm_set_ps(255.0f, 000.0f, 255.0f, 255.0f);
     frag.color = _mm_mul_ps(object_colour, frag.ambient);
-
-    // frag.diffuse = _mm_load_ps(mesh->diffuse);
-    // frag.ambient = _mm_load_ps(mesh->ambient);
-    // frag.specular = _mm_load_ps(mesh->specular);
-
-    const __m128 light_direction = _mm_set_ps(0.0f, -1.0f, 0.0f, 0.0f);
 
     // Line colour for wire model drawing
     const SDL_Colour LINE_COLOUR = {255, 255, 255, 255};
@@ -199,16 +210,15 @@ int main(int argc, char *argv[])
         Mat4x4 World_Matrix = {0.0f};
         Mat4x4 Rotation_Matrix = {0.0f};
 
-        fTheta += (float)MSPerFrame;
+        fTheta += (float)MSPerFrame / 3;
         // fTheta += 0.0f;
 
-        const Mat4x4 matRotZ = Get_Rotation_Z_Matrix(0.0f); // Rotation Z
-        const Mat4x4 matRotY = Get_Rotation_Y_Matrix(0.0f); // Rotation Y
-        const Mat4x4 matRotX = Get_Rotation_X_Matrix(0.0f); // Rotation X
+        const Mat4x4 matRotZ = Get_Rotation_Z_Matrix((float)DEG_to_RAD(180)); // Rotation Z
+        const Mat4x4 matRotY = Get_Rotation_Y_Matrix(fTheta);                 // Rotation Y
+        const Mat4x4 matRotX = Get_Rotation_X_Matrix(0.0f);                   // Rotation X
 
         Matrix_Multiply_Matrix(matRotZ.elements, matRotY.elements, Rotation_Matrix.elements);
         Matrix_Multiply_Matrix(Rotation_Matrix.elements, matRotX.elements, Rotation_Matrix.elements);
-
         Matrix_Multiply_Matrix(Rotation_Matrix.elements, Translation_matrix.elements, World_Matrix.elements);
 
         for (size_t i = 0; i < mesh->num_of_triangles; i += 1) // can we jump through triangles?
@@ -223,50 +233,19 @@ int main(int argc, char *argv[])
             tri3 = Matrix_Multiply_Vector_SIMD(World_Matrix.elements, tri3);
 
             // Vector Dot Product between : Surface normal and CameraRay
-            const __m128 surface_normal = Calculate_Surface_Normal_SIMD(tri1, tri2, tri3);
+            __m128 surface_normal = Calculate_Surface_Normal_SIMD(tri1, tri2, tri3);
             const __m128 camera_ray = _mm_sub_ps(tri1, camera_position);
 
             // Back face culling
+            // TODO : Change this to work with normals
             const float dot_product_result = Calculate_Dot_Product_SIMD(surface_normal, camera_ray);
             if (dot_product_result < 0.0f)
             {
-                // Illumination
-                // vec3 light_direction = {0.0f, 1.0f, -1.0f};
+                surface_normal = Normalize_m128(surface_normal);
+                const __m128 world_position_verticies[3] = {tri1, tri2, tri3};
 
-                ////// AMBIENT
-                // const __m128 ambient = _mm_mul_ps(frag.color, frag.ambient);
-
-                ////// DIFFUSE
-                const __m128 normalised_surface = Normalize_m128(surface_normal);
-                const float diff = (float)fmax((double)Calculate_Dot_Product_SIMD(normalised_surface, light_direction), 0.0);
-                const __m128 diffuse = _mm_mul_ps(light_colour, _mm_set1_ps(diff / 2));
-
-                ////// SPECULAR
-                // https://web.engr.oregonstate.edu/~mjb/cs557/Handouts/lighting.1pp.pdf
-                // dot(R, E);
-                // R = Light reflection
-                // E = Eye / Camera vector
-                __m128 reflected_light_direction = Reflect_m128(_mm_mul_ps(Normalize_m128(ren_data.light_position), _mm_set1_ps(-1.0f)), normalised_surface); // I - 2.0 * dot(N, I) * N
-                reflected_light_direction = Normalize_m128(reflected_light_direction);
-
-                const float max_dot = (float)fmax((double)Calculate_Dot_Product_SIMD(reflected_light_direction, camera_direction), 0.0);
-
-                const __m128 power = _mm_pow_ps(_mm_set1_ps(max_dot), _mm_set1_ps(shininess));
-                const __m128 specular = _mm_mul_ps(light_colour, power);
-                // const float spec = (float)pow(fmax(Calculate_Dot_Product_SIMD(camera, reflectDir), 0.0), 32);
-                // const __m128 specular = _mm_mul_ps(_mm_mul_ps(frag.color, _mm_set1_ps(spec)), frag.specular);
-
-                frag.color = Clamp_m128(_mm_add_ps(_mm_add_ps(frag.ambient, diffuse), specular), 0.0f, 1.0f);
-                // frag.color = Clamp_m128(_mm_add_ps(frag.ambient, specular), 0.0f, 1.0f);
-                //  frag.color = _mm_add_ps(_mm_add_ps(frag.ambient, diffuse), specular);
-                //   frag.color = _mm_add_ps(frag.ambient, diffuse);
-                frag.color = _mm_mul_ps(frag.color, object_colour);
-
-                // How similar is normal to light direction
-                // const float light_value = max(0.2f, Calculate_Dot_Product_SIMD(ren_data.light_position, surface_normal));
-                // ren_data.light_value = light_value;
-                // Convert World Space, into View Space
-                // View Matrix * Each Transformed Vertex = viewed Vertex
+                __m128 edge1 = _mm_sub_ps(tri2, tri1);
+                __m128 edge2 = _mm_sub_ps(tri3, tri1);
 
                 // 3D -> 2D
                 // Matrix Projected * Viewed Vertex = projected Vertex
@@ -279,14 +258,14 @@ int main(int argc, char *argv[])
                 const __m128 one_over_w2 = _mm_div_ps(_mm_set1_ps(1.0f), _mm_shuffle_ps(tri2, tri2, _MM_SHUFFLE(3, 3, 3, 3)));
                 const __m128 one_over_w3 = _mm_div_ps(_mm_set1_ps(1.0f), _mm_shuffle_ps(tri3, tri3, _MM_SHUFFLE(3, 3, 3, 3)));
 
+                const __m128 w_values[3] = {one_over_w1, one_over_w2, one_over_w3};
+
                 // tex coordinates are read in like : u u u...
                 // uv[0], uv[1], uv[2]
                 __m128 texture_v = _mm_set_ps(0.0f, mesh->uv_coordinates[6 * i + 0], mesh->uv_coordinates[6 * i + 2], mesh->uv_coordinates[6 * i + 4]);
                 __m128 texture_u = _mm_set_ps(0.0f, mesh->uv_coordinates[6 * i + 1], mesh->uv_coordinates[6 * i + 3], mesh->uv_coordinates[6 * i + 5]);
 
                 // NORMAL Mapping
-                __m128 edge1 = _mm_sub_ps(tri2, tri1);
-                __m128 edge2 = _mm_sub_ps(tri3, tri1);
                 edge1.m128_f32[3] = 0.0f;
                 edge2.m128_f32[3] = 0.0f;
 
@@ -321,69 +300,40 @@ int main(int argc, char *argv[])
                 tri2 = _mm_mul_ps(tri2, _mm_set_ps(1.0f, 1.0f, y_adjustment, x_adjustment));
                 tri3 = _mm_mul_ps(tri3, _mm_set_ps(1.0f, 1.0f, y_adjustment, x_adjustment));
 
-                //__m128 edge1 = _mm_add_ps(tri2, tri1);
-                //__m128 edge2 = _mm_add_ps(tri3, tri1);
-                //__m128 deltaUV1 = uv2 - uv1;
-                //__m128 deltaUV2 = uv3 - uv1;
-
-                // float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
-
-                // tangent1.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
-                // tangent1.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
-                // tangent1.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
-
-                // bitangent1.x = f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x);
-                // bitangent1.y = f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y);
-                // bitangent1.z = f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);
-
                 // similar procedure for calculating tangent/bitangent for plane's second triangle
 
                 __m128 normal0 = _mm_load_ps(&mesh->normal_coordinates[i * 12 + 0]);
                 __m128 normal1 = _mm_load_ps(&mesh->normal_coordinates[i * 12 + 4]);
                 __m128 normal2 = _mm_load_ps(&mesh->normal_coordinates[i * 12 + 8]);
 
-                __m128 bitanget = Vector_Cross_Product_m128(tangent, surface_normal);
+                const Mat4x4 TBN = Get_TBN_Matrix(tangent, normal0, World_Matrix);
 
                 // Rotation only as we do not change scale or scew
                 normal0 = Matrix_Multiply_Vector_SIMD(Rotation_Matrix.elements, normal0);
                 normal1 = Matrix_Multiply_Vector_SIMD(Rotation_Matrix.elements, normal1);
                 normal2 = Matrix_Multiply_Vector_SIMD(Rotation_Matrix.elements, normal2);
 
-                const Mat4x4 TBN = Get_TBN_Matrix(tangent, normal0, World_Matrix);
-                // Since we do not scale, using the World Matrix on the normals is all we need
-                // normal0 = Matrix_Multiply_Vector_SIMD(World_Matrix.elements, normal0);
-                // normal1 = Matrix_Multiply_Vector_SIMD(World_Matrix.elements, normal1);
-                // normal2 = Matrix_Multiply_Vector_SIMD(World_Matrix.elements, normal2);
-
-                // normal0 = Normalize_m128(normal0);
-                // normal1 = Normalize_m128(normal1);
-                // normal2 = Normalize_m128(normal2);
-
-                // Draw (CCW) Triangle Order
-                // Draw_Textured_Triangle(&ren_data, tri3, tri2, tri1, texture_u, texture_v, one_over_w1, one_over_w2, one_over_w3, frag.color);
-                // Draw_Textured_Shaded_Triangle(&ren_data, tri3, tri2, tri1, frag.color);
-                // Draw_Triangle_Outline(ren_data.fmt, ren_data.pixels, tri1, tri2, tri3, &LINE_COLOUR);
-                // Draw_Normal_Mapped_Triangle(&ren_data, tri3, tri2, tri1, texture_u, texture_v, one_over_w1, one_over_w2, one_over_w3, frag.color);
-
-                // const __m128 light_direction = _mm_set_ps(1.0f, 1.0f, 0.0f, 0.0f);
-                // Draw_Textured_Smooth_Shaded_Triangle(&ren_data, tri3, tri2, tri1, normal2, normal1, normal0, light_colour, light_direction);
-                // colour1 = _mm_set1_ps(255.0f);
-                // colour2 = _mm_set1_ps(255.0f);
-                // colour3 = _mm_set1_ps(255.0f);
-                // Draw_Triangle_With_Colour(&ren_data, tri3, tri2, tri1, colour3, colour2, colour1);
-
                 // Screen Vertex Postions
-                const __m128 screen_position_vertixies[3] = {tri1, tri2, tri3};
+                const __m128 screen_position_verticies[3] = {tri1, tri2, tri3};
                 const __m128 normal_coordinates[3] = {normal0, normal1, normal2};
-                //Draw_Triangle_Per_Pixel(&ren_data, screen_position_vertixies, world_position_verticies, normal2, normal1, normal0, point_light);
-                //  Draw_Textured_Shaded_Triangle(&ren_data, tri3, tri2, tri1, frag.color);
-                //  Draw_Textured_Triangle(&ren_data, tri3, tri2, tri1, texture_u, texture_v, one_over_w1, one_over_w2, one_over_w3, frag.color);
-                 Draw_Normal_Mapped_Triangle(&ren_data, screen_position_vertixies, world_position_verticies, texture_u, texture_v, one_over_w1, one_over_w2, one_over_w3, TBN);
 
-                // const __m128 front_colour = _mm_set_ps(255.0f, 255.0f, 102.0f, 102.0f);
-                // Draw_Textured_Shaded_Triangle(&ren_data, tri3, tri2, tri1, front_colour);
+                if (ren_data.shading == WIRE_FRAME)
+                {
+                    Draw_Triangle_Outline(&ren_data, screen_position_verticies, &LINE_COLOUR);
+                }
+                else if (ren_data.shading >= BLIN_PHONG)
+                {
+                    Flat_Shading(&ren_data, screen_position_verticies, world_position_verticies, w_values, normal_coordinates, surface_normal, &point_light, shading_mode);
+                }
+                else
+                {
+                    Textured_Shading(&ren_data, screen_position_verticies, world_position_verticies, w_values, normal_coordinates, texture_u, texture_v, surface_normal, &point_light, TBN);
+                }
             }
         }
+
+        // Draw_Depth_Buffer(&ren_data);
+
         // Update Screen
         SDL_UpdateWindowSurface(ren.window);
 
