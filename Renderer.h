@@ -47,19 +47,6 @@ typedef struct Rendering_data_s
 
 } Rendering_data;
 
-typedef enum
-{
-    WIRE_FRAME,
-    FLAT,
-    GOURAND,
-    PHONG,
-    BLIN_PHONG,
-    TEXTURED,
-    TEXTURED_PHONG,
-    NORMAL_MAPPING,
-    SHADING_COUNT
-} Shading_Mode;
-
 Renderer SDL_Startup(const char *title, unsigned int width, unsigned int height);
 void SDL_CleanUp(Renderer *renderer);
 
@@ -71,6 +58,7 @@ void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, 
                       const __m128 *w_values, const __m128 *normal_values, const __m128 texture_u, const __m128 texture_v,
                       const __m128 surface_normal, const PointLight *light, const Mat4x4 TBN);
 
-void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, const __m128 *world_space, const __m128 *w_values, const __m128 *normal_values, const __m128 surface_normal, const PointLight *light, const Shading_Mode shading);
+void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, const __m128 *world_space, const __m128 *w_values, const __m128 *normal_values,
+                  const __m128 surface_normal, const PointLight *light, const Shading_Mode shading);
 
 #endif // __RENDERER_H__

@@ -3,8 +3,18 @@
 
 #include <xmmintrin.h>
 
-#include "Renderer.h"
-#include "vector.h"
+typedef enum
+{
+    WIRE_FRAME,
+    FLAT,
+    GOURAND,
+    PHONG,
+    BLIN_PHONG,
+    TEXTURED,
+    TEXTURED_PHONG,
+    NORMAL_MAPPING,
+    SHADING_COUNT
+} Shading_Mode;
 
 typedef struct Fragment_s
 {
@@ -32,10 +42,11 @@ PointLight Get_Point_Light(float x, float y, float z, float constant_atten, floa
 
 __m128 Reflect_m128(const __m128 I, const __m128 N);
 
-__m128 Get_Diffuse_Amount(const __m128 light_direction, const __m128 contact_position, const __m128 normal);
-__m128 Get_Specular_Amount(const __m128 view_direction, const __m128 light_direction, const __m128 normal, const double strength, const double power_value);
-
 __m128 Calculate_Light(const __m128 light_position, const __m128 camera_position, const __m128 frag_position, const __m128 normal,
-                       const float ambient_strength, const float diffuse_strength, const float specular_strength, const double specular_power);
+                       const float ambient_strength, const float diffuse_strength, const float specular_strength, const double specular_power, const Shading_Mode mode);
+
+__m128 Get_Diffuse_Amount(const __m128 light_direction, const __m128 contact_position, const __m128 normal);
+
+__m128 Get_Specular_Amount(const __m128 view_direction, const __m128 light_direction, const __m128 normal, const double strength, const double power_value, const Shading_Mode shading);
 
 #endif // __LIGHTS_H__
