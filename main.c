@@ -8,8 +8,8 @@
 #include "SDL2/SDL.h"
 
 #include "lights.h"
-#include "vector.h"
 #include "Renderer.h"
+#include "vector.h"
 #include "test_sqaure.h"
 #include "ObjLoader.h"
 
@@ -323,7 +323,7 @@ int main(int argc, char *argv[])
                 }
                 else if (ren_data.shading >= BLIN_PHONG)
                 {
-                    Flat_Shading(&ren_data, screen_position_verticies, world_position_verticies, w_values, normal_coordinates, surface_normal, &point_light, shading_mode);
+                    Flat_Shading(&ren_data, screen_position_verticies, world_position_verticies, w_values, normal_coordinates, surface_normal, &point_light, ren_data.shading);
                 }
                 else
                 {
@@ -346,7 +346,7 @@ int main(int argc, char *argv[])
         if (loop_counter == 32)
         {
             loop_counter = 0;
-            const double FPS = (double)SDL_GetPerformanceFrequency() / (double)CounterElapsed;
+            const double FPS = (double)CounterElapsed / (double)SDL_GetPerformanceFrequency();
             snprintf(window_title, sizeof(window_title), "%.02f ms/f \t%.02f f/s\n", 1000.0 * MSPerFrame, FPS);
             SDL_SetWindowTitle(ren.window, window_title);
         }
