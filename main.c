@@ -10,9 +10,10 @@
 #define SCREEN_WIDTH  1000
 #define SCREEN_HEIGHT 900
 
-// TODO: Remove stbi?
 // TODO: detect what files are being loaded
-// TODO: cleanup on exit
+// TODO: cleanup on exit checking
+// TODO: Timer
+// TODO: set render mode
 // TODO: Improve object loading and setting object data
 // TODO: Better matrix multiplication
 
@@ -77,10 +78,10 @@ int main(int argc, char *argv[])
     const Mat4x4 Projection_matrix = Get_Projection_Matrix(90.0f, (float)global_renderer.height / (float)global_renderer.width, 0.1f, 1000.0f);
 
     // Translation Matrix : Move the object in 3D space X Y Z
-    const Mat4x4 Translation_matrix = Get_Translation_Matrix(0.0f, 2.0f, 4.5f);
+    const Mat4x4 Translation_matrix = Get_Translation_Matrix(0.0f, 2.0f, 4.0f);
 
     // Camera
-    const __m128 camera_position = _mm_set_ps(0.0f, 0.0f, 0.0f, 0.0f);
+    gloabal_app.camera_position = _mm_set_ps(0.0f, 0.0f, 0.0f, 0.0f);
 
     // Lights
     const Light light = {
@@ -94,17 +95,10 @@ int main(int argc, char *argv[])
     const float x_adjustment = 0.5f * (float)global_renderer.width;
     const float y_adjustment = 0.5f * (float)global_renderer.height;
 
-    // Performance counters
-    // TODO: Timer
-    Uint64 LastCounter      = SDL_GetPerformanceCounter();
-    double MSPerFrame       = 0.0;
-    float  fTheta           = 0.0f;
-    char   window_title[32] = {0};
-
-    unsigned int loop_counter           = 0;
-    unsigned int shading_switch_counter = 1;
-
-    // ren_data.shading = WIRE_FRAME;
+    // Loop timer
+    struct timer looptimer    = Timer_Init_Start();
+    unsigned int loop_counter = 0;
+    float        fTheta       = 0.0f; // used for rotation animation
 
     while (global_renderer.running)
     {
@@ -124,25 +118,14 @@ int main(int argc, char *argv[])
             }
         }
 
-        // Automated Switching Shading mode
-        // if (shading_switch_counter % 1000 == 0)
-        //{
-        //    printf("Switching render mode : %d\n", ren_data.shading);
-
-        //    shading_switch_counter = 0;
-        //    ren_data.shading++;
-
-        //    if (ren_data.shading == SHADING_COUNT)
-        //    {
-        //        ren_data.shading = WIRE_FRAME;
-        //    }
-        //}
-        // shading_switch_counter += 1;
+        Timer_Update(&looptimer);
 
         Mat4x4 World_Matrix    = {0.0f};
         Mat4x4 Rotation_Matrix = {0.0f};
 
-        fTheta += (float)MSPerFrame / 3;
+        // fTheta += (float)Timer_Get_Elapsed_MS(&looptimer) / 3;
+        // printf("theta : %f\n", fTheta);
+        fTheta = 0.0f;
 
         const Mat4x4 matRotZ = Get_Rotation_Z_Matrix((float)DEG_to_RAD(180)); // Rotation Z
         const Mat4x4 matRotY = Get_Rotation_Y_Matrix(fTheta);                 // Rotation Y
@@ -165,7 +148,7 @@ int main(int argc, char *argv[])
 
             // Vector Dot Product between : Surface normal and CameraRay
             __m128       surface_normal = Calculate_Surface_Normal_SIMD(tri1, tri2, tri3);
-            const __m128 camera_ray     = _mm_sub_ps(tri1, camera_position);
+            const __m128 camera_ray     = _mm_sub_ps(tri1, gloabal_app.camera_position);
 
             // Back face culling
             const float dot_product_result = Calculate_Dot_Product_SIMD(surface_normal, camera_ray);
@@ -269,25 +252,15 @@ int main(int argc, char *argv[])
         // Update Screen
         SDL_UpdateWindowSurface(global_renderer.window);
 
-        // End frame timing
-        const Uint64 EndCounter     = SDL_GetPerformanceCounter();
-        const Uint64 CounterElapsed = EndCounter - LastCounter;
-
-        MSPerFrame = ((double)CounterElapsed / (double)SDL_GetPerformanceFrequency());
-
         if (loop_counter == 32)
         {
-            loop_counter     = 0;
-            const double FPS = (double)CounterElapsed / (double)SDL_GetPerformanceFrequency();
-            snprintf(window_title, sizeof(window_title), "%.02f ms/f \t%.02f f/s\n", 1000.0 * MSPerFrame, FPS);
-            SDL_SetWindowTitle(global_renderer.window, window_title);
+            loop_counter               = 0;
+            const double frame_time_ms = Timer_Get_Elapsed_MS(&looptimer);
+            char         buff[16]      = {0};
+            sprintf_s(buff, 16, "%.02f ms/f\n", frame_time_ms);
+            SDL_SetWindowTitle(global_renderer.window, buff);
         }
-        else
-        {
-            loop_counter++;
-        }
-
-        LastCounter = EndCounter;
+        loop_counter++;
     }
 
     Mesh_Destroy(mesh);

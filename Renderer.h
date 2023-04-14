@@ -7,6 +7,7 @@
 #include "AABB.h"
 #include "vector.h"
 #include "lights.h"
+#include "timer.h"
 
 #include "SDL2/SDL.h"
 
