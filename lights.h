@@ -25,7 +25,7 @@ typedef struct Light_s
 } Light;
 
 // PHONG or GOURAND shading
-__m128 Light_Calculate_Shading(const Shading_Mode mode, const __m128 position, const __m128 normal, const __m128 camera_position, const Light *light);
+__m128 Light_Calculate_Shading(const Shading_Mode mode, const __m128 position, const __m128 normal, const Light *light);
 
 // typedef struct Fragment_s
 //{

@@ -6,7 +6,21 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 
 find_package(SDL2 CONFIG REQUIRED)
 
-add_executable(${CMAKE_PROJECT_NAME} main.c vector.h vector.c Renderer.c Renderer.h ObjLoader.h lights.h lights.c)
+set(RESTER_SOURCE
+    "main.c"
+    "vector.h"
+    "vector.c"
+    "Renderer.h"
+    "Renderer.c"
+    "lights.h"
+    "lights.c"
+    "textures.h"
+    "textures.c"
+    "AABB.h"
+    "ObjLoader.h"
+)
+
+add_executable(${CMAKE_PROJECT_NAME} ${RESTER_SOURCE})
 add_executable(VECTOR_TEST vector_test.c vector.h vector.c lights.h lights.c)
 add_executable(OBJECT_TEST ObjLoader_test.c ObjLoader.h)
 

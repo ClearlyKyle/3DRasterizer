@@ -3,6 +3,8 @@
 
 #include <stdbool.h>
 
+#include "textures.h"
+#include "AABB.h"
 #include "vector.h"
 #include "lights.h"
 
@@ -10,58 +12,67 @@
 
 typedef struct Renderer_s
 {
-    unsigned int WIDTH;
-    unsigned int HEIGHT;
-    bool         running;
+    bool running;
+    int  width;
+    int  height;
+    int  screen_num_pixels;
 
-    SDL_Window *window;
+    SDL_Window  *window;
+    SDL_Surface *surface;
+
+    SDL_PixelFormat *fmt;
+    unsigned int    *pixels;
+
+    float  max_depth_value;
+    float *z_buffer_array;
 } Renderer;
 
 // App state and make it global
 // Add camera position
-typedef struct Rendering_data_s
+typedef struct AppState_s
 {
-    SDL_Surface     *surface;
-    SDL_PixelFormat *fmt;
-    unsigned int    *pixels;
-    unsigned int     screen_width;
-    unsigned int     screen_height;
-    unsigned int     screen_num_pixels;
+    Texture tex; // The diffuse texture
+    Texture nrm; // The normal map texture
 
-    float  max_depth_value;
-    float *z_buffer_array;
-
-    unsigned char *tex_data;
-    unsigned int   tex_w;
-    unsigned int   tex_h;
-    unsigned int   tex_bpp;
-
-    unsigned char *nrm_data;
-    unsigned int   nrm_w;
-    unsigned int   nrm_h;
-    unsigned int   nrm_bpp;
-
-    __m128 light_position;
-    float  light_value;
+    __m128 camera_position;
 
     // Shading_Mode shading;
 
-} Rendering_data;
+} AppState;
 
 // TODO: Just make this global
-// extern Renderer ren;
+extern Renderer global_renderer;
+extern AppState gloabal_app;
 
-Renderer SDL_Startup(const char *title, unsigned int width, unsigned int height);
-void     SDL_CleanUp(Renderer *renderer);
+void Reneder_Startup(const char *title, const int width, const int height);
+void Renderer_Destroy(void);
 
-void Draw_Triangle_Outline(const Rendering_data *ren, const __m128 *verticies, const SDL_Colour *col);
+inline void Renderer_Clear_ZBuffer(void)
+{
+    // memset(ren_data.z_buffer_array, 0xF, ren_data.screen_num_pixels * 4);
+    const __m128  MAX_DEPTH = _mm_set1_ps(global_renderer.max_depth_value);
+    const __m128 *END       = (__m128 *)&global_renderer.z_buffer_array[global_renderer.screen_num_pixels];
 
-void Draw_Depth_Buffer(const Rendering_data *render_data);
+    for (__m128 *i = (__m128 *)global_renderer.z_buffer_array;
+         i < END;
+         i += 1)
+    {
+        *i = MAX_DEPTH;
+    }
+}
+
+inline void Renderer_Clear_Screen_Pixels(void)
+{
+    memset(global_renderer.pixels, 0, global_renderer.screen_num_pixels * 4);
+}
+
+void Draw_Depth_Buffer(void);
+void Draw_Triangle_Outline(const __m128 *verticies, const SDL_Colour *col);
+
+void Flat_Shading(const __m128 *screen_space_verticies, const __m128 *world_space_verticies, const float *w_values, const __m128 *normal_values, const Light *light);
 
 // void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, const __m128 *world_space,
 //                       const __m128 *w_values, const __m128 *normal_values, const __m128 texture_u, const __m128 texture_v,
 //                       const __m128 surface_normal, const PointLight *light, const Mat4x4 TBN);
-
-void Flat_Shading(const Rendering_data *render, const __m128 *screen_space_verticies, const __m128 *world_space_verticies, const float *w_values, const __m128 *normal_values, const __m128 camera_positon, const Light *light);
 
 #endif // __RENDERER_H__

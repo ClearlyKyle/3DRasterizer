@@ -4,12 +4,8 @@
 
 #include "SDL2/SDL.h"
 
-#include "lights.h"
 #include "Renderer.h"
-#include "vector.h"
-#include "test_sqaure.h"
 #include "ObjLoader.h"
-#include "textures.h"
 
 #define SCREEN_WIDTH  1000
 #define SCREEN_HEIGHT 900
@@ -24,9 +20,8 @@
 
 int main(int argc, char *argv[])
 {
-    Renderer ren = SDL_Startup("Window", SCREEN_WIDTH, SCREEN_HEIGHT);
-
-    SDL_Surface *window_surface = SDL_GetWindowSurface(ren.window);
+    Reneder_Startup("Rasterizer", SCREEN_WIDTH, SCREEN_HEIGHT);
+    atexit(Renderer_Destroy);
 
     // WOODEN BOX
     const char *obj_filename = "../../res/Wooden Box/wooden crate.obj";
@@ -68,73 +63,20 @@ int main(int argc, char *argv[])
     // CONE
     // const char *obj_filename = "../../res/Cone/Cone.obj";
 
-    // textures oriented tha same as you view them in paint
-    stbi_set_flip_vertically_on_load(1);
-
     // Load texture data
-    int tex_w, tex_h, tex_bpp;
-    // unsigned char *texture_data = stbi_load(tex_filename, &tex_w, &tex_h, &tex_bpp, STBI_rgb);
-    unsigned char *texture_data = stbi_load(tex_filename, &tex_w, &tex_h, &tex_bpp, STBI_rgb);
-    if (!texture_data)
-    {
-        fprintf(stderr, "ERROR! Loading image : %s\n", stbi_failure_reason());
-        return 0;
-    }
-
-    fprintf(stderr, "Texture Loaded : %s\n", tex_filename);
-    fprintf(stderr, "Texture width  : %d\n", tex_w);
-    fprintf(stderr, "Texture height : %d\n", tex_h);
-    fprintf(stderr, "Texture bbp    : %d\n", tex_bpp);
+    Texture tex     = Texture_Load(tex_filename);
+    gloabal_app.tex = tex;
 
     // Load Normal map
-    int            nrm_w, nrm_h, nrm_bpp;
-    unsigned char *normal_data = stbi_load(nrm_filename, &nrm_w, &nrm_h, &nrm_bpp, STBI_rgb);
-    if (!texture_data)
-    {
-        fprintf(stderr, "Loading image : %s\n", stbi_failure_reason());
-        return 0;
-    }
-
-    fprintf(stderr, "Normal Map Loaded : %s\n", nrm_filename);
-    fprintf(stderr, "Normal Map width  : %d\n", nrm_w);
-    fprintf(stderr, "Normal Map height : %d\n", nrm_h);
-    fprintf(stderr, "Normal Map bbp    : %d\n", nrm_bpp);
-
-    Rendering_data ren_data;
-
-    // Get window data
-    ren_data.surface           = window_surface;
-    ren_data.fmt               = window_surface->format;
-    ren_data.pixels            = window_surface->pixels;
-    ren_data.screen_height     = window_surface->h;
-    ren_data.screen_width      = window_surface->w;
-    ren_data.screen_num_pixels = window_surface->h * window_surface->w;
-
-    // Texture Data
-    ren_data.tex_data = texture_data;
-    ren_data.tex_w    = tex_w;
-    ren_data.tex_h    = tex_h;
-    ren_data.tex_bpp  = tex_bpp;
-
-    ren_data.nrm_data = normal_data;
-    ren_data.nrm_w    = nrm_w;
-    ren_data.nrm_h    = nrm_h;
-    ren_data.nrm_bpp  = nrm_bpp;
-
-    // Normal Map
-
-    // Allocate z buffer
-    float *z_buff = (float *)_aligned_malloc(sizeof(float) * ren_data.screen_num_pixels, 16);
-    assert(z_buff);
-    ren_data.z_buffer_array  = z_buff;
-    ren_data.max_depth_value = 10.0f;
+    Texture nrm     = Texture_Load(nrm_filename);
+    gloabal_app.nrm = nrm;
 
     // Load Mesh
     Mesh_Data *mesh;
     Get_Object_Data(obj_filename, true, &mesh);
 
     // Projection Matrix : converts from view space to screen space
-    const Mat4x4 Projection_matrix = Get_Projection_Matrix(90.0f, (float)ren.HEIGHT / (float)ren.WIDTH, 0.1f, 1000.0f);
+    const Mat4x4 Projection_matrix = Get_Projection_Matrix(90.0f, (float)global_renderer.height / (float)global_renderer.width, 0.1f, 1000.0f);
 
     // Translation Matrix : Move the object in 3D space X Y Z
     const Mat4x4 Translation_matrix = Get_Translation_Matrix(0.0f, 2.0f, 4.5f);
@@ -151,8 +93,8 @@ int main(int argc, char *argv[])
         .position        = _mm_set_ps(0.0f, 1.0f, 0.0f, -1.0f),
     };
 
-    const float x_adjustment = 0.5f * (float)ren.WIDTH;
-    const float y_adjustment = 0.5f * (float)ren.HEIGHT;
+    const float x_adjustment = 0.5f * (float)global_renderer.width;
+    const float y_adjustment = 0.5f * (float)global_renderer.height;
 
     // Performance counters
     Uint64 LastCounter      = SDL_GetPerformanceCounter();
@@ -160,33 +102,25 @@ int main(int argc, char *argv[])
     float  fTheta           = 0.0f;
     char   window_title[32] = {0};
 
-    ren.running                         = true;
     unsigned int loop_counter           = 0;
     unsigned int shading_switch_counter = 1;
 
     // ren_data.shading = WIRE_FRAME;
 
-    while (ren.running)
+    while (global_renderer.running)
     {
         // Clear Z Buffer
-        // memset(ren_data.z_buffer_array, 0xF, ren_data.screen_num_pixels * 4);
-        __m128 MAX_DEPTH = _mm_set1_ps(ren_data.max_depth_value);
-        for (__m128 *i = (__m128 *)ren_data.z_buffer_array, *end = (__m128 *)&ren_data.z_buffer_array[ren_data.screen_num_pixels];
-             i < end;
-             i += 1)
-        {
-            *i = MAX_DEPTH;
-        }
+        Renderer_Clear_ZBuffer();
 
         // Clear Pixels
-        memset(ren_data.pixels, 0, ren_data.screen_num_pixels * 4);
+        Renderer_Clear_Screen_Pixels();
 
         SDL_Event event;
         while (SDL_PollEvent(&event))
         {
             if (SDL_QUIT == event.type)
             {
-                ren.running = false;
+                global_renderer.running = false;
                 break;
             }
         }
@@ -314,7 +248,7 @@ int main(int argc, char *argv[])
                 const __m128 screen_position_verticies[3] = {tri1, tri2, tri3};
                 const __m128 normal_coordinates[3]        = {normal0, normal1, normal2};
 
-                Flat_Shading(&ren_data, screen_position_verticies, world_position_verticies, w_values, normal_coordinates, camera_position, &light);
+                Flat_Shading(screen_position_verticies, world_position_verticies, w_values, normal_coordinates, &light);
 
                 // if (ren_data.shading == WIRE_FRAME)
                 //{
@@ -334,7 +268,7 @@ int main(int argc, char *argv[])
         // Draw_Depth_Buffer(&ren_data);
 
         // Update Screen
-        SDL_UpdateWindowSurface(ren.window);
+        SDL_UpdateWindowSurface(global_renderer.window);
 
         // End frame timing
         const Uint64 EndCounter     = SDL_GetPerformanceCounter();
@@ -347,7 +281,7 @@ int main(int argc, char *argv[])
             loop_counter     = 0;
             const double FPS = (double)CounterElapsed / (double)SDL_GetPerformanceFrequency();
             snprintf(window_title, sizeof(window_title), "%.02f ms/f \t%.02f f/s\n", 1000.0 * MSPerFrame, FPS);
-            SDL_SetWindowTitle(ren.window, window_title);
+            SDL_SetWindowTitle(global_renderer.window, window_title);
         }
         else
         {
@@ -358,8 +292,6 @@ int main(int argc, char *argv[])
     }
 
     Free_Mesh(&mesh);
-    // free(ren_data.pixels);
-    // free(ren_data.z_buffer_array);
-    SDL_CleanUp(&ren);
+
     return 0;
 }

@@ -1,16 +1,17 @@
 #include "Renderer.h"
 
-Renderer SDL_Startup(const char *title, unsigned int width, unsigned int height)
-{
-    Renderer rend = {0};
+Renderer global_renderer = {0};
+AppState gloabal_app     = {0};
 
+void Reneder_Startup(const char *title, const int width, const int height)
+{
     if (SDL_Init(SDL_INIT_VIDEO) != 0)
     {
         fprintf(stderr, "Could not SDL_Init(SDL_INIT_VIDEO): %s\n", SDL_GetError());
         exit(2);
     }
 
-    rend.window = SDL_CreateWindow(
+    global_renderer.window = SDL_CreateWindow(
         title,
         SDL_WINDOWPOS_UNDEFINED,
         SDL_WINDOWPOS_UNDEFINED,
@@ -18,49 +19,80 @@ Renderer SDL_Startup(const char *title, unsigned int width, unsigned int height)
         height,
         SDL_WINDOW_SHOWN); // show upon creation
 
-    if (rend.window == NULL)
+    if (global_renderer.window == NULL)
     {
         fprintf(stderr, "SDL_CreateWindow Error: %s\n", SDL_GetError());
         exit(2);
     }
 
-    rend.running = true;
-    rend.HEIGHT  = height;
-    rend.WIDTH   = width;
-    return rend;
+    SDL_Surface *window_surface = SDL_GetWindowSurface(global_renderer.window);
+
+    // Get window data
+    global_renderer.surface           = window_surface;
+    global_renderer.fmt               = window_surface->format;
+    global_renderer.pixels            = window_surface->pixels;
+    global_renderer.height            = window_surface->h;
+    global_renderer.width             = window_surface->w;
+    global_renderer.screen_num_pixels = window_surface->h * window_surface->w;
+
+    // Allocate z buffer
+    float *z_buff = (float *)_aligned_malloc(sizeof(float) * global_renderer.screen_num_pixels, 16);
+    if (!z_buff)
+    {
+        fprintf(stderr, "Error with : (float *)_aligned_malloc(sizeof(float) * global_renderer.screen_num_pixels, 16);\n");
+        exit(2);
+    }
+
+    global_renderer.z_buffer_array  = z_buff;
+    global_renderer.max_depth_value = 10.0f;
+
+    global_renderer.running = true;
 }
 
-void SDL_CleanUp(Renderer *renderer)
+void Renderer_Destroy(void)
 {
-    if (renderer->window)
+    if (global_renderer.window)
     {
-        SDL_DestroyWindow(renderer->window);
-        renderer->window = NULL;
+        SDL_DestroyWindow(global_renderer.window);
+        global_renderer.window = NULL;
+    }
+
+    if (global_renderer.surface)
+    {
+        SDL_FreeSurface(global_renderer.surface);
+        global_renderer.surface = NULL;
+    }
+
+    if (global_renderer.pixels)
+    {
+        free(global_renderer.pixels);
+        global_renderer.pixels = NULL;
+    }
+
+    if (global_renderer.z_buffer_array)
+    {
+        free(global_renderer.z_buffer_array);
+        global_renderer.z_buffer_array = NULL;
     }
 
     SDL_Quit();
 }
 
-static inline void Draw_Pixel_RGBA(const Rendering_data *ren, int x, int y, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha)
+static inline void Draw_Pixel_RGBA(const int x, const int y, const uint8_t red, const uint8_t green, const uint8_t blue, const uint8_t alpha)
 {
-    const int index = (int)y * ren->screen_width + (int)x;
+    const int index = y * global_renderer.width + x;
 
-    ren->pixels[index] = (Uint32)((alpha << 24) + (red << 16) + (green << 8) + (blue << 0));
+    global_renderer.pixels[index] = (Uint32)((alpha << 24) + (red << 16) + (green << 8) + (blue << 0));
 }
 
-static void Draw_Pixel_SDL_Colour(const Rendering_data *ren, int x, int y, const SDL_Colour *col)
+static inline void Draw_Pixel_SDL_Colour(const int x, const int y, const SDL_Colour *col)
 {
-    const uint8_t red = col->r;
-    const uint8_t gre = col->g;
-    const uint8_t blu = col->b;
-    const uint8_t alp = col->a;
-
-    Draw_Pixel_RGBA(ren, x, y, red, gre, blu, alp);
+    Draw_Pixel_RGBA(x, y, col->r, col->g, col->b, col->a);
 }
 
 // THE EXTREMELY FAST LINE ALGORITHM Variation E (Addition Fixed Point PreCalc)
 // http://www.edepot.com/algorithm.html
-static void Draw_Line(const Rendering_data *ren, int x, int y, int x2, int y2, const SDL_Colour *col)
+static void Draw_Line(int x, int y, int x2, int y2, const SDL_Colour *col)
 {
     bool yLonger  = false;
     int  shortLen = y2 - y;
@@ -85,7 +117,7 @@ static void Draw_Line(const Rendering_data *ren, int x, int y, int x2, int y2, c
             longLen += y;
             for (int j = 0x8000 + (x << 16); y <= longLen; ++y)
             {
-                Draw_Pixel_SDL_Colour(ren, j >> 16, y, col);
+                Draw_Pixel_SDL_Colour(j >> 16, y, col);
                 j += decInc;
             }
             return;
@@ -93,7 +125,7 @@ static void Draw_Line(const Rendering_data *ren, int x, int y, int x2, int y2, c
         longLen += y;
         for (int j = 0x8000 + (x << 16); y >= longLen; --y)
         {
-            Draw_Pixel_SDL_Colour(ren, j >> 16, y, col);
+            Draw_Pixel_SDL_Colour(j >> 16, y, col);
 
             j -= decInc;
         }
@@ -105,7 +137,7 @@ static void Draw_Line(const Rendering_data *ren, int x, int y, int x2, int y2, c
         longLen += x;
         for (int j = 0x8000 + (y << 16); x <= longLen; ++x)
         {
-            Draw_Pixel_SDL_Colour(ren, x, j >> 16, col);
+            Draw_Pixel_SDL_Colour(x, j >> 16, col);
 
             j += decInc;
         }
@@ -114,12 +146,12 @@ static void Draw_Line(const Rendering_data *ren, int x, int y, int x2, int y2, c
     longLen += x;
     for (int j = 0x8000 + (y << 16); x >= longLen; --x)
     {
-        Draw_Pixel_SDL_Colour(ren, x, j >> 16, col);
+        Draw_Pixel_SDL_Colour(x, j >> 16, col);
         j -= decInc;
     }
 }
 
-void Draw_Triangle_Outline(const Rendering_data *ren, const __m128 *verticies, const SDL_Colour *col)
+void Draw_Triangle_Outline(const __m128 *verticies, const SDL_Colour *col)
 {
     float vert1[4];
     _mm_store_ps(vert1, verticies[0]);
@@ -128,25 +160,23 @@ void Draw_Triangle_Outline(const Rendering_data *ren, const __m128 *verticies, c
     float vert3[4];
     _mm_store_ps(vert3, verticies[2]);
 
-    Draw_Line(ren, (int)vert1[0], (int)vert1[1], (int)vert2[0], (int)vert2[1], col);
-    Draw_Line(ren, (int)vert2[0], (int)vert2[1], (int)vert3[0], (int)vert3[1], col);
-    Draw_Line(ren, (int)vert3[0], (int)vert3[1], (int)vert1[0], (int)vert1[1], col);
+    Draw_Line((int)vert1[0], (int)vert1[1], (int)vert2[0], (int)vert2[1], col);
+    Draw_Line((int)vert2[0], (int)vert2[1], (int)vert3[0], (int)vert3[1], col);
+    Draw_Line((int)vert3[0], (int)vert3[1], (int)vert1[0], (int)vert1[1], col);
 }
 
-void Draw_Depth_Buffer(const Rendering_data *render_data)
+void Draw_Depth_Buffer(void)
 {
-    const __m128 max_depth = _mm_set1_ps(render_data->max_depth_value);
+    const __m128 max_depth = _mm_set1_ps(global_renderer.max_depth_value);
     const __m128 value_255 = _mm_set1_ps(255.0f);
 
-    float *pDepthBuffer = render_data->z_buffer_array;
+    float *pDepthBuffer = global_renderer.z_buffer_array;
 
     int rowIdx = 0;
-    for (unsigned int y = 0; y < render_data->screen_height; y += 2,
-                      rowIdx += 2 * render_data->screen_width)
+    for (int y = 0; y < global_renderer.height; y += 2, rowIdx += 2 * global_renderer.width)
     {
         int index = rowIdx;
-        for (unsigned int x = 0; x < render_data->screen_width; x += 2,
-                          index += 4)
+        for (int x = 0; x < global_renderer.width; x += 2, index += 4)
         {
             __m128 depthvalues = _mm_load_ps(&pDepthBuffer[index]);
             depthvalues        = _mm_div_ps(depthvalues, max_depth);
@@ -156,37 +186,12 @@ void Draw_Depth_Buffer(const Rendering_data *render_data)
             float shading[4];
             _mm_store_ps(shading, depthvalues);
 
-            Draw_Pixel_RGBA(render_data, x + 0, y + 0, (uint8_t)shading[3], (uint8_t)shading[3], (uint8_t)shading[3], 255);
-            Draw_Pixel_RGBA(render_data, x + 1, y + 0, (uint8_t)shading[2], (uint8_t)shading[2], (uint8_t)shading[2], 255);
-            Draw_Pixel_RGBA(render_data, x + 0, y + 1, (uint8_t)shading[1], (uint8_t)shading[1], (uint8_t)shading[1], 255);
-            Draw_Pixel_RGBA(render_data, x + 1, y + 1, (uint8_t)shading[0], (uint8_t)shading[0], (uint8_t)shading[0], 255);
+            Draw_Pixel_RGBA(x + 0, y + 0, (uint8_t)shading[3], (uint8_t)shading[3], (uint8_t)shading[3], 255);
+            Draw_Pixel_RGBA(x + 1, y + 0, (uint8_t)shading[2], (uint8_t)shading[2], (uint8_t)shading[2], 255);
+            Draw_Pixel_RGBA(x + 0, y + 1, (uint8_t)shading[1], (uint8_t)shading[1], (uint8_t)shading[1], 255);
+            Draw_Pixel_RGBA(x + 1, y + 1, (uint8_t)shading[0], (uint8_t)shading[0], (uint8_t)shading[0], 255);
         }
     }
-}
-
-union AABB_u
-{
-    struct
-    {
-        int maxX;
-        int minX;
-        int maxY;
-        int minY;
-    };
-    int values[4];
-};
-
-static __m128i Get_AABB_SIMD(const __m128 v1, const __m128 v2, const __m128 v3, int screen_width, int screen_height)
-{
-    const __m128i vec1 = _mm_cvtps_epi32(v1);
-    const __m128i vec2 = _mm_cvtps_epi32(v2);
-    const __m128i vec3 = _mm_cvtps_epi32(v3);
-
-    __m128i min_values = _mm_and_si128(_mm_max_epi32(_mm_min_epi32(_mm_min_epi32(vec1, vec2), vec3), _mm_set1_epi32(0)), _mm_set1_epi32(0xFFFFFFFE));
-    __m128i max_values = _mm_min_epi32(_mm_add_epi32(_mm_max_epi32(_mm_max_epi32(vec1, vec2), vec3), _mm_set1_epi32(1)), _mm_set_epi32(0, 0, screen_height - 1, screen_width - 1));
-
-    // Returns {maxX, minX, maxY, minY}
-    return _mm_unpacklo_epi32(max_values, min_values);
 }
 
 // void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, const __m128 *world_space,
@@ -614,8 +619,7 @@ static inline __m128 _Gourand_Shading_Get_Colour(const __m128 weights[3], const 
 // TODO: Pack the relevant light data into some struct
 // TODO: Set a global render mode (global_renderer_state)
 // Phong shading, a normal vector is linearly interpolated across the surface of the polygon from the polygon's vertex normals
-static inline __m128 _Phong_Shading_Get_Colour(const __m128 weights[3], const __m128 colours[3], const __m128 world_space_coords[3],
-                                               const __m128 normals[3], const __m128 camera_postion, const Light *light, const Shading_Mode shading_mode)
+static inline __m128 _Phong_Shading_Get_Colour(const __m128 weights[3], const __m128 colours[3], const __m128 world_space_coords[3], const __m128 normals[3], const Light *light, const Shading_Mode shading_mode)
 {
     const __m128 frag_position = _mm_add_ps(
         _mm_add_ps(
@@ -630,10 +634,10 @@ static inline __m128 _Phong_Shading_Get_Colour(const __m128 weights[3], const __
             _mm_mul_ps(weights[1], normals[1])),
         _mm_mul_ps(weights[2], normals[2]));
 
-    return Light_Calculate_Shading(shading_mode, frag_position, frag_normal, camera_postion, light);
+    return Light_Calculate_Shading(shading_mode, frag_position, frag_normal, light);
 }
 
-void Flat_Shading(const Rendering_data *render, const __m128 *screen_space_verticies, const __m128 *world_space_verticies, const float *w_values, const __m128 *normal_values, const __m128 camera_positon, const Light *light)
+void Flat_Shading(const __m128 *screen_space_verticies, const __m128 *world_space_verticies, const float *w_values, const __m128 *normal_values, const Light *light)
 {
     const Shading_Mode shading_mode = GOURAND;
 
@@ -651,9 +655,9 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space_verti
     __m128 colours[3];
     if (shading_mode == GOURAND) // We interpolate the colours in the "Vertex Shader"
     {
-        colours[0] = Light_Calculate_Shading(shading_mode, world_space_verticies[0], normal_values[0], camera_positon, light);
-        colours[1] = Light_Calculate_Shading(shading_mode, world_space_verticies[1], normal_values[1], camera_positon, light);
-        colours[2] = Light_Calculate_Shading(shading_mode, world_space_verticies[2], normal_values[2], camera_positon, light);
+        colours[0] = Light_Calculate_Shading(shading_mode, world_space_verticies[0], normal_values[0], light);
+        colours[1] = Light_Calculate_Shading(shading_mode, world_space_verticies[1], normal_values[1], light);
+        colours[2] = Light_Calculate_Shading(shading_mode, world_space_verticies[2], normal_values[2], light);
     }
     else if (shading_mode == FLAT)
     {
@@ -662,7 +666,7 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space_verti
 
     /* get the bounding box of the triangle */
     union AABB_u aabb;
-    _mm_storeu_si128((__m128i *)aabb.values, Get_AABB_SIMD(v0, v1, v2, render->screen_width, render->screen_height));
+    _mm_storeu_si128((__m128i *)aabb.values, Get_AABB_SIMD(v0, v1, v2, global_renderer.width, global_renderer.height));
 
     // X and Y value setup
     const __m128i v0_x = _mm_cvtps_epi32(_mm_shuffle_ps(v0, v0, _MM_SHUFFLE(0, 0, 0, 0)));
@@ -724,8 +728,8 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space_verti
     __m128i sum2Row = _mm_add_epi32(aa2Col, bb2Row);
 
     // Cast depth buffer to float
-    float *pDepthBuffer = render->z_buffer_array;
-    int    rowIdx       = (aabb.minY * render->screen_width + 2 * aabb.minX);
+    float *pDepthBuffer = global_renderer.z_buffer_array;
+    int    rowIdx       = (aabb.minY * global_renderer.width + 2 * aabb.minX);
 
     const __m128 one_over_w1 = _mm_set1_ps(w_values[0]);
     const __m128 one_over_w2 = _mm_set1_ps(w_values[1]);
@@ -733,7 +737,7 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space_verti
 
     // Rasterize
     for (int y = aabb.minY; y < aabb.maxY; y += 2,
-             rowIdx += 2 * render->screen_width,
+             rowIdx += 2 * global_renderer.width,
              sum0Row = _mm_add_epi32(sum0Row, bb0Inc),
              sum1Row = _mm_add_epi32(sum1Row, bb1Inc),
              sum2Row = _mm_add_epi32(sum2Row, bb2Inc))
@@ -805,7 +809,7 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space_verti
                     }
                     else if (shading_mode == PHONG)
                     {
-                        frag_colour = _Phong_Shading_Get_Colour(weights, colours, world_space_verticies, normal_values, camera_positon, light, shading_mode);
+                        frag_colour = _Phong_Shading_Get_Colour(weights, colours, world_space_verticies, normal_values, light, shading_mode);
                     }
                 }
 
@@ -816,16 +820,16 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space_verti
 
                 // Not sure if I like this
                 if (pixel_index == 3) // index 3
-                    Draw_Pixel_RGBA(render, x + 0, y + 0, red, gre, blu, alp);
+                    Draw_Pixel_RGBA(x + 0, y + 0, red, gre, blu, alp);
 
                 else if (pixel_index == 2) // index 2
-                    Draw_Pixel_RGBA(render, x + 1, y + 0, red, gre, blu, alp);
+                    Draw_Pixel_RGBA(x + 1, y + 0, red, gre, blu, alp);
 
                 else if (pixel_index == 1) // index 1
-                    Draw_Pixel_RGBA(render, x + 0, y + 1, red, gre, blu, alp);
+                    Draw_Pixel_RGBA(x + 0, y + 1, red, gre, blu, alp);
 
                 else if (pixel_index == 0) // index 0
-                    Draw_Pixel_RGBA(render, x + 1, y + 1, red, gre, blu, alp);
+                    Draw_Pixel_RGBA(x + 1, y + 1, red, gre, blu, alp);
             }
         }
     }
