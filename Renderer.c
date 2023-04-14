@@ -601,6 +601,7 @@ static __m128i Get_AABB_SIMD(const __m128 v1, const __m128 v2, const __m128 v3, 
 //    }
 //}
 
+// Gouraud shading, which interpolates colors across polygons
 static inline __m128 _Gourand_Shading_Get_Colour(const __m128 weights[3], const __m128 colours[3])
 {
     return _mm_add_ps(
@@ -612,55 +613,59 @@ static inline __m128 _Gourand_Shading_Get_Colour(const __m128 weights[3], const 
 
 // TODO: Pack the relevant light data into some struct
 // TODO: Set a global render mode (global_renderer_state)
-static inline __m128 _Phong_Shading_Get_Colour(const __m128 weights[3], const __m128 colours[3], const __m128 world_space_coords[3], const __m128 normals[3], const __m128 light_position, const Shading_Mode shading_mode)
+// Phong shading, a normal vector is linearly interpolated across the surface of the polygon from the polygon's vertex normals
+static inline __m128 _Phong_Shading_Get_Colour(const __m128 weights[3], const __m128 colours[3], const __m128 world_space_coords[3], const __m128 normals[3], const __m128 light_position, const PointLight *light, const Shading_Mode shading_mode)
 {
     const __m128 frag_position = _mm_add_ps(
         _mm_add_ps(
-            _mm_mul_ps(weights[0], world_space_coords[2]),
+            _mm_mul_ps(weights[0], world_space_coords[0]),
             _mm_mul_ps(weights[1], world_space_coords[1])),
-        _mm_mul_ps(weights[2], world_space_coords[0]));
+        _mm_mul_ps(weights[2], world_space_coords[2]));
 
-    // Calculate the normal vector of the surface at the point , interpolating the surface normals at the vertices of the triangle
+    // Calculate the normal vector of the surface at the point, interpolating the surface normals at the vertices of the triangle
     const __m128 frag_normal = _mm_add_ps(
         _mm_add_ps(
             _mm_mul_ps(weights[0], normals[0]),
             _mm_mul_ps(weights[1], normals[1])),
         _mm_mul_ps(weights[2], normals[2]));
 
-    return Calculate_Light(light_position, _mm_setzero_ps(), frag_position, frag_normal, 0.8f, 1.0f, 0.2f, 64, shading_mode);
+    // Temp values
+    const __m128 camera_positon  = _mm_setzero_ps();
+    const __m128 diffuse_colour  = _mm_set_ps(1.0f, 1.0f, 1.0f, 0.0f);
+    const __m128 specular_colour = _mm_set_ps(1.0f, 1.0f, 1.0f, 1.0f);
+
+    return Calculate_Phong_Shading(frag_position, frag_normal, camera_positon, light->position, diffuse_colour, specular_colour);
 }
 
-void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, const __m128 *world_space, const __m128 *w_values, const __m128 *normal_values, const __m128 surface_normal, const PointLight *light)
+void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, const __m128 *world_space, const float *w_values, const __m128 *normal_values, const __m128 surface_normal, const PointLight *light)
 {
     const Shading_Mode shading_mode = PHONG;
 
     // used when checking if w0,w1,w2 is greater than 0;
     const __m128i fxptZero = _mm_setzero_si128();
 
-    // Unpack Vertice data
+    // Unpack Vertex data
     const __m128 v0 = screen_space[2];
     const __m128 v1 = screen_space[1];
     const __m128 v2 = screen_space[0];
 
-    const __m128 one_over_w1 = w_values[2];
-    const __m128 one_over_w2 = w_values[1];
-    const __m128 one_over_w3 = w_values[0];
+    const __m128 one_over_w1 = _mm_set1_ps(w_values[0]);
+    const __m128 one_over_w2 = _mm_set1_ps(w_values[1]);
+    const __m128 one_over_w3 = _mm_set1_ps(w_values[2]);
 
     // Gourand Shading
     // TODO: Fix this shading paramater passing BLIN_PHONG
     //__m128 colour1, colour2, colour3;
     __m128 colours[3];
-    if (shading_mode == GOURAND)
+    if (shading_mode == GOURAND) // We interpolate the colours in the "Vertex Shader"
     {
-        colours[0] = Calculate_Light(light->position, _mm_setzero_ps(), world_space[2], normal_values[2], 0.2f, 1.0f, 0.2f, 64, shading_mode);
-        colours[1] = Calculate_Light(light->position, _mm_setzero_ps(), world_space[1], normal_values[1], 0.2f, 1.0f, 0.2f, 64, shading_mode);
-        colours[2] = Calculate_Light(light->position, _mm_setzero_ps(), world_space[0], normal_values[0], 0.2f, 1.0f, 0.2f, 64, shading_mode);
-    }
-    if (shading_mode == PHONG)
-    {
-        colours[0] = Calculate_Light(light->position, _mm_setzero_ps(), world_space[2], normal_values[2], 0.2f, 1.0f, 0.2f, 64, shading_mode);
-        colours[1] = Calculate_Light(light->position, _mm_setzero_ps(), world_space[1], normal_values[1], 0.2f, 1.0f, 0.2f, 64, shading_mode);
-        colours[2] = Calculate_Light(light->position, _mm_setzero_ps(), world_space[0], normal_values[0], 0.2f, 1.0f, 0.2f, 64, shading_mode);
+        const __m128 camera_positon  = _mm_setzero_ps();
+        const __m128 diffuse_colour  = _mm_set_ps(1.0f, 1.0f, 1.0f, 0.0f);
+        const __m128 specular_colour = _mm_set_ps(1.0f, 1.0f, 1.0f, 1.0f);
+
+        colours[0] = Calculate_Gourand_Shading(world_space[0], normal_values[0], camera_positon, light->position, diffuse_colour, specular_colour);
+        colours[1] = Calculate_Gourand_Shading(world_space[1], normal_values[1], camera_positon, light->position, diffuse_colour, specular_colour);
+        colours[2] = Calculate_Gourand_Shading(world_space[2], normal_values[2], camera_positon, light->position, diffuse_colour, specular_colour);
     }
     else if (shading_mode == FLAT)
     {
@@ -762,9 +767,9 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
             if (_mm_test_all_zeros(mask, mask))
                 continue;
 
-            const __m128 w0_area = _mm_mul_ps(_mm_cvtepi32_ps(alpha), oneOverTriArea);
+            const __m128 w0_area = _mm_mul_ps(_mm_cvtepi32_ps(gama), oneOverTriArea);
             const __m128 w1_area = _mm_mul_ps(_mm_cvtepi32_ps(beta), oneOverTriArea);
-            const __m128 w2_area = _mm_mul_ps(_mm_cvtepi32_ps(gama), oneOverTriArea);
+            const __m128 w2_area = _mm_mul_ps(_mm_cvtepi32_ps(alpha), oneOverTriArea);
 
             // Compute barycentric-interpolated depth
             __m128 depth = _mm_mul_ps(w0_area, one_over_w1);
@@ -808,7 +813,7 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
                     }
                     else if (shading_mode == PHONG)
                     {
-                        frag_colour = _Phong_Shading_Get_Colour(weights, colours, world_space, normal_values, light->position, shading_mode);
+                        frag_colour = _Phong_Shading_Get_Colour(weights, colours, world_space, normal_values, light->position, light, shading_mode);
                     }
                 }
 
