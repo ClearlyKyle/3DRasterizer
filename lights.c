@@ -81,3 +81,40 @@ __m128 Get_Specular_Amount(const __m128 view_direction, const __m128 light_direc
 
     return specular;
 }
+
+__m128 Calculate_Gourand_Shading(const __m128 vertex_position, const __m128 normal, const __m128 camera_position, const __m128 light_position, const __m128 diffuse_colour, const __m128 specular_colour)
+{
+    // Normalise the Noraml
+    const __m128 N = Normalize_m128(normal);
+
+    // Calculate L - direction to the light source
+    const __m128 L = Normalize_m128(_mm_sub_ps(light_position, vertex_position));
+
+    // Calculate E - view direction
+    const __m128 E = Normalize_m128(_mm_sub_ps(camera_position, vertex_position));
+
+    // Calculate R - the reflection vector
+    const __m128 R = Reflect_m128(L, N);
+
+    // Calculate Ambient Term: Hardcoded for now
+    const float  ambient_strength = 0.2f;
+    const __m128 Iamb             = _mm_set1_ps(ambient_strength);
+
+    // Calculate Diffuse Term:
+    const __m128 diffuse_amount = Calculate_Diffuse_Amount(L, vertex_position, N);
+    const __m128 Idiff          = _mm_mul_ps(diffuse_colour, diffuse_amount); // Might need to set the Alpha here
+
+    // Calculate Specular Term:
+    const float specular_strength = 0.2f;
+    const float shininess         = 32.0f;
+
+    const float  dot_product     = Calculate_Dot_Product_SIMD(R, E);
+    const float  specular_power  = powf(fmaxf(dot_product, 0.0), shininess);
+    const __m128 specular_amount = _mm_set_ps(1.0f, specular_power, specular_power, specular_power);
+
+    const __m128 Ispec = _mm_mul_ps(specular_colour, specular_amount);
+
+    // const __m128 colour = _mm_add_ps(_mm_add_ps(Iamb, Idiff), Ispec);
+    const __m128 colour = _mm_mul_ps(Clamp_m128(_mm_add_ps(_mm_add_ps(Iamb, Idiff), Ispec), 0.0f, 1.0f), _mm_set1_ps(255.0f));
+    return colour;
+}
