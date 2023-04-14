@@ -2,7 +2,7 @@
 
 Renderer SDL_Startup(const char *title, unsigned int width, unsigned int height)
 {
-    Renderer rend;
+    Renderer rend = {0};
 
     if (SDL_Init(SDL_INIT_VIDEO) != 0)
     {
@@ -24,14 +24,6 @@ Renderer SDL_Startup(const char *title, unsigned int width, unsigned int height)
         exit(2);
     }
 
-    rend.renderer = SDL_CreateRenderer(rend.window, -1, SDL_RENDERER_ACCELERATED);
-    if (rend.renderer == NULL)
-    {
-        SDL_DestroyWindow(rend.window);
-        fprintf(stderr, "SDL_CreateRenderer Error: %s\n", SDL_GetError());
-        exit(2);
-    }
-
     rend.running = true;
     rend.HEIGHT  = height;
     rend.WIDTH   = width;
@@ -40,8 +32,12 @@ Renderer SDL_Startup(const char *title, unsigned int width, unsigned int height)
 
 void SDL_CleanUp(Renderer *renderer)
 {
-    SDL_DestroyRenderer(renderer->renderer);
-    SDL_DestroyWindow(renderer->window);
+    if (renderer->window)
+    {
+        SDL_DestroyWindow(renderer->window);
+        renderer->window = NULL;
+    }
+
     SDL_Quit();
 }
 

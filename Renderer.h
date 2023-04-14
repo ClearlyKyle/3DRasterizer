@@ -14,8 +14,7 @@ typedef struct Renderer_s
     unsigned int HEIGHT;
     bool         running;
 
-    SDL_Window   *window;
-    SDL_Renderer *renderer;
+    SDL_Window *window;
 } Renderer;
 
 typedef struct Rendering_data_s
