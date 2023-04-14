@@ -19,36 +19,9 @@ PointLight Get_Point_Light(float x, float y, float z,
 __m128 Reflect_m128(const __m128 I, __m128 N)
 {
     // https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/reflect.xhtml
-    // I - 2.0 * dot(N, I) * N
-
-    N = Normalize_m128(N);
-
-    __m128 righ = _mm_mul_ps(_mm_set1_ps(Calculate_Dot_Product_SIMD(N, I)), N);
-    righ        = _mm_mul_ps(righ, _mm_set1_ps(2.0f));
-
-    return _mm_sub_ps(I, righ);
-}
-
-__m128 Calculate_Light(const __m128 light_position, const __m128 camera_position, const __m128 frag_position, const __m128 normal,
-                       const float ambient_strength, const float diffuse_strength, const float specular_strength, const double specular_power,
-                       const Shading_Mode mode)
-{
-    // POINT LIGHT
-    // const float distance_to_light = (const float)sqrt((double)hsum_ps_sse3(_mm_mul_ps(vert_to_light, vert_to_light)));
-    // const float attenulation_value = 1.0f / (pl.constant_attenuation +
-    //                                          pl.linear_attenuation * distance_to_light +
-    //                                          pl.quadradic_attenuation * distance_to_light * distance_to_light);
-
-    const __m128 view_direction  = Normalize_m128(_mm_sub_ps(camera_position, frag_position));
-    const __m128 light_direction = Normalize_m128(_mm_sub_ps(light_position, frag_position));
-
-    const __m128 diffuse  = Get_Diffuse_Amount(light_direction, frag_position, normal);
-    const __m128 specular = Get_Specular_Amount(view_direction, light_direction, normal, 0.2, 64, mode);
-    const __m128 ambient  = _mm_set1_ps(ambient_strength);
-
-    const __m128 colour = _mm_mul_ps(Clamp_m128(_mm_add_ps(_mm_add_ps(ambient, diffuse), specular), 0.0f, 1.0f), _mm_set1_ps(255.0f));
-
-    return colour;
+    __m128 dotProduct = _mm_dp_ps(I, N, 0x7f);                                 // Compute dot product of I and N
+    __m128 scaledN    = _mm_mul_ps(N, _mm_mul_ps(dotProduct, _mm_set1_ps(2))); // Scale N by 2 * dotProduct
+    return _mm_sub_ps(I, scaledN);                                             // Subtract scaledN from I to get reflected vector
 }
 
 __m128 Get_Diffuse_Amount(const __m128 light_direction, const __m128 contact_position, const __m128 normal)
