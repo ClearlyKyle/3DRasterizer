@@ -13,9 +13,7 @@
 // TODO: Remove stbi?
 // TODO: detect what files are being loaded
 // TODO: cleanup on exit
-// TODO: better data organisation
 // TODO: Improve object loading and setting object data
-// TODO: Lighting settings and values
 // TODO: Better matrix multiplication
 
 int main(int argc, char *argv[])
@@ -73,7 +71,7 @@ int main(int argc, char *argv[])
 
     // Load Mesh
     Mesh_Data *mesh;
-    Get_Object_Data(obj_filename, true, &mesh);
+    Mesh_Get_Data(obj_filename, true, &mesh);
 
     // Projection Matrix : converts from view space to screen space
     const Mat4x4 Projection_matrix = Get_Projection_Matrix(90.0f, (float)global_renderer.height / (float)global_renderer.width, 0.1f, 1000.0f);
@@ -97,6 +95,7 @@ int main(int argc, char *argv[])
     const float y_adjustment = 0.5f * (float)global_renderer.height;
 
     // Performance counters
+    // TODO: Timer
     Uint64 LastCounter      = SDL_GetPerformanceCounter();
     double MSPerFrame       = 0.0;
     float  fTheta           = 0.0f;
@@ -291,7 +290,7 @@ int main(int argc, char *argv[])
         LastCounter = EndCounter;
     }
 
-    Free_Mesh(&mesh);
+    Mesh_Destroy(mesh);
 
     return 0;
 }

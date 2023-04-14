@@ -1,17 +1,8 @@
 #ifndef __OBJLOADER_H__
 #define __OBJLOADER_H__
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <string.h>
-#include <stdbool.h>
-#include <math.h>
-
 #define TINYOBJ_LOADER_C_IMPLEMENTATION
 #include "./libs/tinyobj_loader_c.h"
-
-//#include "vector.h"
 
 #define DEBUG_PRINT 0
 #define debug_pr(fmt, ...)                     \
@@ -39,40 +30,55 @@ typedef struct Mesh_Data_s
     // tex_name
 } Mesh_Data;
 
-static void loadFile(void *ctx, const char *filename, const int is_mtl, const char *obj_filename, char **buffer, size_t *len)
+static int loadFile(void *ctx, const char *filename, const int is_mtl, const char *obj_filename, char **buffer, size_t *len)
 {
-    size_t  string_size = 0, read_size = 0;
-    FILE   *handler;
+    FILE   *fp;
     errno_t err;
 
-    // Open for read (will fail if file "crt_fopen_s.c" doesn't exist)
-    err = fopen_s(&handler, filename, "r");
-    if (err != 0)
+    // Open file for reading
+    err = fopen_s(&fp, filename, "rb");
+    if (err != 0 || fp == NULL)
     {
-        fprintf(stderr, "[loadFile] File : %s was NOT opened!\n", filename);
-        exit(1);
+        fprintf(stderr, "Error opening file %s\n", filename);
+        return TINYOBJ_ERROR_FILE_OPERATION;
     }
 
-    if (handler)
+    // Get file size
+    fseek(fp, 0, SEEK_END);
+    const long file_size = ftell(fp);
+    rewind(fp);
+
+    // Allocate buffer for file contents
+    *buffer = (char *)malloc(file_size + 1);
+    if (*buffer == NULL)
     {
-        fseek(handler, 0, SEEK_END);
-        string_size = ftell(handler);
-        rewind(handler);
-        *buffer                = (char *)malloc(sizeof(char) * (string_size + 1));
-        read_size              = fread(*buffer, sizeof(char), (size_t)string_size, handler);
-        (*buffer)[string_size] = '\0';
-        if (string_size != read_size)
-        {
-            free(buffer);
-            *buffer = NULL;
-        }
-        fclose(handler);
+        fprintf(stderr, "Error allocating memory for file contents\n");
+        fclose(fp);
+        return 1;
     }
 
-    *len = read_size;
+    // Read file into buffer
+    const size_t bytes_read = fread(*buffer, 1, file_size, fp);
+    if (bytes_read != (size_t)file_size)
+    {
+        fprintf(stderr, "Error reading file %s\n", filename);
+        fclose(fp);
+        free(*buffer);
+        *buffer = NULL;
+        return 1;
+    }
+
+    // Null-terminate buffer
+    (*buffer)[bytes_read] = '\0';
+
+    // Set length and clean up
+    *len = bytes_read;
+    fclose(fp);
+
+    return TINYOBJ_SUCCESS;
 }
 
-void Print_Attribute_Info(tinyobj_attrib_t *attrib)
+inline void Print_Attribute_Info(tinyobj_attrib_t *attrib)
 {
     fprintf(stderr, "\ntinyobj_attrib_t ____________\n");
     fprintf(stderr, "num_vertices   \t\t: %d\n", attrib->num_vertices);
@@ -82,7 +88,7 @@ void Print_Attribute_Info(tinyobj_attrib_t *attrib)
     fprintf(stderr, "num_face_num_verts\t: %d (number of 'f' rows)\n", attrib->num_face_num_verts);
 }
 
-void Print_Material_Info(tinyobj_material_t *material)
+inline void Print_Material_Info(tinyobj_material_t *material)
 {
     printf("\ntinyobj_material_t ____________\n");
     printf("name : %s\n", material->name);
@@ -107,7 +113,7 @@ void Print_Material_Info(tinyobj_material_t *material)
     printf("map_d    \t\t: %s\n", material->alpha_texname);
 }
 
-static void Get_Mesh_Data(const tinyobj_attrib_t *attrib, Mesh_Data **return_mesh)
+static void _Mesh_load_data(const tinyobj_attrib_t *attrib, Mesh_Data **return_mesh)
 {
     // Check if mesh is triangulated
     const unsigned int triangulated = (unsigned int)ceil((float)attrib->num_faces / (float)attrib->num_face_num_verts);
@@ -353,7 +359,7 @@ static void Get_Mesh_Data(const tinyobj_attrib_t *attrib, Mesh_Data **return_mes
     fprintf(stderr, "Vertex setup complete!\n");
 }
 
-void Get_Object_Data(const char *filename, bool print_info, Mesh_Data **output)
+void Mesh_Get_Data(const char *filename, bool print_info, Mesh_Data **output)
 {
     tinyobj_shape_t    *shape    = NULL;
     tinyobj_material_t *material = NULL;
@@ -367,50 +373,75 @@ void Get_Object_Data(const char *filename, bool print_info, Mesh_Data **output)
     const int ret = tinyobj_parse_obj(&attrib, &shape, &num_shapes, &material, &num_materials, filename, loadFile, NULL, 0);
     if (ret != TINYOBJ_SUCCESS)
     {
-        fprintf(stderr, "ERROR!\n");
-        exit(1);
-    }
-
-    // Display first face 'f' values
-    for (size_t i = 0; i < 4; i++)
-    {
-        const unsigned int f_vert_index1 = attrib.faces[3 * i + 0].v_idx;
-        const unsigned int f_vert_index2 = attrib.faces[3 * i + 1].v_idx;
-        const unsigned int f_vert_index3 = attrib.faces[3 * i + 2].v_idx;
-        // const unsigned int f_vert_index4 = attrib.faces[4 * i + 3].v_idx;
-        fprintf(stderr, "[%zd] %d, %d, %d\n", i, f_vert_index1, f_vert_index2, f_vert_index3);
+        fprintf(stderr, "Failed to parse OBJ file: %s\n", filename);
+        return;
     }
 
     (*output) = (Mesh_Data *)malloc(sizeof(Mesh_Data) * 1);
-    Get_Mesh_Data(&attrib, output);
+    _Mesh_load_data(&attrib, output);
 
-    memcpy((*output)->ambient, (float[4]){material->ambient[0], material->ambient[1], material->ambient[2], 0.0f}, sizeof((*output)->ambient));
-    memcpy((*output)->diffuse, (float[4]){material->diffuse[0], material->diffuse[1], material->diffuse[2]}, sizeof((*output)->diffuse));
-    memcpy((*output)->specular, (float[4]){material->specular[0], material->specular[1], material->specular[2], 0.0f}, sizeof((*output)->specular));
-    (*output)->shininess = material->shininess;
+    if (material)
+    {
+        memcpy((*output)->ambient, (float[4]){material->ambient[0], material->ambient[1], material->ambient[2], 0.0f}, sizeof((*output)->ambient));
+        memcpy((*output)->diffuse, (float[4]){material->diffuse[0], material->diffuse[1], material->diffuse[2]}, sizeof((*output)->diffuse));
+        memcpy((*output)->specular, (float[4]){material->specular[0], material->specular[1], material->specular[2], 0.0f}, sizeof((*output)->specular));
+        (*output)->shininess = material->shininess;
+    }
+    else
+    {
+        fprintf(stderr, "No material found\n");
+    }
 
     if (print_info)
     {
         Print_Attribute_Info(&attrib);
-        Print_Material_Info(material);
+
+        if (material)
+            Print_Material_Info(material);
 
         fprintf(stderr, "Number of Triangles = %d\n", (*output)->num_of_triangles);
         fprintf(stderr, "Number of Verticies = %d\n", (*output)->num_of_verticies);
         fprintf(stderr, "ambient  \t: {%f, %f, %f}\n", (*output)->ambient[0], (*output)->ambient[1], (*output)->ambient[2]);
         fprintf(stderr, "diffuse  \t: {%f, %f, %f}\n", (*output)->diffuse[0], (*output)->diffuse[1], (*output)->diffuse[2]);
         fprintf(stderr, "specular \t: {%f, %f, %f}\n", (*output)->specular[0], (*output)->specular[1], (*output)->specular[2]);
-        fprintf(stderr, "shininess   \t\t: %f\n", material->shininess);
     }
 
     fprintf(stderr, "Mesh complete!\n");
+
+    tinyobj_shapes_free(shape, num_shapes);
+    tinyobj_materials_free(material, num_materials);
+    tinyobj_attrib_init(&attrib);
 }
 
-void Free_Mesh(Mesh_Data **m)
+void Mesh_Destroy(Mesh_Data *mesh_data)
 {
-    // free((*m)->vertex_coordinates);
-    // free((*m)->uv_coordinates);
+    // Free dynamically allocated memory
+    if (mesh_data->vertex_coordinates != NULL)
+    {
+        free(mesh_data->vertex_coordinates);
+        mesh_data->vertex_coordinates = NULL;
+    }
+    if (mesh_data->normal_coordinates != NULL)
+    {
+        free(mesh_data->normal_coordinates);
+        mesh_data->normal_coordinates = NULL;
+    }
+    if (mesh_data->uv_coordinates != NULL)
+    {
+        free(mesh_data->uv_coordinates);
+        mesh_data->uv_coordinates = NULL;
+    }
 
-    fprintf(stderr, "Free Mesh Sucess\n");
+    // Reset values
+    mesh_data->num_of_triangles = 0;
+    mesh_data->num_of_verticies = 0;
+
+    memset(mesh_data->ambient, 0, sizeof(mesh_data->ambient));
+    memset(mesh_data->diffuse, 0, sizeof(mesh_data->diffuse));
+    memset(mesh_data->specular, 0, sizeof(mesh_data->specular));
+    mesh_data->shininess = 0.0f;
+
+    printf("Mesh has been destroyed\n");
 }
 
 #endif // __OBJLOADER_H__
