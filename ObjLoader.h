@@ -41,8 +41,8 @@ typedef struct Mesh_Data_s
 
 static void loadFile(void *ctx, const char *filename, const int is_mtl, const char *obj_filename, char **buffer, size_t *len)
 {
-    size_t string_size = 0, read_size = 0;
-    FILE *handler;
+    size_t  string_size = 0, read_size = 0;
+    FILE   *handler;
     errno_t err;
 
     // Open for read (will fail if file "crt_fopen_s.c" doesn't exist)
@@ -58,8 +58,8 @@ static void loadFile(void *ctx, const char *filename, const int is_mtl, const ch
         fseek(handler, 0, SEEK_END);
         string_size = ftell(handler);
         rewind(handler);
-        *buffer = (char *)malloc(sizeof(char) * (string_size + 1));
-        read_size = fread(*buffer, sizeof(char), (size_t)string_size, handler);
+        *buffer                = (char *)malloc(sizeof(char) * (string_size + 1));
+        read_size              = fread(*buffer, sizeof(char), (size_t)string_size, handler);
         (*buffer)[string_size] = '\0';
         if (string_size != read_size)
         {
@@ -115,15 +115,15 @@ static void Get_Mesh_Data(const tinyobj_attrib_t *attrib, Mesh_Data **return_mes
     // fprintf(stderr, "triangulated = %f\n", (float)attrib->num_faces / (float)attrib->num_face_num_verts);
     // fprintf(stderr, "triangulated = %f\n", ceil((float)attrib->num_faces / (float)attrib->num_face_num_verts));
 
-    float *vert_coords = NULL;
-    float *uv_coords = NULL;
+    float *vert_coords   = NULL;
+    float *uv_coords     = NULL;
     float *normal_coords = NULL;
 
     if (triangulated == 3)
     {
         // 3 face values
         fprintf(stderr, "Using 3 face values setup...\n");
-        const unsigned int number_of_f_values = attrib->num_faces / 3;
+        const unsigned int number_of_f_values  = attrib->num_faces / 3;
         const unsigned int number_of_triangles = number_of_f_values;
 
         fprintf(stderr, "number_of_f_values  : %d\n", number_of_f_values);
@@ -168,8 +168,8 @@ static void Get_Mesh_Data(const tinyobj_attrib_t *attrib, Mesh_Data **return_mes
             vert_coords[(i * 12) + 6] = attrib->vertices[f_vert_index2 * 3 + 2]; // Z
             vert_coords[(i * 12) + 7] = 1.0f;                                    // W
 
-            vert_coords[(i * 12) + 8] = attrib->vertices[f_vert_index3 * 3 + 0];  // X
-            vert_coords[(i * 12) + 9] = attrib->vertices[f_vert_index3 * 3 + 1];  // Y
+            vert_coords[(i * 12) + 8]  = attrib->vertices[f_vert_index3 * 3 + 0]; // X
+            vert_coords[(i * 12) + 9]  = attrib->vertices[f_vert_index3 * 3 + 1]; // Y
             vert_coords[(i * 12) + 10] = attrib->vertices[f_vert_index3 * 3 + 2]; // Z
             vert_coords[(i * 12) + 11] = 1.0f;                                    // W
 
@@ -202,8 +202,8 @@ static void Get_Mesh_Data(const tinyobj_attrib_t *attrib, Mesh_Data **return_mes
             normal_coords[(i * 12) + 6] = attrib->normals[f_normal_index2 * 3 + 2]; // Z
             normal_coords[(i * 12) + 7] = 0.0f;                                     // W
 
-            normal_coords[(i * 12) + 8] = attrib->normals[f_normal_index3 * 3 + 0];  // X
-            normal_coords[(i * 12) + 9] = attrib->normals[f_normal_index3 * 3 + 1];  // Y
+            normal_coords[(i * 12) + 8]  = attrib->normals[f_normal_index3 * 3 + 0]; // X
+            normal_coords[(i * 12) + 9]  = attrib->normals[f_normal_index3 * 3 + 1]; // Y
             normal_coords[(i * 12) + 10] = attrib->normals[f_normal_index3 * 3 + 2]; // Z
             normal_coords[(i * 12) + 11] = 0.0f;                                     // W
         }
@@ -211,7 +211,7 @@ static void Get_Mesh_Data(const tinyobj_attrib_t *attrib, Mesh_Data **return_mes
     else if (triangulated == 4)
     {
         fprintf(stderr, "Using 4 face values setup...\n");
-        const unsigned int number_of_f_values = attrib->num_faces / 4;
+        const unsigned int number_of_f_values  = attrib->num_faces / 4;
         const unsigned int number_of_triangles = number_of_f_values * 2;
 
         fprintf(stderr, "number_of_f_values  : %d\n", number_of_f_values);
@@ -262,8 +262,8 @@ static void Get_Mesh_Data(const tinyobj_attrib_t *attrib, Mesh_Data **return_mes
             vert_coords[(i * 24) + 6] = attrib->vertices[f_vert_index2 * 3 + 2]; // Z
             vert_coords[(i * 24) + 7] = 1.0f;                                    // W
 
-            vert_coords[(i * 24) + 8] = attrib->vertices[f_vert_index3 * 3 + 0];  // X
-            vert_coords[(i * 24) + 9] = attrib->vertices[f_vert_index3 * 3 + 1];  // Y
+            vert_coords[(i * 24) + 8]  = attrib->vertices[f_vert_index3 * 3 + 0]; // X
+            vert_coords[(i * 24) + 9]  = attrib->vertices[f_vert_index3 * 3 + 1]; // Y
             vert_coords[(i * 24) + 10] = attrib->vertices[f_vert_index3 * 3 + 2]; // Z
             vert_coords[(i * 24) + 11] = 1.0f;                                    // W
 
@@ -299,8 +299,8 @@ static void Get_Mesh_Data(const tinyobj_attrib_t *attrib, Mesh_Data **return_mes
             normal_coords[(i * 24) + 6] = attrib->normals[f_normal_index2 * 3 + 2]; // Z
             normal_coords[(i * 24) + 7] = 1.0f;                                     // W
 
-            normal_coords[(i * 24) + 8] = attrib->normals[f_normal_index3 * 3 + 0];  // X
-            normal_coords[(i * 24) + 9] = attrib->normals[f_normal_index3 * 3 + 1];  // Y
+            normal_coords[(i * 24) + 8]  = attrib->normals[f_normal_index3 * 3 + 0]; // X
+            normal_coords[(i * 24) + 9]  = attrib->normals[f_normal_index3 * 3 + 1]; // Y
             normal_coords[(i * 24) + 10] = attrib->normals[f_normal_index3 * 3 + 2]; // Z
             normal_coords[(i * 24) + 11] = 1.0f;                                     // W
 
@@ -347,7 +347,7 @@ static void Get_Mesh_Data(const tinyobj_attrib_t *attrib, Mesh_Data **return_mes
     }
 
     (*return_mesh)->vertex_coordinates = vert_coords;
-    (*return_mesh)->uv_coordinates = uv_coords;
+    (*return_mesh)->uv_coordinates     = uv_coords;
     (*return_mesh)->normal_coordinates = normal_coords;
 
     fprintf(stderr, "Vertex setup complete!\n");
@@ -355,9 +355,9 @@ static void Get_Mesh_Data(const tinyobj_attrib_t *attrib, Mesh_Data **return_mes
 
 void Get_Object_Data(const char *filename, bool print_info, Mesh_Data **output)
 {
-    tinyobj_shape_t *shape = NULL;
+    tinyobj_shape_t    *shape    = NULL;
     tinyobj_material_t *material = NULL;
-    tinyobj_attrib_t attrib;
+    tinyobj_attrib_t    attrib;
 
     size_t num_shapes;
     size_t num_materials;

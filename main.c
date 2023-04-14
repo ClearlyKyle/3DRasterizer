@@ -13,8 +13,13 @@
 #include "test_sqaure.h"
 #include "ObjLoader.h"
 
-#define SCREEN_WIDTH 1000
+#define SCREEN_WIDTH  1000
 #define SCREEN_HEIGHT 900
+
+// TODO: Remove stbi?
+// TODO: detect what files are being loaded
+// TODO: cleanup on exit
+// TODO: better data organisation
 
 int main(int argc, char *argv[])
 {
@@ -23,13 +28,13 @@ int main(int argc, char *argv[])
     SDL_Surface *window_surface = SDL_GetWindowSurface(ren.window);
 
     // WOODEN BOX
-    const char *obj_filename = "../../res/Wooden Box/wooden crate.obj";
-    //// const char *obj_filename = "../../res/Wooden Box/box_triange.obj";
+    // const char *obj_filename = "../../res/Wooden Box/wooden crate.obj";
+    // const char *obj_filename = "../../res/Wooden Box/box_triange.obj";
     // const char *tex_filename = "../../res/Wooden Box/crate_BaseColor.png";
     // const char *nrm_filename = "../../res/Wooden Box/crate_Normal.png";
 
     // DOG HOUSE
-    // const char *obj_filename = "../../res/Dog House/Doghouse.obj";
+    const char *obj_filename = "../../res/Dog House/Doghouse.obj";
     const char *tex_filename = "../../res/Dog House/Doghouse_PBR_BaseColor.png";
     const char *nrm_filename = "../../res/Dog House/Doghouse_PBR_Normal.png";
 
@@ -78,7 +83,7 @@ int main(int argc, char *argv[])
     fprintf(stderr, "Texture bbp    : %d\n", tex_bpp);
 
     // Load Normal map
-    int nrm_w, nrm_h, nrm_bpp;
+    int            nrm_w, nrm_h, nrm_bpp;
     unsigned char *normal_data = stbi_load(nrm_filename, &nrm_w, &nrm_h, &nrm_bpp, STBI_rgb);
     if (!texture_data)
     {
@@ -94,34 +99,34 @@ int main(int argc, char *argv[])
     Rendering_data ren_data;
 
     // Get window data
-    ren_data.surface = window_surface;
-    ren_data.fmt = window_surface->format;
-    ren_data.pixels = window_surface->pixels;
-    ren_data.screen_height = window_surface->h;
-    ren_data.screen_width = window_surface->w;
+    ren_data.surface           = window_surface;
+    ren_data.fmt               = window_surface->format;
+    ren_data.pixels            = window_surface->pixels;
+    ren_data.screen_height     = window_surface->h;
+    ren_data.screen_width      = window_surface->w;
     ren_data.screen_num_pixels = window_surface->h * window_surface->w;
 
     // Texture Data
     ren_data.tex_data = texture_data;
-    ren_data.tex_w = tex_w;
-    ren_data.tex_h = tex_h;
-    ren_data.tex_bpp = tex_bpp;
+    ren_data.tex_w    = tex_w;
+    ren_data.tex_h    = tex_h;
+    ren_data.tex_bpp  = tex_bpp;
 
     ren_data.nrm_data = normal_data;
-    ren_data.nrm_w = nrm_w;
-    ren_data.nrm_h = nrm_h;
-    ren_data.nrm_bpp = nrm_bpp;
+    ren_data.nrm_w    = nrm_w;
+    ren_data.nrm_h    = nrm_h;
+    ren_data.nrm_bpp  = nrm_bpp;
 
     // Normal Map
 
     // Allocate z buffer
-    float *z_buff = (float *)_aligned_malloc(sizeof(float) * ren_data.screen_num_pixels, 16);
-    ren_data.z_buffer_array = z_buff;
+    float *z_buff            = (float *)_aligned_malloc(sizeof(float) * ren_data.screen_num_pixels, 16);
+    ren_data.z_buffer_array  = z_buff;
     ren_data.max_depth_value = 10.0f;
 
     // Lights (W, Z, Y, X)
     ren_data.light_position = _mm_set_ps(0.0f, 1.0f, 4.0f, 1.0f);
-    ren_data.light_value = 0.0f;
+    ren_data.light_value    = 0.0f;
 
     // Load Mesh
     Mesh_Data *mesh;
@@ -138,18 +143,18 @@ int main(int argc, char *argv[])
     // const __m128 camera_direction = _mm_set_ps(0.0f, -1.0f, 0.0f, 0.0f);
 
     // Lights -------------------------
-    Fragment frag;
-    const float ambient_strength = 0.1f;
-    const float shininess = 64.0f;
-    const __m128 light_colour = _mm_set1_ps(1.0f);
-    frag.ambient = _mm_mul_ps(light_colour, _mm_set1_ps(ambient_strength));
+    Fragment     frag;
+    const float  ambient_strength = 0.1f;
+    const float  shininess        = 64.0f;
+    const __m128 light_colour     = _mm_set1_ps(1.0f);
+    frag.ambient                  = _mm_mul_ps(light_colour, _mm_set1_ps(ambient_strength));
 
     // Point Light
     // const PointLight point_light = Get_Point_Light(-2.0f, -2.0f, -10.0f, 1.0f, 0.045f, 0.0075f);
     const PointLight point_light = Get_Point_Light(-1.0f, 0.0f, 1.0f, 1.0f, 0.045f, 0.0075f);
 
     const __m128 object_colour = _mm_set_ps(255.0f, 000.0f, 255.0f, 255.0f);
-    frag.color = _mm_mul_ps(object_colour, frag.ambient);
+    frag.color                 = _mm_mul_ps(object_colour, frag.ambient);
 
     // Line colour for wire model drawing
     const SDL_Colour LINE_COLOUR = {255, 255, 255, 255};
@@ -159,12 +164,12 @@ int main(int argc, char *argv[])
 
     // Performance counters
     Uint64 LastCounter = SDL_GetPerformanceCounter();
-    double MSPerFrame = 0.0;
-    float fTheta = 0.0f;
-    char window_title[32];
+    double MSPerFrame  = 0.0;
+    float  fTheta      = 0.0f;
+    char   window_title[32];
 
-    ren.running = true;
-    unsigned int loop_counter = 0;
+    ren.running                         = true;
+    unsigned int loop_counter           = 0;
     unsigned int shading_switch_counter = 1;
 
     ren_data.shading = WIRE_FRAME;
@@ -207,7 +212,7 @@ int main(int argc, char *argv[])
         }
         shading_switch_counter += 1;
 
-        Mat4x4 World_Matrix = {0.0f};
+        Mat4x4 World_Matrix    = {0.0f};
         Mat4x4 Rotation_Matrix = {0.0f};
 
         fTheta += (float)MSPerFrame / 3;
@@ -233,15 +238,15 @@ int main(int argc, char *argv[])
             tri3 = Matrix_Multiply_Vector_SIMD(World_Matrix.elements, tri3);
 
             // Vector Dot Product between : Surface normal and CameraRay
-            __m128 surface_normal = Calculate_Surface_Normal_SIMD(tri1, tri2, tri3);
-            const __m128 camera_ray = _mm_sub_ps(tri1, camera_position);
+            __m128       surface_normal = Calculate_Surface_Normal_SIMD(tri1, tri2, tri3);
+            const __m128 camera_ray     = _mm_sub_ps(tri1, camera_position);
 
             // Back face culling
             // TODO : Change this to work with normals
             const float dot_product_result = Calculate_Dot_Product_SIMD(surface_normal, camera_ray);
             if (dot_product_result < 0.0f)
             {
-                surface_normal = Normalize_m128(surface_normal);
+                surface_normal                           = Normalize_m128(surface_normal);
                 const __m128 world_position_verticies[3] = {tri1, tri2, tri3};
 
                 __m128 edge1 = _mm_sub_ps(tri2, tri1);
@@ -283,8 +288,8 @@ int main(int argc, char *argv[])
                 tangent = _mm_mul_ps(_mm_set1_ps(f), tangent);
 
                 const __m128 texture_w_values = _mm_set_ps(0.0f, one_over_w1.m128_f32[0], one_over_w2.m128_f32[0], one_over_w3.m128_f32[0]);
-                texture_u = _mm_mul_ps(texture_u, texture_w_values);
-                texture_v = _mm_mul_ps(texture_v, texture_w_values);
+                texture_u                     = _mm_mul_ps(texture_u, texture_w_values);
+                texture_v                     = _mm_mul_ps(texture_v, texture_w_values);
 
                 // Perform x/w, y/w, z/w
                 tri1 = _mm_mul_ps(tri1, one_over_w1);
@@ -315,7 +320,7 @@ int main(int argc, char *argv[])
 
                 // Screen Vertex Postions
                 const __m128 screen_position_verticies[3] = {tri1, tri2, tri3};
-                const __m128 normal_coordinates[3] = {normal0, normal1, normal2};
+                const __m128 normal_coordinates[3]        = {normal0, normal1, normal2};
 
                 if (ren_data.shading == WIRE_FRAME)
                 {
@@ -338,14 +343,14 @@ int main(int argc, char *argv[])
         SDL_UpdateWindowSurface(ren.window);
 
         // End frame timing
-        const Uint64 EndCounter = SDL_GetPerformanceCounter();
+        const Uint64 EndCounter     = SDL_GetPerformanceCounter();
         const Uint64 CounterElapsed = EndCounter - LastCounter;
 
         MSPerFrame = ((double)CounterElapsed / (double)SDL_GetPerformanceFrequency());
 
         if (loop_counter == 32)
         {
-            loop_counter = 0;
+            loop_counter     = 0;
             const double FPS = (double)CounterElapsed / (double)SDL_GetPerformanceFrequency();
             snprintf(window_title, sizeof(window_title), "%.02f ms/f \t%.02f f/s\n", 1000.0 * MSPerFrame, FPS);
             SDL_SetWindowTitle(ren.window, window_title);

@@ -33,8 +33,8 @@ Renderer SDL_Startup(const char *title, unsigned int width, unsigned int height)
     }
 
     rend.running = true;
-    rend.HEIGHT = height;
-    rend.WIDTH = width;
+    rend.HEIGHT  = height;
+    rend.WIDTH   = width;
     return rend;
 }
 
@@ -66,15 +66,15 @@ static void Draw_Pixel_SDL_Colour(const Rendering_data *ren, int x, int y, const
 // http://www.edepot.com/algorithm.html
 static void Draw_Line(const Rendering_data *ren, int x, int y, int x2, int y2, const SDL_Colour *col)
 {
-    bool yLonger = false;
-    int shortLen = y2 - y;
-    int longLen = x2 - x;
+    bool yLonger  = false;
+    int  shortLen = y2 - y;
+    int  longLen  = x2 - x;
     if (abs(shortLen) > abs(longLen))
     {
         int swap = shortLen;
         shortLen = longLen;
-        longLen = swap;
-        yLonger = true;
+        longLen  = swap;
+        yLonger  = true;
     }
     int decInc;
     if (longLen == 0)
@@ -153,7 +153,7 @@ void Draw_Depth_Buffer(const Rendering_data *render_data)
                           index += 4)
         {
             __m128 depthvalues = _mm_load_ps(&pDepthBuffer[index]);
-            depthvalues = _mm_div_ps(depthvalues, max_depth);
+            depthvalues        = _mm_div_ps(depthvalues, max_depth);
             // depthvalues = _mm_min_ps(_mm_set1_ps(1.0f), depthvalues);
             depthvalues = _mm_mul_ps(depthvalues, value_255);
 
@@ -253,7 +253,7 @@ void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, 
     const __m128i C2 = _mm_sub_epi32(_mm_mullo_epi32(v0_x, v1_y), _mm_mullo_epi32(v1_x, v0_y));
 
     __m128i triArea = _mm_mullo_epi32(B2, A1);
-    triArea = _mm_sub_epi32(triArea, _mm_mullo_epi32(B1, A2));
+    triArea         = _mm_sub_epi32(triArea, _mm_mullo_epi32(B1, A2));
 
     // Skip triangle if area is zero
     if (triArea.m128i_i32[0] <= 0)
@@ -275,12 +275,12 @@ void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, 
     const __m128i colOffset = _mm_set_epi32(0, 1, 0, 1);
     const __m128i rowOffset = _mm_set_epi32(0, 0, 1, 1);
 
-    const __m128i col = _mm_add_epi32(colOffset, _mm_set1_epi32(aabb.minX));
+    const __m128i col    = _mm_add_epi32(colOffset, _mm_set1_epi32(aabb.minX));
     const __m128i aa0Col = _mm_mullo_epi32(A0, col);
     const __m128i aa1Col = _mm_mullo_epi32(A1, col);
     const __m128i aa2Col = _mm_mullo_epi32(A2, col);
 
-    __m128i row = _mm_add_epi32(rowOffset, _mm_set1_epi32(aabb.minY));
+    __m128i row    = _mm_add_epi32(rowOffset, _mm_set1_epi32(aabb.minY));
     __m128i bb0Row = _mm_add_epi32(_mm_mullo_epi32(B0, row), C0);
     __m128i bb1Row = _mm_add_epi32(_mm_mullo_epi32(B1, row), C1);
     __m128i bb2Row = _mm_add_epi32(_mm_mullo_epi32(B2, row), C2);
@@ -291,12 +291,12 @@ void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, 
 
     // Cast depth buffer to float
     float *pDepthBuffer = render->z_buffer_array;
-    int rowIdx = (aabb.minY * render->screen_width + 2 * aabb.minX);
+    int    rowIdx       = (aabb.minY * render->screen_width + 2 * aabb.minX);
 
     __m128 light_position, camera_position;
     if (render->shading == NORMAL_MAPPING)
     {
-        light_position = Matrix_Multiply_Vector_SIMD(TBN.elements, light->position);   // Tangent light position
+        light_position  = Matrix_Multiply_Vector_SIMD(TBN.elements, light->position);  // Tangent light position
         camera_position = Matrix_Multiply_Vector_SIMD(TBN.elements, _mm_setzero_ps()); // Tangent camera position
 
         world_v0 = Matrix_Multiply_Vector_SIMD(TBN.elements, world_v0);
@@ -305,7 +305,7 @@ void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, 
     }
     else
     {
-        light_position = light->position;
+        light_position  = light->position;
         camera_position = _mm_setzero_ps();
     }
 
@@ -319,16 +319,16 @@ void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, 
              sum2Row = _mm_add_epi32(sum2Row, bb2Inc))
     {
         // Barycentric coordinates at start of row
-        int index = rowIdx;
+        int     index = rowIdx;
         __m128i alpha = sum0Row;
-        __m128i beta = sum1Row;
-        __m128i gama = sum2Row;
+        __m128i beta  = sum1Row;
+        __m128i gama  = sum2Row;
 
         for (int x = aabb.minX; x < aabb.maxX; x += 2,
                  index += 4,
                  alpha = _mm_add_epi32(alpha, aa0Inc),
-                 beta = _mm_add_epi32(beta, aa1Inc),
-                 gama = _mm_add_epi32(gama, aa2Inc))
+                 beta  = _mm_add_epi32(beta, aa1Inc),
+                 gama  = _mm_add_epi32(gama, aa2Inc))
         {
             // Test Pixel inside triangle
             // __m128i mask = w0 | w1 | w2;
@@ -345,15 +345,15 @@ void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, 
 
             // Compute barycentric-interpolated depth
             __m128 depth = _mm_mul_ps(w0_area, w0);
-            depth = _mm_add_ps(depth, _mm_mul_ps(w1_area, w1));
-            depth = _mm_add_ps(depth, _mm_mul_ps(w2_area, w2));
-            depth = _mm_rcp_ps(depth);
+            depth        = _mm_add_ps(depth, _mm_mul_ps(w1_area, w1));
+            depth        = _mm_add_ps(depth, _mm_mul_ps(w2_area, w2));
+            depth        = _mm_rcp_ps(depth);
 
             //// DEPTH BUFFER
-            const __m128 previousDepthValue = _mm_load_ps(&pDepthBuffer[index]);
+            const __m128 previousDepthValue           = _mm_load_ps(&pDepthBuffer[index]);
             const __m128 are_new_depths_less_than_old = _mm_cmplt_ps(depth, previousDepthValue);
             const __m128 which_depths_should_be_drawn = _mm_and_ps(are_new_depths_less_than_old, _mm_cvtepi32_ps(mask));
-            const __m128 updated_depth_values = _mm_blendv_ps(previousDepthValue, depth, which_depths_should_be_drawn);
+            const __m128 updated_depth_values         = _mm_blendv_ps(previousDepthValue, depth, which_depths_should_be_drawn);
             _mm_store_ps(&pDepthBuffer[index], updated_depth_values);
 
             const __m128i finalMask = _mm_cvtps_epi32(which_depths_should_be_drawn);
@@ -402,14 +402,14 @@ void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, 
                         _mm_mul_ps(weight3, world_v2));
 
                     const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
-                    __m128 frag_normal = _mm_set_ps(0.0f, normal_texture[2] / 256.0f, normal_texture[1] / 256.0f, normal_texture[0] / 256.0f);
-                    frag_normal = _mm_sub_ps(_mm_mul_ps(frag_normal, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f));
-                    frag_normal = Normalize_m128(frag_normal);
+                    __m128               frag_normal    = _mm_set_ps(0.0f, normal_texture[2] / 256.0f, normal_texture[1] / 256.0f, normal_texture[0] / 256.0f);
+                    frag_normal                         = _mm_sub_ps(_mm_mul_ps(frag_normal, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f));
+                    frag_normal                         = Normalize_m128(frag_normal);
 
                     frag_colour = Calculate_Light(light->position, _mm_setzero_ps(), frag_position, frag_normal, 0.8f, 1.0f, 0.2f, 64, render->shading);
 
-                    const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
-                    const __m128 texture_colour = _mm_set_ps(1.0f, pixelOffset[2] / 256.0f, pixelOffset[1] / 256.0f, pixelOffset[0] / 256.0f);
+                    const unsigned char *pixelOffset    = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
+                    const __m128         texture_colour = _mm_set_ps(1.0f, pixelOffset[2] / 256.0f, pixelOffset[1] / 256.0f, pixelOffset[0] / 256.0f);
 
                     frag_colour = _mm_add_ps(texture_colour, frag_colour);
                 }
@@ -462,14 +462,14 @@ void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, 
                         _mm_mul_ps(weight3, world_v2));
 
                     const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
-                    __m128 frag_normal = _mm_set_ps(0.0f, normal_texture[2] / 256.0f, normal_texture[1] / 256.0f, normal_texture[0] / 256.0f);
-                    frag_normal = _mm_sub_ps(_mm_mul_ps(frag_normal, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f));
-                    frag_normal = Normalize_m128(frag_normal);
+                    __m128               frag_normal    = _mm_set_ps(0.0f, normal_texture[2] / 256.0f, normal_texture[1] / 256.0f, normal_texture[0] / 256.0f);
+                    frag_normal                         = _mm_sub_ps(_mm_mul_ps(frag_normal, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f));
+                    frag_normal                         = Normalize_m128(frag_normal);
 
                     frag_colour = Calculate_Light(light->position, _mm_setzero_ps(), frag_position, frag_normal, 0.8f, 1.0f, 0.2f, 64, render->shading);
 
-                    const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
-                    const __m128 texture_colour = _mm_set_ps(1.0f, pixelOffset[2] / 256.0f, pixelOffset[1] / 256.0f, pixelOffset[0] / 256.0f);
+                    const unsigned char *pixelOffset    = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
+                    const __m128         texture_colour = _mm_set_ps(1.0f, pixelOffset[2] / 256.0f, pixelOffset[1] / 256.0f, pixelOffset[0] / 256.0f);
 
                     frag_colour = _mm_add_ps(texture_colour, frag_colour);
                 }
@@ -522,14 +522,14 @@ void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, 
                         _mm_mul_ps(weight3, world_v2));
 
                     const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
-                    __m128 frag_normal = _mm_set_ps(0.0f, normal_texture[2] / 256.0f, normal_texture[1] / 256.0f, normal_texture[0] / 256.0f);
-                    frag_normal = _mm_sub_ps(_mm_mul_ps(frag_normal, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f));
-                    frag_normal = Normalize_m128(frag_normal);
+                    __m128               frag_normal    = _mm_set_ps(0.0f, normal_texture[2] / 256.0f, normal_texture[1] / 256.0f, normal_texture[0] / 256.0f);
+                    frag_normal                         = _mm_sub_ps(_mm_mul_ps(frag_normal, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f));
+                    frag_normal                         = Normalize_m128(frag_normal);
 
                     frag_colour = Calculate_Light(light->position, _mm_setzero_ps(), frag_position, frag_normal, 0.8f, 1.0f, 0.2f, 64, render->shading);
 
-                    const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
-                    const __m128 texture_colour = _mm_set_ps(1.0f, pixelOffset[2] / 256.0f, pixelOffset[1] / 256.0f, pixelOffset[0] / 256.0f);
+                    const unsigned char *pixelOffset    = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
+                    const __m128         texture_colour = _mm_set_ps(1.0f, pixelOffset[2] / 256.0f, pixelOffset[1] / 256.0f, pixelOffset[0] / 256.0f);
 
                     frag_colour = _mm_add_ps(texture_colour, frag_colour);
                 }
@@ -582,14 +582,14 @@ void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, 
                         _mm_mul_ps(weight3, world_v2));
 
                     const unsigned char *normal_texture = render->nrm_data + (res_v + (render->nrm_w * res_u)) * render->nrm_bpp;
-                    __m128 frag_normal = _mm_set_ps(0.0f, normal_texture[2] / 256.0f, normal_texture[1] / 256.0f, normal_texture[0] / 256.0f);
-                    frag_normal = _mm_sub_ps(_mm_mul_ps(frag_normal, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f));
-                    frag_normal = Normalize_m128(frag_normal);
+                    __m128               frag_normal    = _mm_set_ps(0.0f, normal_texture[2] / 256.0f, normal_texture[1] / 256.0f, normal_texture[0] / 256.0f);
+                    frag_normal                         = _mm_sub_ps(_mm_mul_ps(frag_normal, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f));
+                    frag_normal                         = Normalize_m128(frag_normal);
 
                     frag_colour = Calculate_Light(light->position, _mm_setzero_ps(), frag_position, frag_normal, 0.8f, 1.0f, 0.2f, 64, render->shading);
 
-                    const unsigned char *pixelOffset = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
-                    const __m128 texture_colour = _mm_set_ps(1.0f, pixelOffset[2] / 256.0f, pixelOffset[1] / 256.0f, pixelOffset[0] / 256.0f);
+                    const unsigned char *pixelOffset    = render->tex_data + (res_v + (render->tex_w * res_u)) * render->tex_bpp;
+                    const __m128         texture_colour = _mm_set_ps(1.0f, pixelOffset[2] / 256.0f, pixelOffset[1] / 256.0f, pixelOffset[0] / 256.0f);
 
                     frag_colour = _mm_add_ps(texture_colour, frag_colour);
                 }
@@ -664,7 +664,7 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
     const __m128i C2 = _mm_sub_epi32(_mm_mullo_epi32(v0_x, v1_y), _mm_mullo_epi32(v1_x, v0_y));
 
     __m128i triArea = _mm_mullo_epi32(B2, A1);
-    triArea = _mm_sub_epi32(triArea, _mm_mullo_epi32(B1, A2));
+    triArea         = _mm_sub_epi32(triArea, _mm_mullo_epi32(B1, A2));
 
     // Skip triangle if area is zero
     if (triArea.m128i_i32[0] <= 0)
@@ -686,12 +686,12 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
     const __m128i colOffset = _mm_set_epi32(0, 1, 0, 1);
     const __m128i rowOffset = _mm_set_epi32(0, 0, 1, 1);
 
-    const __m128i col = _mm_add_epi32(colOffset, _mm_set1_epi32(aabb.minX));
+    const __m128i col    = _mm_add_epi32(colOffset, _mm_set1_epi32(aabb.minX));
     const __m128i aa0Col = _mm_mullo_epi32(A0, col);
     const __m128i aa1Col = _mm_mullo_epi32(A1, col);
     const __m128i aa2Col = _mm_mullo_epi32(A2, col);
 
-    __m128i row = _mm_add_epi32(rowOffset, _mm_set1_epi32(aabb.minY));
+    __m128i row    = _mm_add_epi32(rowOffset, _mm_set1_epi32(aabb.minY));
     __m128i bb0Row = _mm_add_epi32(_mm_mullo_epi32(B0, row), C0);
     __m128i bb1Row = _mm_add_epi32(_mm_mullo_epi32(B1, row), C1);
     __m128i bb2Row = _mm_add_epi32(_mm_mullo_epi32(B2, row), C2);
@@ -702,7 +702,7 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
 
     // Cast depth buffer to float
     float *pDepthBuffer = render->z_buffer_array;
-    int rowIdx = (aabb.minY * render->screen_width + 2 * aabb.minX);
+    int    rowIdx       = (aabb.minY * render->screen_width + 2 * aabb.minX);
 
     // Rasterize
     for (int y = aabb.minY; y < aabb.maxY; y += 2,
@@ -712,16 +712,16 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
              sum2Row = _mm_add_epi32(sum2Row, bb2Inc))
     {
         // Barycentric coordinates at start of row
-        int index = rowIdx;
+        int     index = rowIdx;
         __m128i alpha = sum0Row;
-        __m128i beta = sum1Row;
-        __m128i gama = sum2Row;
+        __m128i beta  = sum1Row;
+        __m128i gama  = sum2Row;
 
         for (int x = aabb.minX; x < aabb.maxX; x += 2,
                  index += 4,
                  alpha = _mm_add_epi32(alpha, aa0Inc),
-                 beta = _mm_add_epi32(beta, aa1Inc),
-                 gama = _mm_add_epi32(gama, aa2Inc))
+                 beta  = _mm_add_epi32(beta, aa1Inc),
+                 gama  = _mm_add_epi32(gama, aa2Inc))
         {
             // Test Pixel inside triangle
             // __m128i mask = w0 | w1 | w2;
@@ -738,15 +738,15 @@ void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, cons
 
             // Compute barycentric-interpolated depth
             __m128 depth = _mm_mul_ps(w0_area, one_over_w1);
-            depth = _mm_add_ps(depth, _mm_mul_ps(w1_area, one_over_w2));
-            depth = _mm_add_ps(depth, _mm_mul_ps(w2_area, one_over_w3));
-            depth = _mm_rcp_ps(depth);
+            depth        = _mm_add_ps(depth, _mm_mul_ps(w1_area, one_over_w2));
+            depth        = _mm_add_ps(depth, _mm_mul_ps(w2_area, one_over_w3));
+            depth        = _mm_rcp_ps(depth);
 
             //// DEPTH BUFFER
-            const __m128 previousDepthValue = _mm_load_ps(&pDepthBuffer[index]);
+            const __m128 previousDepthValue           = _mm_load_ps(&pDepthBuffer[index]);
             const __m128 are_new_depths_less_than_old = _mm_cmplt_ps(depth, previousDepthValue);
             const __m128 which_depths_should_be_drawn = _mm_and_ps(are_new_depths_less_than_old, _mm_cvtepi32_ps(mask));
-            const __m128 updated_depth_values = _mm_blendv_ps(previousDepthValue, depth, which_depths_should_be_drawn);
+            const __m128 updated_depth_values         = _mm_blendv_ps(previousDepthValue, depth, which_depths_should_be_drawn);
             _mm_store_ps(&pDepthBuffer[index], updated_depth_values);
 
             const __m128i finalMask = _mm_cvtps_epi32(which_depths_should_be_drawn);

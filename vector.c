@@ -4,8 +4,8 @@ Mat4x4 Get_Translation_Matrix(float x, float y, float z)
 {
     Mat4x4 matrix = {0.0f};
 
-    matrix.elements[0] = 1.0f;
-    matrix.elements[5] = 1.0f;
+    matrix.elements[0]  = 1.0f;
+    matrix.elements[5]  = 1.0f;
     matrix.elements[10] = 1.0f;
     matrix.elements[15] = 1.0f;
     matrix.elements[12] = x;
@@ -22,10 +22,10 @@ Mat4x4 Get_Rotation_X_Matrix(float angle_rad)
 {
     Mat4x4 matrix = {0.0f};
 
-    matrix.elements[0] = 1.0f;
-    matrix.elements[5] = cosf(angle_rad);
-    matrix.elements[6] = -sinf(angle_rad);
-    matrix.elements[9] = sinf(angle_rad);
+    matrix.elements[0]  = 1.0f;
+    matrix.elements[5]  = cosf(angle_rad);
+    matrix.elements[6]  = -sinf(angle_rad);
+    matrix.elements[9]  = sinf(angle_rad);
     matrix.elements[10] = cosf(angle_rad);
     matrix.elements[15] = 1.0f;
 
@@ -36,10 +36,10 @@ Mat4x4 Get_Rotation_Y_Matrix(float angle_rad)
 {
     Mat4x4 matrix = {0.0f};
 
-    matrix.elements[0] = cosf(angle_rad);
-    matrix.elements[2] = sinf(angle_rad);
-    matrix.elements[5] = 1.0f;
-    matrix.elements[8] = -sinf(angle_rad);
+    matrix.elements[0]  = cosf(angle_rad);
+    matrix.elements[2]  = sinf(angle_rad);
+    matrix.elements[5]  = 1.0f;
+    matrix.elements[8]  = -sinf(angle_rad);
     matrix.elements[10] = cosf(angle_rad);
     matrix.elements[15] = 1.0f;
 
@@ -50,10 +50,10 @@ Mat4x4 Get_Rotation_Z_Matrix(float angle_rad)
 {
     Mat4x4 matrix = {0.0f};
 
-    matrix.elements[0] = cosf(angle_rad);
-    matrix.elements[1] = -sinf(angle_rad);
-    matrix.elements[4] = sinf(angle_rad);
-    matrix.elements[5] = cosf(angle_rad);
+    matrix.elements[0]  = cosf(angle_rad);
+    matrix.elements[1]  = -sinf(angle_rad);
+    matrix.elements[4]  = sinf(angle_rad);
+    matrix.elements[5]  = cosf(angle_rad);
     matrix.elements[10] = 1.0f;
     matrix.elements[15] = 1.0f;
 
@@ -68,24 +68,24 @@ Mat4x4 Get_View_Matrix(float angle_rad)
     // 8  9  10 11
     // 12 13 14 15
     // RIGHT
-    matrix.elements[0] = 1.0f;
-    matrix.elements[4] = 0.0f;
-    matrix.elements[8] = 0.0f;
+    matrix.elements[0]  = 1.0f;
+    matrix.elements[4]  = 0.0f;
+    matrix.elements[8]  = 0.0f;
     matrix.elements[12] = 0.0f;
 
     // UP
-    matrix.elements[1] = 0.0f;
-    matrix.elements[5] = 1.0f;
-    matrix.elements[9] = 0.0f;
+    matrix.elements[1]  = 0.0f;
+    matrix.elements[5]  = 1.0f;
+    matrix.elements[9]  = 0.0f;
     matrix.elements[13] = 0.0f;
     // FORWARD
-    matrix.elements[2] = 0.0f;
-    matrix.elements[6] = 0.0f;
+    matrix.elements[2]  = 0.0f;
+    matrix.elements[6]  = 0.0f;
     matrix.elements[10] = 1.0f;
     matrix.elements[14] = 0.0f;
     // POSITION
-    matrix.elements[3] = 0.0f;
-    matrix.elements[7] = 0.0f;
+    matrix.elements[3]  = 0.0f;
+    matrix.elements[7]  = 0.0f;
     matrix.elements[11] = 0.0f;
     matrix.elements[15] = 0.0f;
 
@@ -160,8 +160,8 @@ Mat4x4 Get_Projection_Matrix(float FOV_Degrees, float aspect_ratio, float near, 
 
     Mat4x4 matrix = {0.0f};
 
-    matrix.elements[0] = aspect_ratio * fFovRad;
-    matrix.elements[5] = fFovRad;
+    matrix.elements[0]  = aspect_ratio * fFovRad;
+    matrix.elements[5]  = fFovRad;
     matrix.elements[10] = far / (far - near);
     matrix.elements[14] = (-far * near) / (far - near);
     matrix.elements[11] = 1.0f;
@@ -188,13 +188,13 @@ void Matrix_Multiply_Vector(const float *M, const float *vec, float *output)
     __m128 brod2 = _mm_load_ps(vec);
     __m128 brod3 = _mm_load_ps(vec);
     __m128 brod4 = _mm_load_ps(vec);
-    __m128 row = _mm_add_ps(
-        _mm_add_ps(
-            _mm_mul_ps(brod1, _mm_load_ps(&M[0])),
-            _mm_mul_ps(brod2, _mm_load_ps(&M[4]))),
-        _mm_add_ps(
-            _mm_mul_ps(brod3, _mm_load_ps(&M[8])),
-            _mm_mul_ps(brod4, _mm_load_ps(&M[12]))));
+    __m128 row   = _mm_add_ps(
+          _mm_add_ps(
+              _mm_mul_ps(brod1, _mm_load_ps(&M[0])),
+              _mm_mul_ps(brod2, _mm_load_ps(&M[4]))),
+          _mm_add_ps(
+              _mm_mul_ps(brod3, _mm_load_ps(&M[8])),
+              _mm_mul_ps(brod4, _mm_load_ps(&M[12]))));
 
     _mm_store_ps(output, row);
 }
@@ -245,13 +245,13 @@ void Matrix_Multiply_Matrix(const float *A, const float *B, float *Output_Matrix
         __m128 brod2 = _mm_set1_ps(A[4 * i + 1]);
         __m128 brod3 = _mm_set1_ps(A[4 * i + 2]);
         __m128 brod4 = _mm_set1_ps(A[4 * i + 3]);
-        __m128 row = _mm_add_ps(
-            _mm_add_ps(
-                _mm_mul_ps(brod1, row1),
-                _mm_mul_ps(brod2, row2)),
-            _mm_add_ps(
-                _mm_mul_ps(brod3, row3),
-                _mm_mul_ps(brod4, row4)));
+        __m128 row   = _mm_add_ps(
+              _mm_add_ps(
+                  _mm_mul_ps(brod1, row1),
+                  _mm_mul_ps(brod2, row2)),
+              _mm_add_ps(
+                  _mm_mul_ps(brod3, row3),
+                  _mm_mul_ps(brod4, row4)));
         _mm_store_ps(&Output_Matrix[4 * i], row);
     }
 }
@@ -281,11 +281,11 @@ void Vector_Cross_Product(const float *v0, const float *v1, float *output)
     __m128 vec0 = _mm_load_ps(v0);
     __m128 vec1 = _mm_load_ps(v1);
 
-    __m128 tmp0 = _mm_shuffle_ps(vec0, vec0, _MM_SHUFFLE(3, 0, 2, 1));
-    __m128 tmp1 = _mm_shuffle_ps(vec1, vec1, _MM_SHUFFLE(3, 1, 0, 2));
-    __m128 tmp2 = _mm_mul_ps(tmp0, vec1);
-    __m128 tmp3 = _mm_mul_ps(tmp0, tmp1);
-    __m128 tmp4 = _mm_shuffle_ps(tmp2, tmp2, _MM_SHUFFLE(3, 0, 2, 1));
+    __m128 tmp0   = _mm_shuffle_ps(vec0, vec0, _MM_SHUFFLE(3, 0, 2, 1));
+    __m128 tmp1   = _mm_shuffle_ps(vec1, vec1, _MM_SHUFFLE(3, 1, 0, 2));
+    __m128 tmp2   = _mm_mul_ps(tmp0, vec1);
+    __m128 tmp3   = _mm_mul_ps(tmp0, tmp1);
+    __m128 tmp4   = _mm_shuffle_ps(tmp2, tmp2, _MM_SHUFFLE(3, 0, 2, 1));
     __m128 result = _mm_sub_ps(tmp3, tmp4);
 
     _mm_store_ps(output, result);
@@ -334,8 +334,8 @@ float hsum_ps_sse3(const __m128 v)
 {
     __m128 shuf = _mm_movehdup_ps(v); // broadcast elements 3,1 to 2,0
     __m128 sums = _mm_add_ps(v, shuf);
-    shuf = _mm_movehl_ps(shuf, sums); // high half -> low half
-    sums = _mm_add_ss(sums, shuf);
+    shuf        = _mm_movehl_ps(shuf, sums); // high half -> low half
+    sums        = _mm_add_ss(sums, shuf);
     return _mm_cvtss_f32(sums);
 }
 
@@ -355,10 +355,10 @@ float Calculate_Dot_Product_SIMD(const __m128 v1, const __m128 v2)
 
 __m128 Normalize_m128(__m128 input)
 {
-    input.m128_f32[3] = 0.0f;
+    input.m128_f32[3]    = 0.0f;
     const __m128 squared = _mm_mul_ps(input, input); // square the input values
 
-    const float sqr_sum = hsum_ps_sse3(squared);
+    const float  sqr_sum      = hsum_ps_sse3(squared);
     const __m128 tmp_inv_sqrt = _mm_invsqrt_ps(_mm_set1_ps(sqr_sum));
 
     return _mm_mul_ps(input, tmp_inv_sqrt);
@@ -379,7 +379,7 @@ Mat4x4 Get_TBN_Matrix(__m128 Tangent, __m128 Normal, const Mat4x4 ViewModelMatri
     // Tangent = Normalize_m128(_mm_sub_ps(Tangent, magic_tangent));
 
     Tangent = Matrix_Multiply_Vector_SIMD(ViewModelMatrix.elements, Tangent);
-    Normal = Matrix_Multiply_Vector_SIMD(ViewModelMatrix.elements, Normal);
+    Normal  = Matrix_Multiply_Vector_SIMD(ViewModelMatrix.elements, Normal);
 
     //__m128 Bitangent = Vector_Cross_Product_SIMD(Tangent, Normal);
     __m128 Bitangent = Vector_Cross_Product_SIMD(Normal, Tangent);
@@ -393,8 +393,8 @@ Mat4x4 Get_TBN_Matrix(__m128 Tangent, __m128 Normal, const Mat4x4 ViewModelMatri
     _mm_store_ps(&TBN.elements[8], Normal);
     _mm_store_ps(&TBN.elements[12], Zeros);
 
-    TBN.elements[3] = 0.0f;
-    TBN.elements[7] = 0.0f;
+    TBN.elements[3]  = 0.0f;
+    TBN.elements[7]  = 0.0f;
     TBN.elements[11] = 0.0f;
     TBN.elements[15] = 1.0f;
 

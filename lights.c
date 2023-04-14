@@ -6,11 +6,11 @@ PointLight Get_Point_Light(float x, float y, float z,
 {
     PointLight p = {0};
 
-    p.position = _mm_set_ps(0.0f, z, y, x);
-    p.constant_attenuation = constant_atten;
-    p.linear_attenuation = linear_atten;
+    p.position              = _mm_set_ps(0.0f, z, y, x);
+    p.constant_attenuation  = constant_atten;
+    p.linear_attenuation    = linear_atten;
     p.quadradic_attenuation = quad_atten;
-    p.colour = _mm_set1_ps(1.0f);
+    p.colour                = _mm_set1_ps(1.0f);
     // p.colour = _mm_set_ps(1.0f, 0.0f, 1.0f, 0.0f);
 
     return p;
@@ -24,7 +24,7 @@ __m128 Reflect_m128(const __m128 I, __m128 N)
     N = Normalize_m128(N);
 
     __m128 righ = _mm_mul_ps(_mm_set1_ps(Calculate_Dot_Product_SIMD(N, I)), N);
-    righ = _mm_mul_ps(righ, _mm_set1_ps(2.0f));
+    righ        = _mm_mul_ps(righ, _mm_set1_ps(2.0f));
 
     return _mm_sub_ps(I, righ);
 }
@@ -39,12 +39,12 @@ __m128 Calculate_Light(const __m128 light_position, const __m128 camera_position
     //                                          pl.linear_attenuation * distance_to_light +
     //                                          pl.quadradic_attenuation * distance_to_light * distance_to_light);
 
-    const __m128 view_direction = Normalize_m128(_mm_sub_ps(camera_position, frag_position));
+    const __m128 view_direction  = Normalize_m128(_mm_sub_ps(camera_position, frag_position));
     const __m128 light_direction = Normalize_m128(_mm_sub_ps(light_position, frag_position));
 
-    const __m128 diffuse = Get_Diffuse_Amount(light_direction, frag_position, normal);
+    const __m128 diffuse  = Get_Diffuse_Amount(light_direction, frag_position, normal);
     const __m128 specular = Get_Specular_Amount(view_direction, light_direction, normal, 0.2, 64, mode);
-    const __m128 ambient = _mm_set1_ps(ambient_strength);
+    const __m128 ambient  = _mm_set1_ps(ambient_strength);
 
     const __m128 colour = _mm_mul_ps(Clamp_m128(_mm_add_ps(_mm_add_ps(ambient, diffuse), specular), 0.0f, 1.0f), _mm_set1_ps(255.0f));
 
@@ -68,13 +68,13 @@ __m128 Get_Specular_Amount(const __m128 view_direction, const __m128 light_direc
     if (shading == BLIN_PHONG)
     {
         const __m128 half_way_direction = Normalize_m128(_mm_add_ps(light_direction, view_direction));
-        spec = (float)(pow(fmax(Calculate_Dot_Product_SIMD(normal, half_way_direction), 0.0), power_value) * strength);
+        spec                            = (float)(pow(fmax(Calculate_Dot_Product_SIMD(normal, half_way_direction), 0.0), power_value) * strength);
     }
     else
     {
         const __m128 neg_light_direction = _mm_mul_ps(light_direction, _mm_set1_ps(-1.0f));
-        const __m128 reflect_direction = Reflect_m128(neg_light_direction, normal);
-        spec = (float)(pow(fmax(Calculate_Dot_Product_SIMD(view_direction, reflect_direction), 0.0), power_value) * strength);
+        const __m128 reflect_direction   = Reflect_m128(neg_light_direction, normal);
+        spec                             = (float)(pow(fmax(Calculate_Dot_Product_SIMD(view_direction, reflect_direction), 0.0), power_value) * strength);
     }
 
     const __m128 specular = _mm_set_ps(1.0f, spec, spec, spec);

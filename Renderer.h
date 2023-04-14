@@ -12,43 +12,43 @@ typedef struct Renderer_s
 {
     unsigned int WIDTH;
     unsigned int HEIGHT;
-    bool running;
+    bool         running;
 
-    SDL_Window *window;
+    SDL_Window   *window;
     SDL_Renderer *renderer;
 } Renderer;
 
 typedef struct Rendering_data_s
 {
-    SDL_Surface *surface;
+    SDL_Surface     *surface;
     SDL_PixelFormat *fmt;
-    unsigned int *pixels;
-    unsigned int screen_width;
-    unsigned int screen_height;
-    unsigned int screen_num_pixels;
+    unsigned int    *pixels;
+    unsigned int     screen_width;
+    unsigned int     screen_height;
+    unsigned int     screen_num_pixels;
 
-    float max_depth_value;
+    float  max_depth_value;
     float *z_buffer_array;
 
     unsigned char *tex_data;
-    unsigned int tex_w;
-    unsigned int tex_h;
-    unsigned int tex_bpp;
+    unsigned int   tex_w;
+    unsigned int   tex_h;
+    unsigned int   tex_bpp;
 
     unsigned char *nrm_data;
-    unsigned int nrm_w;
-    unsigned int nrm_h;
-    unsigned int nrm_bpp;
+    unsigned int   nrm_w;
+    unsigned int   nrm_h;
+    unsigned int   nrm_bpp;
 
     __m128 light_position;
-    float light_value;
+    float  light_value;
 
     Shading_Mode shading;
 
 } Rendering_data;
 
 Renderer SDL_Startup(const char *title, unsigned int width, unsigned int height);
-void SDL_CleanUp(Renderer *renderer);
+void     SDL_CleanUp(Renderer *renderer);
 
 void Draw_Triangle_Outline(const Rendering_data *ren, const __m128 *verticies, const SDL_Colour *col);
 
