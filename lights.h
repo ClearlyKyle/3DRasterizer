@@ -16,37 +16,52 @@ typedef enum
     SHADING_COUNT
 } Shading_Mode;
 
-typedef struct Fragment_s
-{
-    __m128 world_traingle[3];
-    __m128 surface_normal;
-    __m128 ambient, color, diffuse, specular;
-
-    unsigned int pixel_x;
-    unsigned int pixel_y;
-    unsigned int pixel_z;
-
-} Fragment;
-
-typedef struct PointLight_s
+typedef struct Light_s
 {
     __m128 position;
-    __m128 colour;
+    __m128 ambient_colour;
+    __m128 diffuse_colour;
+    __m128 specular_colour;
+} Light;
 
-    float constant_attenuation;
-    float linear_attenuation;
-    float quadradic_attenuation;
-} PointLight;
+// PHONG or GOURAND shading
+__m128 Light_Calculate_Shading(const Shading_Mode mode, const __m128 position, const __m128 normal, const __m128 camera_position, const Light *light);
 
-PointLight Get_Point_Light(float x, float y, float z, float constant_atten, float linear_atten, float quad_atten);
+// typedef struct Fragment_s
+//{
+//     __m128 world_traingle[3];
+//     __m128 surface_normal;
+//     __m128 ambient, color, diffuse, specular;
 
-__m128 Reflect_m128(const __m128 I, const __m128 N);
+//    unsigned int pixel_x;
+//    unsigned int pixel_y;
+//    unsigned int pixel_z;
 
-__m128 Calculate_Light(const __m128 light_position, const __m128 camera_position, const __m128 frag_position, const __m128 normal,
-                       const float ambient_strength, const float diffuse_strength, const float specular_strength, const double specular_power, const Shading_Mode mode);
+//} Fragment;
 
-__m128 Get_Diffuse_Amount(const __m128 light_direction, const __m128 contact_position, const __m128 normal);
+// typedef struct PointLight_s
+//{
+//     __m128 position;
+//     __m128 colour;
 
-__m128 Get_Specular_Amount(const __m128 view_direction, const __m128 light_direction, const __m128 normal, const double strength, const double power_value, const Shading_Mode shading);
+//    float constant_attenuation;
+//    float linear_attenuation;
+//    float quadradic_attenuation;
+//} PointLight;
+
+// PointLight Get_Point_Light(float x, float y, float z,
+//                            float constant_atten, float linear_atten, float quad_atten)
+//{
+//     PointLight p = {0};
+
+//    p.position              = _mm_set_ps(0.0f, z, y, x);
+//    p.constant_attenuation  = constant_atten;
+//    p.linear_attenuation    = linear_atten;
+//    p.quadradic_attenuation = quad_atten;
+//    p.colour                = _mm_set1_ps(1.0f);
+//    // p.colour = _mm_set_ps(1.0f, 0.0f, 1.0f, 0.0f);
+
+//    return p;
+//}
 
 #endif // __LIGHTS_H__

@@ -2,9 +2,6 @@
 #include <stdlib.h>
 #include <float.h>
 
-#define STB_IMAGE_IMPLEMENTATION
-#include "libs/stb_image.h"
-
 #include "SDL2/SDL.h"
 
 #include "lights.h"
@@ -12,6 +9,7 @@
 #include "vector.h"
 #include "test_sqaure.h"
 #include "ObjLoader.h"
+#include "textures.h"
 
 #define SCREEN_WIDTH  1000
 #define SCREEN_HEIGHT 900
@@ -20,6 +18,9 @@
 // TODO: detect what files are being loaded
 // TODO: cleanup on exit
 // TODO: better data organisation
+// TODO: Improve object loading and setting object data
+// TODO: Lighting settings and values
+// TODO: Better matrix multiplication
 
 int main(int argc, char *argv[])
 {
@@ -28,15 +29,18 @@ int main(int argc, char *argv[])
     SDL_Surface *window_surface = SDL_GetWindowSurface(ren.window);
 
     // WOODEN BOX
-    // const char *obj_filename = "../../res/Wooden Box/wooden crate.obj";
+    const char *obj_filename = "../../res/Wooden Box/wooden crate.obj";
     // const char *obj_filename = "../../res/Wooden Box/box_triange.obj";
-    // const char *tex_filename = "../../res/Wooden Box/crate_BaseColor.png";
-    // const char *nrm_filename = "../../res/Wooden Box/crate_Normal.png";
+    const char *tex_filename = "../../res/Wooden Box/crate_BaseColor.png";
+    const char *nrm_filename = "../../res/Wooden Box/crate_Normal.png";
+
+    // TEAPOT
+    // const char *obj_filename = "../../res/Teapot/teapot2.obj";
 
     // DOG HOUSE
-    const char *obj_filename = "../../res/Dog House/Doghouse.obj";
-    const char *tex_filename = "../../res/Dog House/Doghouse_PBR_BaseColor.png";
-    const char *nrm_filename = "../../res/Dog House/Doghouse_PBR_Normal.png";
+    // const char *obj_filename = "../../res/Dog House/Doghouse.obj";
+    // const char *tex_filename = "../../res/Dog House/Doghouse_PBR_BaseColor.png";
+    // const char *nrm_filename = "../../res/Dog House/Doghouse_PBR_Normal.png";
 
     // CRATE
     // const char *obj_filename = "../../res/Crate/cube_triang.obj";
@@ -120,13 +124,10 @@ int main(int argc, char *argv[])
     // Normal Map
 
     // Allocate z buffer
-    float *z_buff            = (float *)_aligned_malloc(sizeof(float) * ren_data.screen_num_pixels, 16);
+    float *z_buff = (float *)_aligned_malloc(sizeof(float) * ren_data.screen_num_pixels, 16);
+    assert(z_buff);
     ren_data.z_buffer_array  = z_buff;
     ren_data.max_depth_value = 10.0f;
-
-    // Lights (W, Z, Y, X)
-    ren_data.light_position = _mm_set_ps(0.0f, 1.0f, 4.0f, 1.0f);
-    ren_data.light_value    = 0.0f;
 
     // Load Mesh
     Mesh_Data *mesh;
@@ -136,43 +137,34 @@ int main(int argc, char *argv[])
     const Mat4x4 Projection_matrix = Get_Projection_Matrix(90.0f, (float)ren.HEIGHT / (float)ren.WIDTH, 0.1f, 1000.0f);
 
     // Translation Matrix : Move the object in 3D space X Y Z
-    const Mat4x4 Translation_matrix = Get_Translation_Matrix(0.0f, 0.5f, 3.5f);
+    const Mat4x4 Translation_matrix = Get_Translation_Matrix(0.0f, 2.0f, 4.5f);
 
     // Camera
     const __m128 camera_position = _mm_set_ps(0.0f, 0.0f, 0.0f, 0.0f);
-    // const __m128 camera_direction = _mm_set_ps(0.0f, -1.0f, 0.0f, 0.0f);
 
-    // Lights -------------------------
-    Fragment     frag;
-    const float  ambient_strength = 0.1f;
-    const float  shininess        = 64.0f;
-    const __m128 light_colour     = _mm_set1_ps(1.0f);
-    frag.ambient                  = _mm_mul_ps(light_colour, _mm_set1_ps(ambient_strength));
-
-    // Point Light
-    // const PointLight point_light = Get_Point_Light(-2.0f, -2.0f, -10.0f, 1.0f, 0.045f, 0.0075f);
-    const PointLight point_light = Get_Point_Light(-1.0f, 0.0f, 1.0f, 1.0f, 0.045f, 0.0075f);
-
-    const __m128 object_colour = _mm_set_ps(255.0f, 000.0f, 255.0f, 255.0f);
-    frag.color                 = _mm_mul_ps(object_colour, frag.ambient);
-
-    // Line colour for wire model drawing
-    const SDL_Colour LINE_COLOUR = {255, 255, 255, 255};
+    // Lights
+    const Light light = {
+        //                            A,    B,    G,    R
+        .ambient_colour  = _mm_set_ps(1.0f, 0.0f, 0.0f, 1.0f),
+        .diffuse_colour  = _mm_set_ps(1.0f, 0.0f, 1.0f, 0.0f), // first value is index stored at index 3
+        .specular_colour = _mm_set_ps(1.0f, 1.0f, 0.0f, 0.0f),
+        .position        = _mm_set_ps(0.0f, 1.0f, 0.0f, -1.0f),
+    };
 
     const float x_adjustment = 0.5f * (float)ren.WIDTH;
     const float y_adjustment = 0.5f * (float)ren.HEIGHT;
 
     // Performance counters
-    Uint64 LastCounter = SDL_GetPerformanceCounter();
-    double MSPerFrame  = 0.0;
-    float  fTheta      = 0.0f;
-    char   window_title[32];
+    Uint64 LastCounter      = SDL_GetPerformanceCounter();
+    double MSPerFrame       = 0.0;
+    float  fTheta           = 0.0f;
+    char   window_title[32] = {0};
 
     ren.running                         = true;
     unsigned int loop_counter           = 0;
     unsigned int shading_switch_counter = 1;
 
-    ren_data.shading = WIRE_FRAME;
+    // ren_data.shading = WIRE_FRAME;
 
     while (ren.running)
     {
@@ -200,23 +192,24 @@ int main(int argc, char *argv[])
         }
 
         // Automated Switching Shading mode
-        if (shading_switch_counter % 2000 == 0)
-        {
-            shading_switch_counter = 0;
-            ren_data.shading++;
+        // if (shading_switch_counter % 1000 == 0)
+        //{
+        //    printf("Switching render mode : %d\n", ren_data.shading);
 
-            if (ren_data.shading == SHADING_COUNT)
-            {
-                ren_data.shading = WIRE_FRAME;
-            }
-        }
-        shading_switch_counter += 1;
+        //    shading_switch_counter = 0;
+        //    ren_data.shading++;
+
+        //    if (ren_data.shading == SHADING_COUNT)
+        //    {
+        //        ren_data.shading = WIRE_FRAME;
+        //    }
+        //}
+        // shading_switch_counter += 1;
 
         Mat4x4 World_Matrix    = {0.0f};
         Mat4x4 Rotation_Matrix = {0.0f};
 
         fTheta += (float)MSPerFrame / 3;
-        // fTheta += 0.0f;
 
         const Mat4x4 matRotZ = Get_Rotation_Z_Matrix((float)DEG_to_RAD(180)); // Rotation Z
         const Mat4x4 matRotY = Get_Rotation_Y_Matrix(fTheta);                 // Rotation Y
@@ -242,7 +235,6 @@ int main(int argc, char *argv[])
             const __m128 camera_ray     = _mm_sub_ps(tri1, camera_position);
 
             // Back face culling
-            // TODO : Change this to work with normals
             const float dot_product_result = Calculate_Dot_Product_SIMD(surface_normal, camera_ray);
             if (dot_product_result < 0.0f)
             {
@@ -259,11 +251,11 @@ int main(int argc, char *argv[])
                 tri3 = Matrix_Multiply_Vector_SIMD(Projection_matrix.elements, tri3);
 
                 // Setup texture coordinates
-                const __m128 one_over_w1 = _mm_div_ps(_mm_set1_ps(1.0f), _mm_shuffle_ps(tri1, tri1, _MM_SHUFFLE(3, 3, 3, 3)));
-                const __m128 one_over_w2 = _mm_div_ps(_mm_set1_ps(1.0f), _mm_shuffle_ps(tri2, tri2, _MM_SHUFFLE(3, 3, 3, 3)));
-                const __m128 one_over_w3 = _mm_div_ps(_mm_set1_ps(1.0f), _mm_shuffle_ps(tri3, tri3, _MM_SHUFFLE(3, 3, 3, 3)));
+                const float one_over_w1 = 1.0f / tri1.m128_f32[3];
+                const float one_over_w2 = 1.0f / tri2.m128_f32[3];
+                const float one_over_w3 = 1.0f / tri3.m128_f32[3];
 
-                const __m128 w_values[3] = {one_over_w1, one_over_w2, one_over_w3};
+                const float w_values[3] = {one_over_w1, one_over_w2, one_over_w3};
 
                 // tex coordinates are read in like : u u u...
                 // uv[0], uv[1], uv[2]
@@ -287,14 +279,14 @@ int main(int argc, char *argv[])
                     _mm_mul_ps(_mm_set1_ps(deltaUV1_y), edge2));
                 tangent = _mm_mul_ps(_mm_set1_ps(f), tangent);
 
-                const __m128 texture_w_values = _mm_set_ps(0.0f, one_over_w1.m128_f32[0], one_over_w2.m128_f32[0], one_over_w3.m128_f32[0]);
+                const __m128 texture_w_values = _mm_set_ps(0.0f, w_values[0], w_values[1], w_values[2]);
                 texture_u                     = _mm_mul_ps(texture_u, texture_w_values);
                 texture_v                     = _mm_mul_ps(texture_v, texture_w_values);
 
                 // Perform x/w, y/w, z/w
-                tri1 = _mm_mul_ps(tri1, one_over_w1);
-                tri2 = _mm_mul_ps(tri2, one_over_w2);
-                tri3 = _mm_mul_ps(tri3, one_over_w3);
+                tri1 = _mm_mul_ps(tri1, _mm_set1_ps(one_over_w1));
+                tri2 = _mm_mul_ps(tri2, _mm_set1_ps(one_over_w2));
+                tri3 = _mm_mul_ps(tri3, _mm_set1_ps(one_over_w3));
 
                 // Sacle Into View
                 tri1 = _mm_add_ps(tri1, _mm_set_ps(0.0f, 0.0f, 1.0f, 1.0f));
@@ -311,7 +303,7 @@ int main(int argc, char *argv[])
                 __m128 normal1 = _mm_load_ps(&mesh->normal_coordinates[i * 12 + 4]);
                 __m128 normal2 = _mm_load_ps(&mesh->normal_coordinates[i * 12 + 8]);
 
-                const Mat4x4 TBN = Get_TBN_Matrix(tangent, normal0, World_Matrix);
+                // const Mat4x4 TBN = Get_TBN_Matrix(tangent, normal0, World_Matrix);
 
                 // Rotation only as we do not change scale or scew
                 normal0 = Matrix_Multiply_Vector_SIMD(Rotation_Matrix.elements, normal0);
@@ -322,18 +314,20 @@ int main(int argc, char *argv[])
                 const __m128 screen_position_verticies[3] = {tri1, tri2, tri3};
                 const __m128 normal_coordinates[3]        = {normal0, normal1, normal2};
 
-                if (ren_data.shading == WIRE_FRAME)
-                {
-                    Draw_Triangle_Outline(&ren_data, screen_position_verticies, &LINE_COLOUR);
-                }
-                else if (ren_data.shading >= BLIN_PHONG)
-                {
-                    Flat_Shading(&ren_data, screen_position_verticies, world_position_verticies, w_values, normal_coordinates, surface_normal, &point_light, ren_data.shading);
-                }
-                else
-                {
-                    Textured_Shading(&ren_data, screen_position_verticies, world_position_verticies, w_values, normal_coordinates, texture_u, texture_v, surface_normal, &point_light, TBN);
-                }
+                Flat_Shading(&ren_data, screen_position_verticies, world_position_verticies, w_values, normal_coordinates, camera_position, &light);
+
+                // if (ren_data.shading == WIRE_FRAME)
+                //{
+                //     Draw_Triangle_Outline(&ren_data, screen_position_verticies, &WIRE_FRAME_LINE_COLOUR);
+                // }
+                //  else if (ren_data.shading >= BLIN_PHONG)
+                //{
+                //      Flat_Shading(&ren_data, screen_position_verticies, world_position_verticies, w_values, normal_coordinates, surface_normal, &point_light, ren_data.shading);
+                //  }
+                //  else
+                //{
+                //      Textured_Shading(&ren_data, screen_position_verticies, world_position_verticies, w_values, normal_coordinates, texture_u, texture_v, surface_normal, &point_light, TBN);
+                //  }
             }
         }
 

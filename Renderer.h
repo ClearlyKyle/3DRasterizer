@@ -17,6 +17,8 @@ typedef struct Renderer_s
     SDL_Window *window;
 } Renderer;
 
+// App state and make it global
+// Add camera position
 typedef struct Rendering_data_s
 {
     SDL_Surface     *surface;
@@ -42,9 +44,12 @@ typedef struct Rendering_data_s
     __m128 light_position;
     float  light_value;
 
-    Shading_Mode shading;
+    // Shading_Mode shading;
 
 } Rendering_data;
+
+// TODO: Just make this global
+// extern Renderer ren;
 
 Renderer SDL_Startup(const char *title, unsigned int width, unsigned int height);
 void     SDL_CleanUp(Renderer *renderer);
@@ -53,11 +58,10 @@ void Draw_Triangle_Outline(const Rendering_data *ren, const __m128 *verticies, c
 
 void Draw_Depth_Buffer(const Rendering_data *render_data);
 
-void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, const __m128 *world_space,
-                      const __m128 *w_values, const __m128 *normal_values, const __m128 texture_u, const __m128 texture_v,
-                      const __m128 surface_normal, const PointLight *light, const Mat4x4 TBN);
+// void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, const __m128 *world_space,
+//                       const __m128 *w_values, const __m128 *normal_values, const __m128 texture_u, const __m128 texture_v,
+//                       const __m128 surface_normal, const PointLight *light, const Mat4x4 TBN);
 
-void Flat_Shading(const Rendering_data *render, const __m128 *screen_space, const __m128 *world_space, const __m128 *w_values, const __m128 *normal_values,
-                  const __m128 surface_normal, const PointLight *light, const Shading_Mode shading);
+void Flat_Shading(const Rendering_data *render, const __m128 *screen_space_verticies, const __m128 *world_space_verticies, const float *w_values, const __m128 *normal_values, const __m128 camera_positon, const Light *light);
 
 #endif // __RENDERER_H__
