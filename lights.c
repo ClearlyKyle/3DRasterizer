@@ -44,7 +44,6 @@ __m128 Get_Specular_Amount(const __m128 view_direction, const __m128 light_direc
 /**
  * Calculates the shading for a given point on a surface based on the lighting information.
  *
- * @param mode             The shading mode to use (GOURAND, PHONG)
  * @param position         The position of the point on the surface (GOURAND uses world position of the triangle verticies, while PHONG uses the pixel position)
  * @param normal           The normal vector of the surface at the point
  * @param camera_position  The position of the camera viewing the surface
@@ -52,7 +51,7 @@ __m128 Get_Specular_Amount(const __m128 view_direction, const __m128 light_direc
  *
  * @return An __m128 vector containing the RGB values of the shading at the point, with values between 0 and 255.
  */
-__m128 Light_Calculate_Shading(const Shading_Mode mode, const __m128 position, const __m128 normal, const Light *light)
+__m128 Light_Calculate_Shading(const __m128 position, const __m128 normal, const Light *light)
 {
     // Normalise the Noraml
     const __m128 N = Normalize_m128(normal);
@@ -61,7 +60,7 @@ __m128 Light_Calculate_Shading(const Shading_Mode mode, const __m128 position, c
     const __m128 L = Normalize_m128(_mm_sub_ps(light->position, position));
 
     // Calculate E - view direction
-    const __m128 E = Normalize_m128(_mm_sub_ps(gloabal_app.camera_position, position));
+    const __m128 E = Normalize_m128(_mm_sub_ps(global_app.camera_position, position));
 
     // Calculate R - the reflection vector
     const __m128 R = Reflect_m128(L, N);
