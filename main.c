@@ -247,8 +247,8 @@ int main(int argc, char *argv[])
         {
             loop_counter               = 0;
             const double frame_time_ms = Timer_Get_Elapsed_MS(&looptimer);
-            char         buff[16]      = {0};
-            sprintf_s(buff, 16, "%.02f ms/f\n", frame_time_ms);
+            char         buff[32]      = {0};
+            sprintf_s(buff, 32, "%.02f ms/f %s\n", frame_time_ms, Shading_Mode_Str[global_app.shading_mode]);
             SDL_SetWindowTitle(global_renderer.window, buff);
         }
         loop_counter++;

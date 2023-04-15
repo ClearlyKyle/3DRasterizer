@@ -16,6 +16,17 @@ typedef enum
     SHADING_COUNT
 } Shading_Mode;
 
+static const char *Shading_Mode_Str[SHADING_COUNT] = {
+    "WIRE_FRAME",
+    "FLAT",
+    "GOURAND",
+    "PHONG",
+    "BLIN_PHONG",
+    "TEXTURED",
+    "TEXTURED_PHONG",
+    "NORMAL_MAPPING",
+};
+
 typedef struct Light_s
 {
     __m128 position;
@@ -24,7 +35,6 @@ typedef struct Light_s
     __m128 specular_colour;
 } Light;
 
-// PHONG or GOURAND shading
 __m128 Light_Calculate_Shading(const __m128 position, const __m128 normal, const Light *light);
 
 #endif // __LIGHTS_H__
