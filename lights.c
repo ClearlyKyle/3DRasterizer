@@ -10,35 +10,59 @@ static __m128 Reflect_m128(const __m128 I, const __m128 N)
     return _mm_sub_ps(I, scaledN);                                             // Subtract scaledN from I to get reflected vector
 }
 
-static __m128 Calculate_Diffuse_Amount(const __m128 light_direction, const __m128 contact_position, const __m128 normal)
+/**
+ * Calculates the diffuse component of the lighting equation for a given light direction, and surface normal
+ *
+ * @param L             The direction of the light source
+ * @param N             The surface normal at the point on the surface where the light is being calculated
+ *
+ * @return An __m128 vector containing the diffuse amount, with values between 0 and 1.0f, the first component
+ *          is set to 1.0f to represent the alpha value, and the remaining three components are set to the diffuse amount
+ */
+static __m128 Calculate_Diffuse_Amount(const __m128 L, const __m128 N)
 {
-    const float dot_product = Calculate_Dot_Product_SIMD(normal, light_direction);
-    const float calc_max    = fmaxf(dot_product, 0.0f);
+    const float dot_product = Calculate_Dot_Product_SIMD(N, L);
 
     const float diffuse_amount = (const float)fmax(dot_product, 0.0);
 
     return _mm_set_ps(1.0f, diffuse_amount, diffuse_amount, diffuse_amount);
 }
 
-__m128 Get_Specular_Amount(const __m128 view_direction, const __m128 light_direction, const __m128 normal, const double strength, const double power_value, const Shading_Mode shading)
+/**
+ * Calculates the specular amount for a given light and view direction, surface normal, and shininess factor.
+ *
+ * @param L             Light direction
+ * @param E             View direction
+ * @param N             Surface normal
+ * @param shininess     A material property that determines the size and concentration of the specular highlight on a surface
+ *                      1.0f (low shininess, wide specular highlight) to 1000.0f or higher (high shininess, sharp specular highlight)
+ *
+ * @return An __m128 vector containing the specular power, with values between 0 and 1.0f,
+ *          the first component set to 1 (representing the alpha value)
+ */
+static __m128 Calculate_Specular_Amount(const __m128 L, const __m128 E, const __m128 N, const float shininess)
 {
-    float spec = 0.0f;
+    float specular_power = 0.0f;
 
-    if (shading == BLIN_PHONG)
+    if (global_app.shading_mode == BLIN_PHONG)
     {
-        const __m128 half_way_direction = Normalize_m128(_mm_add_ps(light_direction, view_direction));
-        spec                            = (float)(pow(fmax(Calculate_Dot_Product_SIMD(normal, half_way_direction), 0.0), power_value) * strength);
+        // Calculate the Halfway vector (H) between the light source direction (L) and the view direction (E)
+        const __m128 H = Normalize_m128(_mm_add_ps(L, E));
+
+        // Calculate the specular component using the dot product of the surface normal (N) and the halfway vector (H)
+        const float dot_product = Calculate_Dot_Product_SIMD(N, H);
+        specular_power          = powf(fmaxf(dot_product, 0.0), shininess);
     }
     else
     {
-        const __m128 neg_light_direction = _mm_mul_ps(light_direction, _mm_set1_ps(-1.0f));
-        const __m128 reflect_direction   = Reflect_m128(neg_light_direction, normal);
-        spec                             = (float)(pow(fmax(Calculate_Dot_Product_SIMD(view_direction, reflect_direction), 0.0), power_value) * strength);
+        // Calculate R - the reflection vector
+        const __m128 R = Reflect_m128(L, N);
+
+        const float dot_product = Calculate_Dot_Product_SIMD(R, E);
+        specular_power          = powf(fmaxf(dot_product, 0.0), shininess);
     }
 
-    const __m128 specular = _mm_set_ps(1.0f, spec, spec, spec);
-
-    return specular;
+    return _mm_set_ps(1.0f, specular_power, specular_power, specular_power);
 }
 
 /**
@@ -62,25 +86,16 @@ __m128 Light_Calculate_Shading(const __m128 position, const __m128 normal, const
     // Calculate E - view direction
     const __m128 E = Normalize_m128(_mm_sub_ps(global_app.camera_position, position));
 
-    // Calculate R - the reflection vector
-    const __m128 R = Reflect_m128(L, N);
-
     // Calculate Ambient Term:
     const __m128 Iamb = light->ambient_colour;
 
     // Calculate Diffuse Term:
-    const __m128 diffuse_amount = Calculate_Diffuse_Amount(L, position, N);
+    const __m128 diffuse_amount = Calculate_Diffuse_Amount(L, N);
     const __m128 Idiff          = _mm_mul_ps(light->diffuse_colour, diffuse_amount); // Might need to set the Alpha here
 
     // Calculate Specular Term:
-    // const float specular_strength = 0.2f;
-    const float shininess = 32.0f;
-
-    const float  dot_product     = Calculate_Dot_Product_SIMD(R, E);
-    const float  specular_power  = powf(fmaxf(dot_product, 0.0), shininess);
-    const __m128 specular_amount = _mm_set_ps(1.0f, specular_power, specular_power, specular_power);
-
-    const __m128 Ispec = _mm_mul_ps(light->specular_colour, specular_amount);
+    const float  shininess = 32.0f;
+    const __m128 Ispec     = Calculate_Specular_Amount(L, E, N, shininess);
 
     // const __m128 colour = _mm_add_ps(_mm_add_ps(Iamb, Idiff), Ispec);
     const __m128 colour = _mm_mul_ps(Clamp_m128(_mm_add_ps(_mm_add_ps(Iamb, Idiff), Ispec), 0.0f, 1.0f), _mm_set1_ps(255.0f));
