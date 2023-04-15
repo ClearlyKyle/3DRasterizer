@@ -18,6 +18,7 @@ set(RESTER_SOURCE
     "textures.c"
     "AABB.h"
     "ObjLoader.h"
+    "timer.h"
 )
 
 add_executable(${CMAKE_PROJECT_NAME} ${RESTER_SOURCE})
