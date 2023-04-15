@@ -12,7 +12,6 @@
 
 // TODO: detect what files are being loaded
 // TODO: cleanup on exit checking
-// TODO: Timer
 // TODO: set render mode
 // TODO: Improve object loading and setting object data
 // TODO: Better matrix multiplication
@@ -63,12 +62,12 @@ int main(int argc, char *argv[])
     // const char *obj_filename = "../../res/Cone/Cone.obj";
 
     // Load texture data
-    Texture tex     = Texture_Load(tex_filename);
-    gloabal_app.tex = tex;
+    Texture tex    = Texture_Load(tex_filename);
+    global_app.tex = tex;
 
     // Load Normal map
-    Texture nrm     = Texture_Load(nrm_filename);
-    gloabal_app.nrm = nrm;
+    Texture nrm    = Texture_Load(nrm_filename);
+    global_app.nrm = nrm;
 
     // Load Mesh
     Mesh_Data *mesh;
@@ -78,10 +77,10 @@ int main(int argc, char *argv[])
     const Mat4x4 Projection_matrix = Get_Projection_Matrix(90.0f, (float)global_renderer.height / (float)global_renderer.width, 0.1f, 1000.0f);
 
     // Translation Matrix : Move the object in 3D space X Y Z
-    const Mat4x4 Translation_matrix = Get_Translation_Matrix(0.0f, 2.0f, 4.0f);
+    const Mat4x4 Translation_matrix = Get_Translation_Matrix(0.0f, 0.5f, 3.5f);
 
     // Camera
-    gloabal_app.camera_position = _mm_set_ps(0.0f, 0.0f, 0.0f, 0.0f);
+    global_app.camera_position = _mm_set_ps(0.0f, 0.0f, 0.0f, 0.0f);
 
     // Lights
     const Light light = {
@@ -99,6 +98,8 @@ int main(int argc, char *argv[])
     struct timer looptimer    = Timer_Init_Start();
     unsigned int loop_counter = 0;
     float        fTheta       = 0.0f; // used for rotation animation
+
+    global_app.shading_mode = TEXTURED;
 
     while (global_renderer.running)
     {
@@ -123,9 +124,8 @@ int main(int argc, char *argv[])
         Mat4x4 World_Matrix    = {0.0f};
         Mat4x4 Rotation_Matrix = {0.0f};
 
-        // fTheta += (float)Timer_Get_Elapsed_MS(&looptimer) / 3;
-        // printf("theta : %f\n", fTheta);
-        fTheta = 0.0f;
+        fTheta += (float)Timer_Get_Elapsed_Seconds(&looptimer) / 4;
+        // fTheta = 0.0f;
 
         const Mat4x4 matRotZ = Get_Rotation_Z_Matrix((float)DEG_to_RAD(180)); // Rotation Z
         const Mat4x4 matRotY = Get_Rotation_Y_Matrix(fTheta);                 // Rotation Y
@@ -148,7 +148,7 @@ int main(int argc, char *argv[])
 
             // Vector Dot Product between : Surface normal and CameraRay
             __m128       surface_normal = Calculate_Surface_Normal_SIMD(tri1, tri2, tri3);
-            const __m128 camera_ray     = _mm_sub_ps(tri1, gloabal_app.camera_position);
+            const __m128 camera_ray     = _mm_sub_ps(tri1, global_app.camera_position);
 
             // Back face culling
             const float dot_product_result = Calculate_Dot_Product_SIMD(surface_normal, camera_ray);
@@ -157,10 +157,12 @@ int main(int argc, char *argv[])
                 surface_normal                           = Normalize_m128(surface_normal);
                 const __m128 world_position_verticies[3] = {tri1, tri2, tri3};
 
-                __m128 edge1 = _mm_sub_ps(tri2, tri1);
-                __m128 edge2 = _mm_sub_ps(tri3, tri1);
+                __m128 edge1      = _mm_sub_ps(tri2, tri1);
+                __m128 edge2      = _mm_sub_ps(tri3, tri1);
+                edge1.m128_f32[3] = 0.0f;
+                edge2.m128_f32[3] = 0.0f;
 
-                // 3D -> 2D
+                // 3D -> 2D (Projected space)
                 // Matrix Projected * Viewed Vertex = projected Vertex
                 tri1 = Matrix_Multiply_Vector_SIMD(Projection_matrix.elements, tri1);
                 tri2 = Matrix_Multiply_Vector_SIMD(Projection_matrix.elements, tri2);
@@ -179,9 +181,6 @@ int main(int argc, char *argv[])
                 __m128 texture_u = _mm_set_ps(0.0f, mesh->uv_coordinates[6 * i + 1], mesh->uv_coordinates[6 * i + 3], mesh->uv_coordinates[6 * i + 5]);
 
                 // NORMAL Mapping
-                edge1.m128_f32[3] = 0.0f;
-                edge2.m128_f32[3] = 0.0f;
-
                 const float deltaUV1_x = mesh->uv_coordinates[6 * i + 3] - mesh->uv_coordinates[6 * i + 1];
                 const float deltaUV1_y = mesh->uv_coordinates[6 * i + 2] - mesh->uv_coordinates[6 * i + 0];
 
@@ -219,7 +218,7 @@ int main(int argc, char *argv[])
                 __m128 normal1 = _mm_load_ps(&mesh->normal_coordinates[i * 12 + 4]);
                 __m128 normal2 = _mm_load_ps(&mesh->normal_coordinates[i * 12 + 8]);
 
-                // const Mat4x4 TBN = Get_TBN_Matrix(tangent, normal0, World_Matrix);
+                const Mat4x4 TBN = Get_TBN_Matrix(tangent, normal0, World_Matrix);
 
                 // Rotation only as we do not change scale or scew
                 normal0 = Matrix_Multiply_Vector_SIMD(Rotation_Matrix.elements, normal0);
@@ -230,20 +229,12 @@ int main(int argc, char *argv[])
                 const __m128 screen_position_verticies[3] = {tri1, tri2, tri3};
                 const __m128 normal_coordinates[3]        = {normal0, normal1, normal2};
 
-                Flat_Shading(screen_position_verticies, world_position_verticies, w_values, normal_coordinates, &light);
-
-                // if (ren_data.shading == WIRE_FRAME)
-                //{
-                //     Draw_Triangle_Outline(&ren_data, screen_position_verticies, &WIRE_FRAME_LINE_COLOUR);
-                // }
-                //  else if (ren_data.shading >= BLIN_PHONG)
-                //{
-                //      Flat_Shading(&ren_data, screen_position_verticies, world_position_verticies, w_values, normal_coordinates, surface_normal, &point_light, ren_data.shading);
-                //  }
-                //  else
-                //{
-                //      Textured_Shading(&ren_data, screen_position_verticies, world_position_verticies, w_values, normal_coordinates, texture_u, texture_v, surface_normal, &point_light, TBN);
-                //  }
+                if (global_app.shading_mode == WIRE_FRAME)
+                    Draw_Triangle_Outline(screen_position_verticies, (SDL_Color){255, 255, 255, 255});
+                else if (global_app.shading_mode < TEXTURED)
+                    Flat_Shading(screen_position_verticies, world_position_verticies, w_values, normal_coordinates, &light);
+                else
+                    Textured_Shading(screen_position_verticies, world_position_verticies, w_values, normal_coordinates, texture_u, texture_v, surface_normal, TBN, &light);
             }
         }
 

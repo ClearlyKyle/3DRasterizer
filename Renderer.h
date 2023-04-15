@@ -38,12 +38,12 @@ typedef struct AppState_s
     __m128 camera_position;
 
     // Shading_Mode shading;
-
+    Shading_Mode shading_mode;
 } AppState;
 
 // TODO: Just make this global
 extern Renderer global_renderer;
-extern AppState gloabal_app;
+extern AppState global_app;
 
 void Reneder_Startup(const char *title, const int width, const int height);
 void Renderer_Destroy(void);
@@ -68,12 +68,11 @@ inline void Renderer_Clear_Screen_Pixels(void)
 }
 
 void Draw_Depth_Buffer(void);
-void Draw_Triangle_Outline(const __m128 *verticies, const SDL_Colour *col);
+void Draw_Triangle_Outline(const __m128 *verticies, const SDL_Colour col);
 
 void Flat_Shading(const __m128 *screen_space_verticies, const __m128 *world_space_verticies, const float *w_values, const __m128 *normal_values, const Light *light);
 
-// void Textured_Shading(const Rendering_data *render, const __m128 *screen_space, const __m128 *world_space,
-//                       const __m128 *w_values, const __m128 *normal_values, const __m128 texture_u, const __m128 texture_v,
-//                       const __m128 surface_normal, const PointLight *light, const Mat4x4 TBN);
+void Textured_Shading(const __m128 *screen_space_verticies, const __m128 *world_space_verticies, const float *w_values, const __m128 *normal_values,
+                      const __m128 texture_u, const __m128 texture_v, const __m128 surface_normal, const Mat4x4 TBN, const Light *light);
 
 #endif // __RENDERER_H__
