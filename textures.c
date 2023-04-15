@@ -10,7 +10,7 @@ Texture Texture_Load(const char *file_path)
     // textures oriented tha same as you view them in paint
     stbi_set_flip_vertically_on_load(1);
 
-    unsigned char *data = stbi_load(file_path, &t.w, &t.h, &t.bpp, STBI_rgb);
+    unsigned char *data = stbi_load(file_path, &t.w, &t.h, &t.bpp, 0);
     if (!data)
     {
         fprintf(stderr, "Loading image : %s\n", stbi_failure_reason());
