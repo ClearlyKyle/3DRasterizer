@@ -4,6 +4,11 @@ project(main)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 
+if(MSVC)
+    # Set warning level to 4
+    add_compile_options(/W4)
+endif()
+
 find_package(SDL2 CONFIG REQUIRED)
 
 set(RESTER_SOURCE
