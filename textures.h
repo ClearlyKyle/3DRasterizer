@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 typedef struct Texture_s
 {
@@ -10,7 +11,7 @@ typedef struct Texture_s
     unsigned char *data;
 } Texture;
 
-Texture Texture_Load(const char *file_path);
+Texture Texture_Load(const char *file_path, bool alpha);
 
 inline void Texture_Print_Info(const Texture t)
 {
