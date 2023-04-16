@@ -18,6 +18,14 @@ typedef struct
 
 typedef struct
 {
+    // 0  1  2
+    // 3  4  5
+    // 6  7  8
+    float elements[9];
+} Mat3x3;
+
+typedef struct
+{
     // 4 3 2 1
     __m128 rows[4];
 } Mat4x4_m128;
@@ -52,6 +60,8 @@ Mat4x4_m128 Get_Rotation_Y_Matrix_m128(float angle_rad);
 Mat4x4_m128 Get_Rotation_Z_Matrix_m128(float angle_rad);
 Mat4x4_m128 Get_Projection_Matrix_m128(float FOV_Degrees, float aspect_ratio, float near, float far);
 
+Mat4x4 CreateViewMatrix(const float cameraPosition[3]);
+
 void   Matrix_Multiply_Vector(const float *M, const float *vec, float *output);
 __m128 Matrix_Multiply_Vector_m128(const Mat4x4_m128 *M, const __m128 vec);
 __m128 Matrix_Multiply_Vector_SIMD(const float *M, const __m128 vec);
@@ -67,8 +77,33 @@ __m128 Calculate_Surface_Normal_SIMD(const __m128 v1, const __m128 v2, const __m
 float  Calculate_Dot_Product_SIMD(const __m128 v1, const __m128 v2);
 
 __m128 Normalize_m128(const __m128 intput);
-__m128 Clamp_m128(const __m128 vec, float minval, float maxval);
+__m128 Clamp_m128(const __m128 vec, const float minval, const float maxval);
 float  hsum_ps_sse3(const __m128 v);
 Mat4x4 Get_TBN_Matrix(__m128 Tangent, const __m128 Normal, const Mat4x4 ViewModelMatrix);
+
+Mat3x3 Mat4x4_to_Mat3x3(const Mat4x4 m);
+
+Mat3x3 Inverse_Transpose_Mat4x4_to_Mat3x3(const Mat4x4 worldMatrix);
+Mat3x3 Create_TBN(const __m128 Tangent, const __m128 Normal);
+Mat3x3 TransposeMat3x3(const Mat3x3 matrix);
+
+Mat4x4 TransposeMat4x4(Mat4x4 *mat);
+Mat4x4 InverseMat4x4(Mat4x4 *mat);
+
+static __m128 Mat3x3_mul_m128(const Mat3x3 m, const __m128 v)
+{
+    float arr_v[4] = {0};
+    _mm_storeu_ps(arr_v, v);
+
+    __m128 result = _mm_setzero_ps();
+    for (int i = 0; i < 3; i++)
+    {
+        __m128 row = _mm_loadu_ps(m.elements + 3 * i);
+        __m128 val = _mm_set1_ps(arr_v[i]);
+        result     = _mm_add_ps(result, _mm_mul_ps(row, val));
+    }
+
+    return result;
+}
 
 #endif // __VECTOR_H__
