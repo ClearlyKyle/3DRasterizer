@@ -2,12 +2,17 @@
 
 #include "Renderer.h"
 
-static __m128 Reflect_m128(const __m128 I, const __m128 N)
+static inline __m128 Reflect_m128(const __m128 I, const __m128 N)
 {
     // https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/reflect.xhtml
-    __m128 dotProduct = _mm_dp_ps(I, N, 0x7f);                                 // Compute dot product of I and N
-    __m128 scaledN    = _mm_mul_ps(N, _mm_mul_ps(dotProduct, _mm_set1_ps(2))); // Scale N by 2 * dotProduct
-    return _mm_sub_ps(I, scaledN);                                             // Subtract scaledN from I to get reflected vector
+    __m128 dotProduct = _mm_dp_ps(I, N, 0x7f);                                    // Compute dot product of I and N
+    __m128 scaledN    = _mm_mul_ps(N, _mm_mul_ps(dotProduct, _mm_set1_ps(2.0f))); // Scale N by 2 * dotProduct
+    return _mm_sub_ps(I, scaledN);                                                // Subtract scaledN from I to get reflected vector
+}
+
+static inline __m128 negate_m128(const __m128 m)
+{
+    return _mm_mul_ps(m, _mm_set1_ps(-1.0f));
 }
 
 /**
@@ -25,7 +30,7 @@ static __m128 Calculate_Diffuse_Amount(const __m128 L, const __m128 N)
 
     const float diffuse_amount = (const float)fmax(dot_product, 0.0);
 
-    return _mm_set_ps(1.0f, diffuse_amount, diffuse_amount, diffuse_amount);
+    return _mm_set1_ps(diffuse_amount);
 }
 
 /**
@@ -43,6 +48,7 @@ static __m128 Calculate_Diffuse_Amount(const __m128 L, const __m128 N)
 static __m128 Calculate_Specular_Amount(const __m128 L, const __m128 E, const __m128 N, const float shininess)
 {
     float specular_power = 0.0f;
+    float dot_product    = 0.0f;
 
     if (global_app.shading_mode == BLIN_PHONG)
     {
@@ -50,23 +56,23 @@ static __m128 Calculate_Specular_Amount(const __m128 L, const __m128 E, const __
         const __m128 H = Normalize_m128(_mm_add_ps(L, E));
 
         // Calculate the specular component using the dot product of the surface normal (N) and the halfway vector (H)
-        const float dot_product = Calculate_Dot_Product_SIMD(N, H);
-        specular_power          = powf(fmaxf(dot_product, 0.0), shininess);
+        dot_product = Calculate_Dot_Product_SIMD(N, H);
     }
     else
     {
         // Calculate R - the reflection vector
-        const __m128 R = Reflect_m128(L, N);
+        const __m128 R = Normalize_m128(negate_m128(Reflect_m128(L, N)));
 
-        const float dot_product = Calculate_Dot_Product_SIMD(R, E);
-        specular_power          = powf(fmaxf(dot_product, 0.0), shininess);
+        dot_product = Calculate_Dot_Product_SIMD(R, E);
     }
 
-    return _mm_set_ps(1.0f, specular_power, specular_power, specular_power);
+    specular_power = powf(fmaxf(dot_product, 0.0f), shininess);
+    return _mm_set1_ps(specular_power);
 }
 
 /**
  * Calculates the shading for a given point on a surface based on the lighting information.
+ * We pass the camera and light position seperatly due to Normal Mapping changing these values
  *
  * @param position         The position of the point on the surface (GOURAND uses world position of the triangle verticies, while PHONG uses the pixel position)
  * @param normal           The normal vector of the surface at the point
@@ -75,16 +81,19 @@ static __m128 Calculate_Specular_Amount(const __m128 L, const __m128 E, const __
  *
  * @return An __m128 vector containing the RGB values of the shading at the point, with values between 0 and 255.
  */
-__m128 Light_Calculate_Shading(const __m128 position, const __m128 normal, const Light *light)
+__m128 Light_Calculate_Shading(const __m128 position, const __m128 normal, const __m128 camera_position, const __m128 light_position, const Light *light)
 {
     // Normalise the Noraml
+    // const __m128 N = normal;
     const __m128 N = Normalize_m128(normal);
-
+    //
     // Calculate L - direction to the light source
-    const __m128 L = Normalize_m128(_mm_sub_ps(light->position, position));
+    // const __m128 L = _mm_sub_ps(light_position, position);
+    const __m128 L = Normalize_m128(_mm_sub_ps(light_position, position));
 
     // Calculate E - view direction
-    const __m128 E = Normalize_m128(_mm_sub_ps(global_app.camera_position, position));
+    // const __m128 E = _mm_sub_ps(camera_position, position);
+    const __m128 E = Normalize_m128(_mm_sub_ps(camera_position, position));
 
     // Calculate Ambient Term:
     const __m128 Iamb = light->ambient_colour;
@@ -94,10 +103,11 @@ __m128 Light_Calculate_Shading(const __m128 position, const __m128 normal, const
     const __m128 Idiff          = _mm_mul_ps(light->diffuse_colour, diffuse_amount); // Might need to set the Alpha here
 
     // Calculate Specular Term:
-    const float  shininess = 32.0f;
-    const __m128 Ispec     = Calculate_Specular_Amount(L, E, N, shininess);
+    const float  shininess       = 32.0f;
+    const __m128 specular_amount = Calculate_Specular_Amount(L, E, N, shininess);
+    const __m128 Ispec           = _mm_mul_ps(light->specular_colour, specular_amount);
 
-    // const __m128 colour = _mm_add_ps(_mm_add_ps(Iamb, Idiff), Ispec);
-    const __m128 colour = _mm_mul_ps(Clamp_m128(_mm_add_ps(_mm_add_ps(Iamb, Idiff), Ispec), 0.0f, 1.0f), _mm_set1_ps(255.0f));
-    return colour;
+    const __m128 lighting_amount = Clamp_m128(_mm_add_ps(_mm_add_ps(Iamb, Idiff), Ispec), 0.0f, 1.0f);
+
+    return lighting_amount;
 }

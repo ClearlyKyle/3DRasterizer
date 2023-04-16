@@ -35,6 +35,6 @@ typedef struct Light_s
     __m128 specular_colour;
 } Light;
 
-__m128 Light_Calculate_Shading(const __m128 position, const __m128 normal, const Light *light);
+__m128 Light_Calculate_Shading(const __m128 position, const __m128 normal, const __m128 camera_position, const __m128 light_position, const Light *light);
 
 #endif // __LIGHTS_H__
