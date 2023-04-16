@@ -5,6 +5,9 @@ AppState global_app      = {0}; // TODO: Rename this
 
 void Reneder_Startup(const char *title, const int width, const int height)
 {
+    memset((void *)&global_renderer, 0, sizeof(Renderer));
+    memset((void *)&global_app, 0, sizeof(AppState));
+
     if (SDL_Init(SDL_INIT_VIDEO) != 0)
     {
         fprintf(stderr, "Could not SDL_Init(SDL_INIT_VIDEO): %s\n", SDL_GetError());
@@ -61,6 +64,7 @@ void Renderer_Destroy(void)
     {
         SDL_FreeSurface(global_renderer.surface);
         global_renderer.surface = NULL;
+        global_renderer.pixels  = NULL;
     }
 
     if (global_renderer.pixels)
@@ -71,16 +75,24 @@ void Renderer_Destroy(void)
 
     if (global_renderer.z_buffer_array)
     {
-        free(global_renderer.z_buffer_array);
+        _aligned_free(global_renderer.z_buffer_array);
         global_renderer.z_buffer_array = NULL;
     }
 
     SDL_Quit();
+
+    fprintf(stderr, "Renderer has been destroyed\n");
 }
 
 static inline void Draw_Pixel_RGBA(const int x, const int y, const uint8_t red, const uint8_t green, const uint8_t blue, const uint8_t alpha)
 {
+    // if (x < 0 || y < 0 || x >= global_renderer.width || y >= global_renderer.height)
+    //     return;
+
     const int index = y * global_renderer.width + x;
+
+    // if (index > global_renderer.screen_num_pixels)
+    //     return;
 
     global_renderer.pixels[index] = (Uint32)((alpha << 24) + (red << 16) + (green << 8) + (blue << 0));
 }
@@ -194,22 +206,73 @@ void Draw_Depth_Buffer(void)
     }
 }
 
-static __m128 _Get_Normal_From_Normal_Map(const int res_v, const int res_u)
+/**
+ * Calculates the color value of a pixel using Gourand shading.
+ * The color value is determined by blending the colors of the surrounding vertices
+ * based on their weights, which are calculated using barycentric coordinates.
+ *
+ * @param weights: the barycentric coordinates of the current fragment with respect to the triangle vertices
+ * @param colours: colour at each vertex
+ *
+ * @return: the final colour of the fragment using the Gourand shading model
+ */
+static inline __m128 _Gourand_Shading_Get_Colour(const __m128 weights[3], const __m128 colours[3])
+{
+    return _mm_add_ps(
+        _mm_add_ps(
+            _mm_mul_ps(weights[0], colours[0]),
+            _mm_mul_ps(weights[1], colours[1])),
+        _mm_mul_ps(weights[2], colours[2]));
+}
+
+/**
+ * Calculate the final colour of the current fragment using Phong shading model. Phong shading, a normal vector is linearly
+ * interpolated across the surface of the polygon from the polygon's vertex normals
+ *
+ * @param weights: the barycentric coordinates of the current fragment with respect to the triangle vertices
+ * @param world_space_coords: the world space coordinates of the triangle vertices
+ * @param normals: the surface normals at the triangle vertices
+ * @param light: a pointer to the light object used in the shading calculation
+ *
+ * @return: the final colour of the fragment using the Phong shading model
+ */
+static inline __m128 _Phong_Shading_Get_Colour(const __m128 weights[3], const __m128 world_space_coords[3], const __m128 normals[3], const Light *light)
+{
+    const __m128 frag_position = _mm_add_ps(
+        _mm_add_ps(
+            _mm_mul_ps(weights[0], world_space_coords[0]),
+            _mm_mul_ps(weights[1], world_space_coords[1])),
+        _mm_mul_ps(weights[2], world_space_coords[2]));
+
+    // Calculate the normal vector of the surface at the point, interpolating the surface normals at the vertices of the triangle
+    const __m128 frag_normal = _mm_add_ps(
+        _mm_add_ps(
+            _mm_mul_ps(weights[0], normals[0]),
+            _mm_mul_ps(weights[1], normals[1])),
+        _mm_mul_ps(weights[2], normals[2]));
+
+    // We should combine the lighting colour value and the interpolated vertex colours here...
+
+    const __m128 shading_colour = Light_Calculate_Shading(frag_position, frag_normal, global_app.camera_position, light->position, light);
+
+    return shading_colour;
+}
+
+static inline __m128 _Get_Normal_From_Normal_Map(const int res_v, const int res_u)
 {
     const Texture normal_map = global_app.nrm;
 
-    // Calculate the texture coordinate in the texture image
-    // Possible point of error!
-    const int tex_x = (int)(res_u);
-    const int tex_y = (int)(res_v);
-
-    // Find the index of the pixel data in the texture data array
-    const int index = (tex_y * normal_map.w + tex_x) * normal_map.bpp;
+    // Calculate the texture index in the normal map
+    const unsigned int index = (res_u * normal_map.w + res_v) * normal_map.bpp;
 
     const unsigned char *normal_colour_data = normal_map.data + index;
 
-    __m128 frag_normal = _mm_set_ps(0.0f, normal_colour_data[2] / 256.0f, normal_colour_data[1] / 256.0f, normal_colour_data[0] / 256.0f);
-    frag_normal        = _mm_sub_ps(_mm_mul_ps(frag_normal, _mm_set1_ps(2.0f)), _mm_set1_ps(1.0f));
+    // Convert the RGB 0-255 values, to coordinates
+    const float r = ((normal_colour_data[0] / 255.0f) * 2.0f) - 1.0f; // x
+    const float g = ((normal_colour_data[1] / 255.0f) * 2.0f) - 1.0f; // y
+    const float b = ((normal_colour_data[2] / 255.0f) * 2.0f) - 1.0f; // z
+
+    __m128 frag_normal = _mm_set_ps(0.0f, b, g, r);
     frag_normal        = Normalize_m128(frag_normal);
 
     return frag_normal;
@@ -219,19 +282,16 @@ static inline __m128 _Get_Colour_From_Diffuse_Texture(const int res_v, const int
 {
     const Texture texture = global_app.tex;
 
-    if (res_v <= 0 || res_u <= 0 || res_u >= texture.w || res_v >= texture.h)
-        return _mm_set1_ps(1.0f);
-
     // Calculate the texture index in the texture image
-    const int index = (res_u * texture.w + res_v) * texture.bpp;
+    const unsigned int index = (res_u * texture.w + res_v) * texture.bpp;
 
     const unsigned char *pixel_data = texture.data + index;
 
-    return _mm_set_ps(1.0f, pixel_data[2] / 256.0f, pixel_data[1] / 256.0f, pixel_data[0] / 256.0f);
+    return _mm_set_ps(255.0f, pixel_data[2], pixel_data[1], pixel_data[0]);
 }
 
 void Textured_Shading(const __m128 *screen_space_verticies, const __m128 *world_space_verticies, const float *w_values, const __m128 *normal_values,
-                      const __m128 texture_u, const __m128 texture_v, const __m128 surface_normal, const Mat4x4 TBN, const Light *light)
+                      const __m128 texture_u, const __m128 texture_v, const Mat3x3 TBN, const Light *light)
 {
     // Unpack Vertex data
     const __m128 v0 = screen_space_verticies[2];
@@ -242,16 +302,35 @@ void Textured_Shading(const __m128 *screen_space_verticies, const __m128 *world_
     __m128 world_v1 = world_space_verticies[1];
     __m128 world_v2 = world_space_verticies[0];
 
-    __m128 colours[3] = {0};
-    if (global_app.shading_mode == GOURAND) // We interpolate the colours in the "Vertex Shader"
+    __m128 colours[3]      = {0};
+    __m128 light_position  = light->position;
+    __m128 camera_position = global_app.camera_position;
+
+    if (global_app.shading_mode == NORMAL_MAPPING)
     {
-        colours[0] = Light_Calculate_Shading(world_v0, normal_values[0], light);
-        colours[1] = Light_Calculate_Shading(world_v1, normal_values[1], light);
-        colours[2] = Light_Calculate_Shading(world_v2, normal_values[2], light);
-    }
-    else if (global_app.shading_mode == FLAT)
-    {
-        colours[0] = _mm_set_ps(255.f, 000.0f, 000.0f, 128.0f);
+        /*
+        Instead of sending the inverse of the TBN matrix to the "fragment shader",
+        we send a tangent-space light position, camera position, and vertex position to the fragment shader.
+        This saves us from having to do matrix multiplications in the fragment shader.
+
+       TangentLightPos = TBN * light_position;
+       TangentViewPos  = TBN * camera_position;
+       TangentFragPos  = TBN * vec3(model * vec4(vert_pos, 1.0));
+       */
+        // Camera and light doesnt move, so we could move this out of here...
+        // light_position  = Matrix_Multiply_Vector_SIMD(TBN.elements, light->position);            // Tangent light position
+        // camera_position = Matrix_Multiply_Vector_SIMD(TBN.elements, global_app.camera_position); // Tangent camera position
+
+        // world_v0 = Matrix_Multiply_Vector_SIMD(TBN.elements, world_v0);
+        // world_v1 = Matrix_Multiply_Vector_SIMD(TBN.elements, world_v1);
+        // world_v2 = Matrix_Multiply_Vector_SIMD(TBN.elements, world_v2);
+
+        light_position  = Mat3x3_mul_m128(TBN, light->position);            // Tangent light position
+        camera_position = Mat3x3_mul_m128(TBN, global_app.camera_position); // Tangent camera position
+
+        world_v0 = Mat3x3_mul_m128(TBN, world_v0);
+        world_v1 = Mat3x3_mul_m128(TBN, world_v1);
+        world_v2 = Mat3x3_mul_m128(TBN, world_v2);
     }
 
     // used when checking if w0,w1,w2 is greater than 0;
@@ -324,22 +403,6 @@ void Textured_Shading(const __m128 *screen_space_verticies, const __m128 *world_
     float *pDepthBuffer = global_renderer.z_buffer_array;
     int    rowIdx       = (aabb.minY * global_renderer.width + 2 * aabb.minX);
 
-    __m128 light_position, camera_position;
-    if (global_app.shading_mode == NORMAL_MAPPING)
-    {
-        light_position  = Matrix_Multiply_Vector_SIMD(TBN.elements, light->position);            // Tangent light position
-        camera_position = Matrix_Multiply_Vector_SIMD(TBN.elements, global_app.camera_position); // Tangent camera position
-
-        world_v0 = Matrix_Multiply_Vector_SIMD(TBN.elements, world_v0);
-        world_v1 = Matrix_Multiply_Vector_SIMD(TBN.elements, world_v1);
-        world_v2 = Matrix_Multiply_Vector_SIMD(TBN.elements, world_v2);
-    }
-    else
-    {
-        light_position  = light->position;
-        camera_position = global_app.camera_position;
-    }
-
     const __m128 one_over_w1 = _mm_set1_ps(w_values[2]);
     const __m128 one_over_w2 = _mm_set1_ps(w_values[1]);
     const __m128 one_over_w3 = _mm_set1_ps(w_values[0]);
@@ -363,6 +426,8 @@ void Textured_Shading(const __m128 *screen_space_verticies, const __m128 *world_
                  beta  = _mm_add_epi32(beta, aa1Inc),
                  gama  = _mm_add_epi32(gama, aa2Inc))
         {
+            // "FRAGMENT SHADER"
+
             // Test Pixel inside triangle
             // __m128i mask = w0 | w1 | w2;
             // we compare < 0.0f, so we get all the values 0.0f and above, -1 values are "true"
@@ -408,22 +473,25 @@ void Textured_Shading(const __m128 *screen_space_verticies, const __m128 *world_
                 const int res_u = (int)hsum_ps_sse3(u);
                 const int res_v = (int)hsum_ps_sse3(v);
 
-                __m128 frag_colour;
+                __m128 frag_colour = {0};
                 if (global_app.shading_mode == TEXTURED)
                 {
                     frag_colour = _Get_Colour_From_Diffuse_Texture(res_v, res_u);
                 }
                 else if (global_app.shading_mode == TEXTURED_PHONG)
                 {
-                    const __m128 weight1 = _mm_set1_ps(w0_area.m128_f32[pixel_index]);
-                    const __m128 weight2 = _mm_set1_ps(w1_area.m128_f32[pixel_index]);
-                    const __m128 weight3 = _mm_set1_ps(w2_area.m128_f32[pixel_index]);
+                    const __m128 all_weights[3] = {
+                        _mm_set1_ps(w2_area.m128_f32[pixel_index]),
+                        _mm_set1_ps(w1_area.m128_f32[pixel_index]),
+                        _mm_set1_ps(w0_area.m128_f32[pixel_index]),
+                    };
+                    // Calculate lighting
+                    const __m128 lighting_contribution = _Phong_Shading_Get_Colour(all_weights, world_space_verticies, normal_values, light);
 
-                    frag_colour = _mm_add_ps(
-                        _mm_add_ps(
-                            _mm_mul_ps(weight1, colours[0]),
-                            _mm_mul_ps(weight2, colours[1])),
-                        _mm_mul_ps(weight3, colours[2]));
+                    // Combine the lighting and texture colour together
+                    const __m128 diff_colour = _Get_Colour_From_Diffuse_Texture(res_v, res_u);
+
+                    frag_colour = _mm_mul_ps(diff_colour, lighting_contribution);
                 }
                 else if (global_app.shading_mode == NORMAL_MAPPING)
                 {
@@ -437,19 +505,22 @@ void Textured_Shading(const __m128 *screen_space_verticies, const __m128 *world_
                             _mm_mul_ps(weight2, world_v1)),
                         _mm_mul_ps(weight3, world_v2));
 
-                    const __m128 frag_normal = _Get_Normal_From_Normal_Map(res_u, res_v);
-                    const __m128 diff_colour = _Get_Colour_From_Diffuse_Texture(res_u, res_v);
+                    const __m128 frag_normal = _Get_Normal_From_Normal_Map(res_v, res_u);
 
-                    frag_colour = Light_Calculate_Shading(frag_position, frag_normal, light);
-                    frag_colour = _mm_add_ps(diff_colour, frag_colour);
+                    // Calculate lighting
+                    const __m128 lighting_contribution = Light_Calculate_Shading(frag_position, frag_normal, camera_position, light_position, light);
+
+                    // Combine the lighting and texture colour together
+                    const __m128 diff_colour = _Get_Colour_From_Diffuse_Texture(res_v, res_u);
+
+                    // frag_colour = _mm_mul_ps(_mm_set1_ps(1.0f), lighting_contribution);
+                    frag_colour = _mm_mul_ps(diff_colour, lighting_contribution);
                 }
 
-                const unsigned char *pixelOffset = global_app.tex.data + (res_v + (global_app.tex.w * res_u)) * global_app.tex.bpp;
-
-                const uint8_t red = (uint8_t)(pixelOffset[0]);
-                const uint8_t gre = (uint8_t)(pixelOffset[1]);
-                const uint8_t blu = (uint8_t)(pixelOffset[2]);
-                const uint8_t alp = (uint8_t)(255);
+                const uint8_t red = (uint8_t)frag_colour.m128_f32[0];
+                const uint8_t gre = (uint8_t)frag_colour.m128_f32[1];
+                const uint8_t blu = (uint8_t)frag_colour.m128_f32[2];
+                const uint8_t alp = (uint8_t)255;
 
                 // Not sure if I like this
                 if (pixel_index == 3) // index 3
@@ -468,58 +539,6 @@ void Textured_Shading(const __m128 *screen_space_verticies, const __m128 *world_
     }
 }
 
-/**
- * Calculates the color value of a pixel using Gourand shading.
- * The color value is determined by blending the colors of the surrounding vertices
- * based on their weights, which are calculated using barycentric coordinates.
- *
- * @param weights: the barycentric coordinates of the current fragment with respect to the triangle vertices
- * @param colours: colour at each vertex
- *
- * @return: the final colour of the fragment using the Gourand shading model
- */
-static inline __m128 _Gourand_Shading_Get_Colour(const __m128 weights[3], const __m128 colours[3])
-{
-    return _mm_add_ps(
-        _mm_add_ps(
-            _mm_mul_ps(weights[0], colours[0]),
-            _mm_mul_ps(weights[1], colours[1])),
-        _mm_mul_ps(weights[2], colours[2]));
-}
-
-/**
- * Calculate the final colour of the current fragment using Phong shading model. Phong shading, a normal vector is linearly
- * interpolated across the surface of the polygon from the polygon's vertex normals
- *
- * @param weights: the barycentric coordinates of the current fragment with respect to the triangle vertices
- * @param world_space_coords: the world space coordinates of the triangle vertices
- * @param normals: the surface normals at the triangle vertices
- * @param light: a pointer to the light object used in the shading calculation
- *
- * @return: the final colour of the fragment using the Phong shading model
- */
-static inline __m128 _Phong_Shading_Get_Colour(const __m128 weights[3], const __m128 world_space_coords[3], const __m128 normals[3], const Light *light)
-{
-    const __m128 frag_position = _mm_add_ps(
-        _mm_add_ps(
-            _mm_mul_ps(weights[0], world_space_coords[0]),
-            _mm_mul_ps(weights[1], world_space_coords[1])),
-        _mm_mul_ps(weights[2], world_space_coords[2]));
-
-    // Calculate the normal vector of the surface at the point, interpolating the surface normals at the vertices of the triangle
-    const __m128 frag_normal = _mm_add_ps(
-        _mm_add_ps(
-            _mm_mul_ps(weights[0], normals[0]),
-            _mm_mul_ps(weights[1], normals[1])),
-        _mm_mul_ps(weights[2], normals[2]));
-
-    // We should combine the lighting colour value and the interpolated vertex colours here...
-
-    const __m128 shading_colour = Light_Calculate_Shading(frag_position, frag_normal, light);
-
-    return shading_colour;
-}
-
 void Flat_Shading(const __m128 *screen_space_verticies, const __m128 *world_space_verticies, const float *w_values, const __m128 *normal_values, const Light *light)
 {
     // used when checking if w0,w1,w2 is greater than 0;
@@ -534,15 +553,15 @@ void Flat_Shading(const __m128 *screen_space_verticies, const __m128 *world_spac
     __m128 colours[3];
     if (global_app.shading_mode == GOURAND) // We interpolate the colours in the "Vertex Shader"
     {
-        colours[0] = Light_Calculate_Shading(world_space_verticies[0], normal_values[0], light);
-        colours[1] = Light_Calculate_Shading(world_space_verticies[1], normal_values[1], light);
-        colours[2] = Light_Calculate_Shading(world_space_verticies[2], normal_values[2], light);
+        colours[0] = Light_Calculate_Shading(world_space_verticies[0], normal_values[0], global_app.camera_position, light->position, light);
+        colours[1] = Light_Calculate_Shading(world_space_verticies[1], normal_values[1], global_app.camera_position, light->position, light);
+        colours[2] = Light_Calculate_Shading(world_space_verticies[2], normal_values[2], global_app.camera_position, light->position, light);
 
         // We should combine the lighting colour value and the interpolated vertex colours here...
     }
     else if (global_app.shading_mode == FLAT)
     {
-        colours[0] = _mm_set_ps(255.f, 000.0f, 000.0f, 128.0f);
+        colours[0] = _mm_set_ps(255.f, 0.0f, 0.0f, 128.0f);
     }
 
     /* get the bounding box of the triangle */
@@ -669,7 +688,7 @@ void Flat_Shading(const __m128 *screen_space_verticies, const __m128 *world_spac
                 if (!finalMask.m128i_i32[pixel_index])
                     continue;
 
-                __m128 frag_colour;
+                __m128 frag_colour = {0};
                 if (global_app.shading_mode == FLAT)
                 {
                     frag_colour = colours[0];
@@ -694,10 +713,12 @@ void Flat_Shading(const __m128 *screen_space_verticies, const __m128 *world_spac
                     }
                 }
 
+                frag_colour = _mm_mul_ps(frag_colour, _mm_set1_ps(255.0f));
+
                 const uint8_t red = (uint8_t)frag_colour.m128_f32[0];
                 const uint8_t gre = (uint8_t)frag_colour.m128_f32[1];
                 const uint8_t blu = (uint8_t)frag_colour.m128_f32[2];
-                const uint8_t alp = (uint8_t)frag_colour.m128_f32[3];
+                const uint8_t alp = (uint8_t)255;
 
                 // Not sure if I like this
                 if (pixel_index == 3) // index 3

@@ -73,6 +73,6 @@ void Draw_Triangle_Outline(const __m128 *verticies, const SDL_Colour col);
 void Flat_Shading(const __m128 *screen_space_verticies, const __m128 *world_space_verticies, const float *w_values, const __m128 *normal_values, const Light *light);
 
 void Textured_Shading(const __m128 *screen_space_verticies, const __m128 *world_space_verticies, const float *w_values, const __m128 *normal_values,
-                      const __m128 texture_u, const __m128 texture_v, const __m128 surface_normal, const Mat4x4 TBN, const Light *light);
+                      const __m128 texture_u, const __m128 texture_v, const Mat3x3 TBN, const Light *light);
 
 #endif // __RENDERER_H__
