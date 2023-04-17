@@ -407,9 +407,22 @@ void Textured_Shading(const __m128 *screen_space_verticies, const __m128 *world_
     const __m128 one_over_w2 = _mm_set1_ps(w_values[1]);
     const __m128 one_over_w3 = _mm_set1_ps(w_values[0]);
 
+    // Generate masks used for tie-breaking rules (not to double-shade along shared edges)
+    // there is no _mm_cmpge_epi32, so use lt and swap operands
+    // _mm_cmplt_epi32(bb0Inc, _mm_setzero_si128()) - becomes - _mm_cmplt_epi32(_mm_setzero_si128(), bb0Inc)
+    const __m128i Edge0TieBreak = _mm_or_epi32(_mm_cmpgt_epi32(aa0Inc, _mm_setzero_si128()),
+                                               _mm_and_epi32(_mm_cmplt_epi32(_mm_setzero_si128(), bb0Inc), _mm_cmpeq_epi32(aa0Inc, _mm_setzero_si128())));
+
+    const __m128i Edge1TieBreak = _mm_or_epi32(_mm_cmpgt_epi32(aa1Inc, _mm_setzero_si128()),
+                                               _mm_and_epi32(_mm_cmplt_epi32(_mm_setzero_si128(), bb1Inc), _mm_cmpeq_epi32(aa1Inc, _mm_setzero_si128())));
+
+    const __m128i Edge2TieBreak = _mm_or_epi32(_mm_cmpgt_epi32(aa2Inc, _mm_setzero_si128()),
+                                               _mm_and_epi32(_mm_cmplt_epi32(_mm_setzero_si128(), bb2Inc), _mm_cmpeq_epi32(aa2Inc, _mm_setzero_si128())));
+
     // Rasterize
+    const int row_index_step_amount = 2 * global_renderer.width;
     for (int y = aabb.minY; y < aabb.maxY; y += 2,
-             rowIdx += 2 * global_renderer.width,
+             rowIdx += row_index_step_amount,
              sum0Row = _mm_add_epi32(sum0Row, bb0Inc),
              sum1Row = _mm_add_epi32(sum1Row, bb1Inc),
              sum2Row = _mm_add_epi32(sum2Row, bb2Inc))
@@ -429,9 +442,26 @@ void Textured_Shading(const __m128 *screen_space_verticies, const __m128 *world_
             // "FRAGMENT SHADER"
 
             // Test Pixel inside triangle
-            // __m128i mask = w0 | w1 | w2;
-            // we compare < 0.0f, so we get all the values 0.0f and above, -1 values are "true"
-            const __m128i mask = _mm_cmplt_epi32(fxptZero, _mm_or_si128(_mm_or_si128(alpha, beta), gama));
+            const __m128i sseEdge0Positive = _mm_cmpgt_epi32(alpha, _mm_setzero_si128());
+            const __m128i sseEdge0Negative = _mm_cmplt_epi32(alpha, _mm_setzero_si128());
+            const __m128i sseEdge0FuncMask = _mm_or_epi32(sseEdge0Positive,
+                                                          _mm_andnot_epi32(sseEdge0Negative, Edge0TieBreak));
+
+            // Edge 1 test
+            const __m128i sseEdge1Positive = _mm_cmpgt_epi32(beta, _mm_setzero_si128());
+            const __m128i sseEdge1Negative = _mm_cmplt_epi32(beta, _mm_setzero_si128());
+            const __m128i sseEdge1FuncMask = _mm_or_epi32(sseEdge1Positive,
+                                                          _mm_andnot_epi32(sseEdge1Negative, Edge1TieBreak));
+
+            // Edge 2 test
+            const __m128i sseEdge2Positive = _mm_cmpgt_epi32(gama, _mm_setzero_si128());
+            const __m128i sseEdge2Negative = _mm_cmplt_epi32(gama, _mm_setzero_si128());
+            const __m128i sseEdge2FuncMask = _mm_or_epi32(sseEdge2Positive,
+                                                          _mm_andnot_epi32(sseEdge2Negative, Edge2TieBreak));
+
+            // Combine resulting masks of all three edges
+            const __m128i mask = _mm_and_epi32(sseEdge0FuncMask,
+                                               _mm_and_epi32(sseEdge1FuncMask, sseEdge2FuncMask));
 
             // Early out if all of this quad's pixels are outside the triangle.
             if (_mm_test_all_zeros(mask, mask))
