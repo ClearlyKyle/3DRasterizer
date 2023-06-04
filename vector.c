@@ -335,8 +335,9 @@ __m128 Calculate_Surface_Normal_SIMD(const __m128 v1, const __m128 v2, const __m
     return normal;
 }
 
-float Calculate_Dot_Product_SIMD(const __m128 v1, const __m128 v2)
+float Calculate_Dot_Product_SIMD(__m128 v1, __m128 v2)
 {
+    v1.m128_f32[3] = v2.m128_f32[3] = 0.0f;
     return _mm_cvtss_f32(_mm_dp_ps(v1, v2, 0x7f));
 }
 
@@ -347,7 +348,7 @@ __m128 Normalize_m128(const __m128 input)
 
     const float sqr_sum = squared.m128_f32[0] + squared.m128_f32[1] + squared.m128_f32[2];
     const float sqrt    = sqrtf(sqr_sum);
-    
+
     return _mm_div_ps(input, _mm_set1_ps(sqrt));
 }
 

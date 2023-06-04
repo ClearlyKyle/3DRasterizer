@@ -30,9 +30,9 @@ static const char *Shading_Mode_Str[SHADING_COUNT] = {
 typedef struct Light_s
 {
     __m128 position;
-    __m128 ambient_colour;
     __m128 diffuse_colour;
-    __m128 specular_colour;
+    __m128 ambient_amount;
+    __m128 specular_amount;
 } Light;
 
 __m128 Light_Calculate_Shading(const __m128 position, const __m128 normal, const __m128 camera_position, const __m128 light_position, const Light *light);

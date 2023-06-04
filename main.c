@@ -18,14 +18,20 @@
 
 int main(int argc, char *argv[])
 {
+    argc = 0;
+    argv = NULL;
+
     Reneder_Startup("Rasterizer", SCREEN_WIDTH, SCREEN_HEIGHT);
     atexit(Renderer_Destroy);
 
     // WOODEN BOX
     // const char *obj_filename = "../../res/Wooden Box/wooden crate.obj";
-    // const char *obj_filename = "../../res/Wooden Box/box_triange.obj";
     // const char *tex_filename = "../../res/Wooden Box/crate_BaseColor.png";
     // const char *nrm_filename = "../../res/Wooden Box/crate_Normal.png";
+
+    // const char *obj_filename = "../../res/Crate/wood_crate.obj";
+    // const char *tex_filename = "../../res/Crate/wood_crate_DIFFUSE.png";
+    // const char *nrm_filename = "../../res/Crate/wood_crate_NORMAL.png";
 
     // TEAPOT
     // const char *obj_filename = "../../res/Teapot/teapot2.obj";
@@ -82,7 +88,7 @@ int main(int argc, char *argv[])
     const Mat4x4 Projection_matrix = Get_Projection_Matrix(90.0f, (float)global_renderer.height / (float)global_renderer.width, 0.1f, 1000.0f);
 
     // Translation Matrix : Move the object in 3D space X Y Z
-    const Mat4x4 Translation_matrix = Get_Translation_Matrix(0.0f, 0.5f, 4.5f);
+    const Mat4x4 Translation_matrix = Get_Translation_Matrix(0.0f, 0.5f, 2.5f);
 
     // Camera
     global_app.camera_position = _mm_set_ps(0.0f, 0.0f, 0.0f, 0.0f);
@@ -99,12 +105,12 @@ int main(int argc, char *argv[])
     //    .position        = _mm_set_ps(0.0f, 1.5f, -1.0f, -2.0f),
     //};
 
-    const Light light = {
-        //                            A,    B,    G,    R
-        .ambient_colour  = _mm_set_ps(1.0f, 0.0f, 0.0f, 0.0f),
-        .diffuse_colour  = _mm_set_ps(1.0f, 0.0f, 0.5f, 0.0f), // first value is index stored at index 3
-        .specular_colour = _mm_set_ps(1.0f, 1.0f, 0.0f, 0.0f),
-        .position        = _mm_set_ps(0.0f, -2.0f, 0.0f, 1.5f),
+    Light light = {
+        //                            A,    B,    G,    R     (first value is index stored at index 3)
+        .diffuse_colour  = _mm_set_ps(1.0f, 0.0f, 0.5f, 0.0f), // Change this to the texture colour at FragShader stage
+        .ambient_amount  = _mm_set1_ps(0.1f),
+        .specular_amount = _mm_set1_ps(0.2f),
+        .position        = _mm_set_ps(0.0f, -2.0f, -1.0f, 0.5f),
     };
 
     const float x_adjustment = 0.5f * (float)global_renderer.width;
@@ -192,6 +198,7 @@ int main(int argc, char *argv[])
                 tri3 = Matrix_Multiply_Vector_SIMD(Projection_matrix.elements, tri3);
 
                 // Setup texture coordinates
+                // Should this be [2]? the Z value?
                 const float one_over_w1 = 1.0f / tri1.m128_f32[3];
                 const float one_over_w2 = 1.0f / tri2.m128_f32[3];
                 const float one_over_w3 = 1.0f / tri3.m128_f32[3];
@@ -252,7 +259,7 @@ int main(int argc, char *argv[])
 
                     We are using method 2 here... (I hope lol)
                     */
-                    const Mat3x3 m = Mat4x4_to_Mat3x3(World_Matrix);
+                    // const Mat3x3 m = Mat4x4_to_Mat3x3(World_Matrix);
 
                     //__m128 N = Mat3x3_mul_m128(m, normal0);
                     //__m128 T = Mat3x3_mul_m128(m, tangent);

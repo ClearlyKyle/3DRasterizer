@@ -258,6 +258,14 @@ static inline __m128 _Phong_Shading_Get_Colour(const __m128 weights[3], const __
     return shading_colour;
 }
 
+/**
+ * Get the normal vector from a normal map texture
+ *
+ * @param res_v: texture u coordinate in the texture space
+ * @param res_u: texture v coordinate in the texture space
+ *
+ * @return: __m128 containing the colour as a vector in the range -1.0f to 1.0f
+ */
 static inline __m128 _Get_Normal_From_Normal_Map(const int res_v, const int res_u)
 {
     const Texture normal_map = global_app.nrm;
@@ -278,6 +286,14 @@ static inline __m128 _Get_Normal_From_Normal_Map(const int res_v, const int res_
     return frag_normal;
 }
 
+/**
+ * Get the texture colour
+ *
+ * @param res_v: texture u coordinate in the texture space
+ * @param res_u: texture v coordinate in the texture space
+ *
+ * @return: __m128 containing the colour in the range of 0.0f to 1.0f
+ */
 static inline __m128 _Get_Colour_From_Diffuse_Texture(const int res_v, const int res_u)
 {
     const Texture texture = global_app.tex;
@@ -287,11 +303,13 @@ static inline __m128 _Get_Colour_From_Diffuse_Texture(const int res_v, const int
 
     const unsigned char *pixel_data = texture.data + index;
 
-    return _mm_set_ps(255.0f, pixel_data[2], pixel_data[1], pixel_data[0]);
+    return _mm_div_ps(
+        _mm_set_ps(255.0f, pixel_data[2], pixel_data[1], pixel_data[0]),
+        _mm_set1_ps(255.0f));
 }
 
 void Textured_Shading(const __m128 *screen_space_verticies, const __m128 *world_space_verticies, const float *w_values, const __m128 *normal_values,
-                      const __m128 texture_u, const __m128 texture_v, const Mat3x3 TBN, const Light *light)
+                      const __m128 texture_u, const __m128 texture_v, const Mat3x3 TBN, Light *light)
 {
     // Unpack Vertex data
     const __m128 v0 = screen_space_verticies[2];
@@ -302,7 +320,6 @@ void Textured_Shading(const __m128 *screen_space_verticies, const __m128 *world_
     __m128 world_v1 = world_space_verticies[1];
     __m128 world_v2 = world_space_verticies[0];
 
-    __m128 colours[3]      = {0};
     __m128 light_position  = light->position;
     __m128 camera_position = global_app.camera_position;
 
@@ -316,15 +333,9 @@ void Textured_Shading(const __m128 *screen_space_verticies, const __m128 *world_
        TangentLightPos = TBN * light_position;
        TangentViewPos  = TBN * camera_position;
        TangentFragPos  = TBN * vec3(model * vec4(vert_pos, 1.0));
+
+       vec3(model * vec4(vert_pos, 1.0)) < are the verts in world space
        */
-        // Camera and light doesnt move, so we could move this out of here...
-        // light_position  = Matrix_Multiply_Vector_SIMD(TBN.elements, light->position);            // Tangent light position
-        // camera_position = Matrix_Multiply_Vector_SIMD(TBN.elements, global_app.camera_position); // Tangent camera position
-
-        // world_v0 = Matrix_Multiply_Vector_SIMD(TBN.elements, world_v0);
-        // world_v1 = Matrix_Multiply_Vector_SIMD(TBN.elements, world_v1);
-        // world_v2 = Matrix_Multiply_Vector_SIMD(TBN.elements, world_v2);
-
         light_position  = Mat3x3_mul_m128(TBN, light->position);            // Tangent light position
         camera_position = Mat3x3_mul_m128(TBN, global_app.camera_position); // Tangent camera position
 
@@ -332,9 +343,6 @@ void Textured_Shading(const __m128 *screen_space_verticies, const __m128 *world_
         world_v1 = Mat3x3_mul_m128(TBN, world_v1);
         world_v2 = Mat3x3_mul_m128(TBN, world_v2);
     }
-
-    // used when checking if w0,w1,w2 is greater than 0;
-    const __m128i fxptZero = _mm_setzero_si128();
 
     /* get the bounding box of the triangle */
     union AABB_u aabb;
@@ -475,20 +483,21 @@ void Textured_Shading(const __m128 *screen_space_verticies, const __m128 *world_
             __m128 depth = _mm_mul_ps(w0_area, one_over_w1);
             depth        = _mm_add_ps(depth, _mm_mul_ps(w1_area, one_over_w2));
             depth        = _mm_add_ps(depth, _mm_mul_ps(w2_area, one_over_w3));
-            depth        = _mm_rcp_ps(depth);
+
+            __m128 inv_depth = _mm_rcp_ps(depth); // 1.0 / depth
 
             //// DEPTH BUFFER
             const __m128 previousDepthValue           = _mm_load_ps(&pDepthBuffer[index]);
-            const __m128 are_new_depths_less_than_old = _mm_cmplt_ps(depth, previousDepthValue);
+            const __m128 are_new_depths_less_than_old = _mm_cmplt_ps(inv_depth, previousDepthValue);
             const __m128 which_depths_should_be_drawn = _mm_and_ps(are_new_depths_less_than_old, _mm_cvtepi32_ps(mask));
-            const __m128 updated_depth_values         = _mm_blendv_ps(previousDepthValue, depth, which_depths_should_be_drawn);
+            const __m128 updated_depth_values         = _mm_blendv_ps(previousDepthValue, inv_depth, which_depths_should_be_drawn);
             _mm_store_ps(&pDepthBuffer[index], updated_depth_values);
 
             const __m128i finalMask = _mm_cvtps_epi32(which_depths_should_be_drawn);
 
             // Precalulate uv constants
-            const __m128 depth_w = _mm_mul_ps(depth, _mm_set1_ps((float)global_app.tex.w - 1.0f));
-            const __m128 depth_h = _mm_mul_ps(depth, _mm_set1_ps((float)global_app.tex.h - 1.0f));
+            const __m128 depth_w = _mm_mul_ps(inv_depth, _mm_set1_ps((float)global_app.tex.w - 1.0f));
+            const __m128 depth_h = _mm_mul_ps(inv_depth, _mm_set1_ps((float)global_app.tex.h - 1.0f));
 
             for (int pixel_index = 0; pixel_index < 4; pixel_index++)
             {
@@ -537,14 +546,15 @@ void Textured_Shading(const __m128 *screen_space_verticies, const __m128 *world_
 
                     const __m128 frag_normal = _Get_Normal_From_Normal_Map(res_v, res_u);
 
+                    // Get the diffuse colour from the diffuse texture
+                    const __m128 diff_colour = _Get_Colour_From_Diffuse_Texture(res_v, res_u);
+                    light->diffuse_colour    = diff_colour;
+
                     // Calculate lighting
                     const __m128 lighting_contribution = Light_Calculate_Shading(frag_position, frag_normal, camera_position, light_position, light);
 
-                    // Combine the lighting and texture colour together
-                    const __m128 diff_colour = _Get_Colour_From_Diffuse_Texture(res_v, res_u);
-
                     // frag_colour = _mm_mul_ps(_mm_set1_ps(1.0f), lighting_contribution);
-                    frag_colour = _mm_mul_ps(diff_colour, lighting_contribution);
+                    frag_colour = _mm_mul_ps(_mm_set1_ps(255.0f), lighting_contribution);
                 }
 
                 const uint8_t red = (uint8_t)frag_colour.m128_f32[0];

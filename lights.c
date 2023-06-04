@@ -24,7 +24,7 @@ static inline __m128 negate_m128(const __m128 m)
  * @return An __m128 vector containing the diffuse amount, with values between 0 and 1.0f, the first component
  *          is set to 1.0f to represent the alpha value, and the remaining three components are set to the diffuse amount
  */
-static __m128 Calculate_Diffuse_Amount(const __m128 L, const __m128 N)
+static inline __m128 Calculate_Diffuse_Amount(const __m128 L, const __m128 N)
 {
     const float dot_product = Calculate_Dot_Product_SIMD(N, L);
 
@@ -50,7 +50,7 @@ static __m128 Calculate_Specular_Amount(const __m128 L, const __m128 E, const __
     float specular_power = 0.0f;
     float dot_product    = 0.0f;
 
-    if (global_app.shading_mode == BLIN_PHONG)
+    if (global_app.shading_mode == BLIN_PHONG || global_app.shading_mode == NORMAL_MAPPING)
     {
         // Calculate the Halfway vector (H) between the light source direction (L) and the view direction (E)
         const __m128 H = Normalize_m128(_mm_add_ps(L, E));
@@ -58,12 +58,12 @@ static __m128 Calculate_Specular_Amount(const __m128 L, const __m128 E, const __
         // Calculate the specular component using the dot product of the surface normal (N) and the halfway vector (H)
         dot_product = Calculate_Dot_Product_SIMD(N, H);
     }
-    else
+    else // PHONG
     {
         // Calculate R - the reflection vector
-        const __m128 R = Normalize_m128(negate_m128(Reflect_m128(L, N)));
+        const __m128 R = Normalize_m128(Reflect_m128(negate_m128(L), N));
 
-        dot_product = Calculate_Dot_Product_SIMD(R, E);
+        dot_product = Calculate_Dot_Product_SIMD(E, R);
     }
 
     specular_power = powf(fmaxf(dot_product, 0.0f), shininess);
@@ -96,16 +96,16 @@ __m128 Light_Calculate_Shading(const __m128 position, const __m128 normal, const
     const __m128 E = Normalize_m128(_mm_sub_ps(camera_position, position));
 
     // Calculate Ambient Term:
-    const __m128 Iamb = light->ambient_colour;
+    const __m128 Iamb = _mm_mul_ps(light->diffuse_colour, light->ambient_amount);
 
     // Calculate Diffuse Term:
     const __m128 diffuse_amount = Calculate_Diffuse_Amount(L, N);
     const __m128 Idiff          = _mm_mul_ps(light->diffuse_colour, diffuse_amount); // Might need to set the Alpha here
 
     // Calculate Specular Term:
-    const float  shininess       = 32.0f;
-    const __m128 specular_amount = Calculate_Specular_Amount(L, E, N, shininess);
-    const __m128 Ispec           = _mm_mul_ps(light->specular_colour, specular_amount);
+    const float  shininess = 32.0f;
+    const __m128 specular  = Calculate_Specular_Amount(L, E, N, shininess);
+    const __m128 Ispec     = _mm_mul_ps(specular, light->specular_amount);
 
     const __m128 lighting_amount = Clamp_m128(_mm_add_ps(_mm_add_ps(Iamb, Idiff), Ispec), 0.0f, 1.0f);
 
