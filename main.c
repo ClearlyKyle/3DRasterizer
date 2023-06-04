@@ -160,30 +160,37 @@ int main(int argc, char *argv[])
 
         for (size_t i = 0; i < mesh->num_of_triangles; i += 1) // can we jump through triangles?
         {
-            __m128 tri1 = _mm_load_ps(&mesh->vertex_coordinates[i * 12 + 0]); // 12 because we load 3 triangles at at a time looping
-            __m128 tri2 = _mm_load_ps(&mesh->vertex_coordinates[i * 12 + 4]); // through triangles. 3 traingles each spaced 4 coordinates apart
-            __m128 tri3 = _mm_load_ps(&mesh->vertex_coordinates[i * 12 + 8]); // 4 * 3 = 12; [x y z w][x y z w][x y z w]...
+            __m128 tri1, tri2, tri3;
+            tri1 = _mm_load_ps(&mesh->vertex_coordinates[i * 12 + 0]); // 12 because we load 3 triangles at at a time looping
+            tri2 = _mm_load_ps(&mesh->vertex_coordinates[i * 12 + 4]); // through triangles. 3 traingles each spaced 4 coordinates apart
+            tri3 = _mm_load_ps(&mesh->vertex_coordinates[i * 12 + 8]); // 4 * 3 = 12; [x y z w][x y z w][x y z w]...
 
             // World_Matrix * Each Vertix = transformed Vertex
-            tri1 = Matrix_Multiply_Vector_SIMD(World_Matrix.elements, tri1);
-            tri2 = Matrix_Multiply_Vector_SIMD(World_Matrix.elements, tri2);
-            tri3 = Matrix_Multiply_Vector_SIMD(World_Matrix.elements, tri3);
+            __m128 ws_tri1 = Matrix_Multiply_Vector_SIMD(World_Matrix.elements, tri1);
+            __m128 ws_tri2 = Matrix_Multiply_Vector_SIMD(World_Matrix.elements, tri2);
+            __m128 ws_tri3 = Matrix_Multiply_Vector_SIMD(World_Matrix.elements, tri3);
+
+            // Calcualte Triangle Area
+            // float tri_area = (tri3.m128_f32[0] - tri1.m128_f32[0]) * (tri2.m128_f32[1] - tri1.m128_f32[1]);
+            // tri_area       = tri_area - ((tri1.m128_f32[0] - tri2.m128_f32[0]) * (tri1.m128_f32[1] - tri3.m128_f32[1]));
+            // tri_area       = 1.0f / tri_area;
 
             // Vector Dot Product between : Surface normal and CameraRay
-            __m128       surface_normal = Calculate_Surface_Normal_SIMD(tri1, tri2, tri3);
-            const __m128 camera_ray     = _mm_sub_ps(tri1, global_app.camera_position);
+            __m128       surface_normal = Calculate_Surface_Normal_SIMD(ws_tri1, ws_tri2, ws_tri3);
+            const __m128 camera_ray     = _mm_sub_ps(ws_tri1, global_app.camera_position);
 
             // Back face culling
             const float dot_product_result = Calculate_Dot_Product_SIMD(surface_normal, camera_ray);
             if (dot_product_result < 0.0f)
             {
-                surface_normal                           = Normalize_m128(surface_normal);
-                const __m128 world_position_verticies[3] = {tri1, tri2, tri3};
-
                 // Calculate the edge values for creating the tangent and bitangent vectors
                 // for use with Normal mapping
                 __m128 edge1 = _mm_sub_ps(tri2, tri1);
                 __m128 edge2 = _mm_sub_ps(tri3, tri1);
+
+                tri1 = Matrix_Multiply_Vector_SIMD(Projection_matrix.elements, ws_tri1);
+                tri2 = Matrix_Multiply_Vector_SIMD(Projection_matrix.elements, ws_tri2);
+                tri3 = Matrix_Multiply_Vector_SIMD(Projection_matrix.elements, ws_tri3);
 
                 // Camera is at the origin, and we arent moving, so we can skip this?
                 // Convert World Space --> View Space
@@ -191,19 +198,7 @@ int main(int argc, char *argv[])
                 // tri2 = Matrix_Multiply_Vector_SIMD(View_Matrix.elements, tri2);
                 // tri3 = Matrix_Multiply_Vector_SIMD(View_Matrix.elements, tri3);
 
-                // 3D -> 2D (Projected space)
-                // Matrix Projected * Viewed Vertex = projected Vertex
-                tri1 = Matrix_Multiply_Vector_SIMD(Projection_matrix.elements, tri1);
-                tri2 = Matrix_Multiply_Vector_SIMD(Projection_matrix.elements, tri2);
-                tri3 = Matrix_Multiply_Vector_SIMD(Projection_matrix.elements, tri3);
-
                 // Setup texture coordinates
-                // Should this be [2]? the Z value?
-                const float one_over_w1 = 1.0f / tri1.m128_f32[3];
-                const float one_over_w2 = 1.0f / tri2.m128_f32[3];
-                const float one_over_w3 = 1.0f / tri3.m128_f32[3];
-
-                const float w_values[3] = {one_over_w1, one_over_w2, one_over_w3};
 
                 // Load normal values
                 __m128 normal0 = _mm_load_ps(&mesh->normal_coordinates[i * 12 + 0]);
@@ -276,16 +271,22 @@ int main(int argc, char *argv[])
                     TBN = TransposeMat3x3(TBN);
                 }
 
-                const __m128 texture_w_values = _mm_set_ps(0.0f, w_values[0], w_values[1], w_values[2]);
-                texture_u                     = _mm_mul_ps(texture_u, texture_w_values);
-                texture_v                     = _mm_mul_ps(texture_v, texture_w_values);
+                // 3D -> 2D (Projected space)
+                // Matrix Projected * Viewed Vertex = projected Vertex
+                const float one_over_w1 = 1.0f / tri1.m128_f32[3];
+                const float one_over_w2 = 1.0f / tri2.m128_f32[3];
+                const float one_over_w3 = 1.0f / tri3.m128_f32[3];
 
                 // Perform x/w, y/w, z/w
                 tri1 = _mm_mul_ps(tri1, _mm_set1_ps(one_over_w1));
                 tri2 = _mm_mul_ps(tri2, _mm_set1_ps(one_over_w2));
                 tri3 = _mm_mul_ps(tri3, _mm_set1_ps(one_over_w3));
 
-                // Sacle Into View
+                const __m128 texture_w_values = _mm_set_ps(0.0f, one_over_w1, one_over_w2, one_over_w3);
+                texture_u                     = _mm_mul_ps(texture_u, texture_w_values);
+                texture_v                     = _mm_mul_ps(texture_v, texture_w_values);
+
+                // Sacle Into View (x + 1.0f, y + 1.0f, z + 0.0f, w + 0.0f)
                 tri1 = _mm_add_ps(tri1, _mm_set_ps(0.0f, 0.0f, 1.0f, 1.0f));
                 tri2 = _mm_add_ps(tri2, _mm_set_ps(0.0f, 0.0f, 1.0f, 1.0f));
                 tri3 = _mm_add_ps(tri3, _mm_set_ps(0.0f, 0.0f, 1.0f, 1.0f));
@@ -294,16 +295,27 @@ int main(int argc, char *argv[])
                 tri2 = _mm_mul_ps(tri2, _mm_set_ps(1.0f, 1.0f, y_adjustment, x_adjustment));
                 tri3 = _mm_mul_ps(tri3, _mm_set_ps(1.0f, 1.0f, y_adjustment, x_adjustment));
 
-                // Screen Vertex Postions
-                const __m128 screen_position_verticies[3] = {tri1, tri2, tri3};
-                const __m128 normal_coordinates[3]        = {normal0, normal1, normal2};
+                RasterData_t rd = {0};
 
-                if (global_app.shading_mode == WIRE_FRAME)
-                    Draw_Triangle_Outline(screen_position_verticies, (SDL_Color){255, 255, 255, 255});
-                else if (global_app.shading_mode < TEXTURED)
-                    Flat_Shading(screen_position_verticies, world_position_verticies, w_values, normal_coordinates, &light);
-                else
-                    Textured_Shading(screen_position_verticies, world_position_verticies, w_values, normal_coordinates, texture_u, texture_v, TBN, &light);
+                rd.light = &light;
+
+                rd.world_space_verticies[0] = ws_tri1;
+                rd.world_space_verticies[1] = ws_tri2;
+                rd.world_space_verticies[2] = ws_tri3;
+
+                rd.screen_space_verticies[0] = tri1;
+                rd.screen_space_verticies[1] = tri2;
+                rd.screen_space_verticies[2] = tri3;
+
+                rd.w_values[0] = one_over_w1;
+                rd.w_values[1] = one_over_w2;
+                rd.w_values[2] = one_over_w3;
+
+                rd.normals[0] = normal0;
+                rd.normals[1] = normal1;
+                rd.normals[2] = normal2;
+
+                Flat_Shading(rd);
             }
         }
 

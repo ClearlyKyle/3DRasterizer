@@ -22,7 +22,7 @@ typedef struct Renderer_s
     SDL_Surface *surface;
 
     SDL_PixelFormat *fmt;
-    unsigned int    *pixels;
+    uint8_t         *pixels;
 
     float  max_depth_value;
     float *z_buffer_array;
@@ -70,7 +70,22 @@ inline void Renderer_Clear_Screen_Pixels(void)
 void Draw_Depth_Buffer(void);
 void Draw_Triangle_Outline(const __m128 *verticies, const SDL_Colour col);
 
-void Flat_Shading(const __m128 *screen_space_verticies, const __m128 *world_space_verticies, const float *w_values, const __m128 *normal_values, const Light *light);
+typedef struct RasterData
+{
+    __m128 screen_space_verticies[3];
+    __m128 world_space_verticies[3];
+    __m128 normals[3];
+    __m128 tex_u;
+    __m128 tex_v;
+
+    float w_values[3];
+
+    Light *light;
+
+    Mat3x3 TBN;
+} RasterData_t;
+
+void Flat_Shading(const RasterData_t rd);
 
 void Textured_Shading(const __m128 *screen_space_verticies, const __m128 *world_space_verticies, const float *w_values, const __m128 *normal_values,
                       const __m128 texture_u, const __m128 texture_v, const Mat3x3 TBN, Light *light);
