@@ -534,10 +534,10 @@ static char *my_strndup(const char *s, size_t len) {
 
 char *dynamic_fgets(char **buf, size_t *size, FILE *file) {
   char *offset;
-  char *ret;
   size_t old_size;
 
-  if (!(ret = fgets(*buf, (int)*size, file))) {
+  char *ret = fgets(*buf, (int)*size, file);
+  if (!ret) {
     return ret;
   }
 
