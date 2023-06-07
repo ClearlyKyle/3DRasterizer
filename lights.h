@@ -1,7 +1,7 @@
 #ifndef __LIGHTS_H__
 #define __LIGHTS_H__
 
-#include <xmmintrin.h>
+#include "matematika.h"
 
 typedef enum
 {
@@ -29,12 +29,12 @@ static const char *Shading_Mode_Str[SHADING_COUNT] = {
 
 typedef struct Light_s
 {
-    __m128 position;
-    __m128 diffuse_colour;
-    __m128 ambient_amount;
-    __m128 specular_amount;
+    mvec4 position;
+    mvec4 diffuse_colour;
+    mvec4 ambient_amount;
+    mvec4 specular_amount;
 } Light;
 
-__m128 Light_Calculate_Shading(const __m128 position, const __m128 normal, const __m128 camera_position, const __m128 light_position, const Light *light);
+mvec4 Light_Calculate_Shading(const mvec4 position, const mvec4 normal, const mvec4 camera_position, const mvec4 light_position, const Light *light);
 
 #endif // __LIGHTS_H__

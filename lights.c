@@ -2,35 +2,21 @@
 
 #include "Renderer.h"
 
-static inline __m128 Reflect_m128(const __m128 I, const __m128 N)
-{
-    // https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/reflect.xhtml
-    __m128 dotProduct = _mm_dp_ps(I, N, 0x7f);                                    // Compute dot product of I and N
-    __m128 scaledN    = _mm_mul_ps(N, _mm_mul_ps(dotProduct, _mm_set1_ps(2.0f))); // Scale N by 2 * dotProduct
-    return _mm_sub_ps(I, scaledN);                                                // Subtract scaledN from I to get reflected vector
-}
-
-static inline __m128 negate_m128(const __m128 m)
-{
-    return _mm_mul_ps(m, _mm_set1_ps(-1.0f));
-}
-
 /**
  * Calculates the diffuse component of the lighting equation for a given light direction, and surface normal
  *
  * @param L             The direction of the light source
  * @param N             The surface normal at the point on the surface where the light is being calculated
  *
- * @return An __m128 vector containing the diffuse amount, with values between 0 and 1.0f, the first component
- *          is set to 1.0f to represent the alpha value, and the remaining three components are set to the diffuse amount
+ * @return The diffuse amount, with values between 0 and 1.0f, the first component
  */
-static inline __m128 Calculate_Diffuse_Amount(const __m128 L, const __m128 N)
+static inline float Calculate_Diffuse_Amount(const mvec4 L, const mvec4 N)
 {
-    const float dot_product = Calculate_Dot_Product_SIMD(N, L);
+    const float dot_product = mate_dot(N, L);
 
     const float diffuse_amount = (const float)fmax(dot_product, 0.0);
 
-    return _mm_set1_ps(diffuse_amount);
+    return diffuse_amount;
 }
 
 /**
@@ -42,10 +28,9 @@ static inline __m128 Calculate_Diffuse_Amount(const __m128 L, const __m128 N)
  * @param shininess     A material property that determines the size and concentration of the specular highlight on a surface
  *                      1.0f (low shininess, wide specular highlight) to 1000.0f or higher (high shininess, sharp specular highlight)
  *
- * @return An __m128 vector containing the specular power, with values between 0 and 1.0f,
- *          the first component set to 1 (representing the alpha value)
+ * @return An float containing the specular power, with values between 0 and 1.0f
  */
-static __m128 Calculate_Specular_Amount(const __m128 L, const __m128 E, const __m128 N, const float shininess)
+static float Calculate_Specular_Amount(const mvec4 L, const mvec4 E, const mvec4 N, const float shininess)
 {
     float specular_power = 0.0f;
     float dot_product    = 0.0f;
@@ -53,21 +38,21 @@ static __m128 Calculate_Specular_Amount(const __m128 L, const __m128 E, const __
     if (global_app.shading_mode == BLIN_PHONG || global_app.shading_mode == NORMAL_MAPPING)
     {
         // Calculate the Halfway vector (H) between the light source direction (L) and the view direction (E)
-        const __m128 H = Normalize_m128(_mm_add_ps(L, E));
+        const mvec4 H = mate_norm(mate_vec4_add(L, E));
 
         // Calculate the specular component using the dot product of the surface normal (N) and the halfway vector (H)
-        dot_product = Calculate_Dot_Product_SIMD(N, H);
+        dot_product = mate_dot(N, H);
     }
     else // PHONG
     {
         // Calculate R - the reflection vector
-        const __m128 R = Normalize_m128(Reflect_m128(negate_m128(L), N));
+        const mvec4 R = mate_norm(mate_reflect(mate_negate(L), N));
 
-        dot_product = Calculate_Dot_Product_SIMD(E, R);
+        dot_product = mate_dot(E, R);
     }
 
     specular_power = powf(fmaxf(dot_product, 0.0f), shininess);
-    return _mm_set1_ps(specular_power);
+    return specular_power;
 }
 
 /**
@@ -81,33 +66,37 @@ static __m128 Calculate_Specular_Amount(const __m128 L, const __m128 E, const __
  *
  * @return An __m128 vector containing the RGB values of the shading at the point, with values between 0 and 255.
  */
-__m128 Light_Calculate_Shading(const __m128 position, const __m128 normal, const __m128 camera_position, const __m128 light_position, const Light *light)
+mvec4 Light_Calculate_Shading(const mvec4 position, const mvec4 normal, const mvec4 camera_position, const mvec4 light_position, const Light *light)
 {
     // Normalise the Noraml
     // const __m128 N = normal;
-    const __m128 N = Normalize_m128(normal);
+    const mvec4 N = mate_norm(normal);
     //
     // Calculate L - direction to the light source
     // const __m128 L = _mm_sub_ps(light_position, position);
-    const __m128 L = Normalize_m128(_mm_sub_ps(light_position, position));
+    const mvec4 L = mate_norm(mate_vec4_sub(light_position, position));
 
     // Calculate E - view direction
     // const __m128 E = _mm_sub_ps(camera_position, position);
-    const __m128 E = Normalize_m128(_mm_sub_ps(camera_position, position));
+    const mvec4 E = mate_norm(mate_vec4_sub(camera_position, position));
 
     // Calculate Ambient Term:
-    const __m128 Iamb = _mm_mul_ps(light->diffuse_colour, light->ambient_amount);
+    const mvec4 Iamb = mate_vec4_mul(light->diffuse_colour, light->ambient_amount);
 
     // Calculate Diffuse Term:
-    const __m128 diffuse_amount = Calculate_Diffuse_Amount(L, N);
-    const __m128 Idiff          = _mm_mul_ps(light->diffuse_colour, diffuse_amount); // Might need to set the Alpha here
+    const float diffuse_amount = Calculate_Diffuse_Amount(L, N);
+    const mvec4 Idiff          = mate_vec4_scale(light->diffuse_colour, diffuse_amount); // Might need to set the Alpha here
 
     // Calculate Specular Term:
-    const float  shininess = 32.0f;
-    const __m128 specular  = Calculate_Specular_Amount(L, E, N, shininess);
-    const __m128 Ispec     = _mm_mul_ps(specular, light->specular_amount);
+    const float shininess = 32.0f;
+    const float specular  = Calculate_Specular_Amount(L, E, N, shininess);
+    const mvec4 Ispec     = mate_vec4_scale(light->specular_amount, specular);
 
-    const __m128 lighting_amount = Clamp_m128(_mm_add_ps(_mm_add_ps(Iamb, Idiff), Ispec), 0.0f, 1.0f);
+    const mvec4 lighting_amount = mate_vec4_clamp(
+        mate_vec4_add(
+            mate_vec4_add(Iamb, Idiff),
+            Ispec),
+        0.0f, 1.0f);
 
     return lighting_amount;
 }

@@ -47,7 +47,7 @@ void Reneder_Startup(const char *title, const int width, const int height)
     }
 
     global_renderer.z_buffer_array  = z_buff;
-    global_renderer.max_depth_value = 10.0f;
+    global_renderer.max_depth_value = 100.0f;
 
     global_renderer.running = true;
 }
@@ -236,26 +236,26 @@ static inline __m128 _Gourand_Shading_Get_Colour(const __m128 weights[3], const 
  *
  * @return: the final colour of the fragment using the Phong shading model
  */
-static inline __m128 _Phong_Shading_Get_Colour(const __m128 weights[3], const __m128 world_space_coords[3], const __m128 normals[3], const Light *light)
+static inline __m128 _Phong_Shading_Get_Colour(const __m128 weights[3], const mvec4 world_space_coords[3], const mvec4 normals[3], const Light *light)
 {
     const __m128 frag_position = _mm_add_ps(
         _mm_add_ps(
-            _mm_mul_ps(weights[0], world_space_coords[0]),
-            _mm_mul_ps(weights[1], world_space_coords[1])),
-        _mm_mul_ps(weights[2], world_space_coords[2]));
+            _mm_mul_ps(weights[0], world_space_coords[0].m),
+            _mm_mul_ps(weights[1], world_space_coords[1].m)),
+        _mm_mul_ps(weights[2], world_space_coords[2].m));
 
     // Calculate the normal vector of the surface at the point, interpolating the surface normals at the vertices of the triangle
     const __m128 frag_normal = _mm_add_ps(
         _mm_add_ps(
-            _mm_mul_ps(weights[0], normals[0]),
-            _mm_mul_ps(weights[1], normals[1])),
-        _mm_mul_ps(weights[2], normals[2]));
+            _mm_mul_ps(weights[0], normals[0].m),
+            _mm_mul_ps(weights[1], normals[1].m)),
+        _mm_mul_ps(weights[2], normals[2].m));
 
     // We should combine the lighting colour value and the interpolated vertex colours here...
 
-    const __m128 shading_colour = Light_Calculate_Shading(frag_position, frag_normal, global_app.camera_position, light->position, light);
+    const mvec4 shading_colour = Light_Calculate_Shading((mvec4){.m = frag_position}, (mvec4){.m = frag_normal}, global_app.camera_position, light->position, light);
 
-    return shading_colour;
+    return shading_colour.m;
 }
 
 /**
@@ -280,10 +280,10 @@ static inline __m128 _Get_Normal_From_Normal_Map(const int res_v, const int res_
     const float g = ((normal_colour_data[1] / 255.0f) * 2.0f) - 1.0f; // y
     const float b = ((normal_colour_data[2] / 255.0f) * 2.0f) - 1.0f; // z
 
-    __m128 frag_normal = _mm_set_ps(0.0f, b, g, r);
-    frag_normal        = Normalize_m128(frag_normal);
+    mvec4 frag_normal = mate_vec4(r, g, b, 0.0f);
+    frag_normal       = mate_norm(frag_normal);
 
-    return frag_normal;
+    return frag_normal.m;
 }
 
 /**
@@ -308,8 +308,9 @@ static inline __m128 _Get_Colour_From_Diffuse_Texture(const int res_v, const int
         _mm_set1_ps(255.0f));
 }
 
+#if 0 // Not feeling ready for this yet lol
 void Textured_Shading(const __m128 *screen_space_verticies, const __m128 *world_space_verticies, const float *w_values, const __m128 *normal_values,
-                      const __m128 texture_u, const __m128 texture_v, const Mat3x3 TBN, Light *light)
+                      const __m128 texture_u, const __m128 texture_v, const mmat3 TBN, Light *light)
 {
     // Unpack Vertex data
     const __m128 v0 = screen_space_verticies[2];
@@ -373,13 +374,6 @@ void Textured_Shading(const __m128 *screen_space_verticies, const __m128 *world_
     __m128i triArea = _mm_mullo_epi32(B2, A1);
     triArea         = _mm_sub_epi32(triArea, _mm_mullo_epi32(B1, A2));
 
-    // Skip triangle if area is zero
-    if (triArea.m128i_i32[0] <= 0)
-    {
-        return;
-    }
-
-    // const __m128 oneOverTriArea = _mm_div_ps(_mm_set1_ps(1.0f), _mm_cvtepi32_ps(triArea));
     const __m128 oneOverTriArea = _mm_rcp_ps(_mm_cvtepi32_ps(triArea));
 
     const __m128i aa0Inc = _mm_slli_epi32(A0, 1);
@@ -450,26 +444,28 @@ void Textured_Shading(const __m128 *screen_space_verticies, const __m128 *world_
             // "FRAGMENT SHADER"
 
             // Test Pixel inside triangle
-            const __m128i sseEdge0Positive = _mm_cmpgt_epi32(alpha, _mm_setzero_si128());
-            const __m128i sseEdge0Negative = _mm_cmplt_epi32(alpha, _mm_setzero_si128());
-            const __m128i sseEdge0FuncMask = _mm_or_epi32(sseEdge0Positive,
-                                                          _mm_andnot_epi32(sseEdge0Negative, Edge0TieBreak));
+            // const __m128i sseEdge0Positive = _mm_cmpgt_epi32(alpha, _mm_setzero_si128());
+            // const __m128i sseEdge0Negative = _mm_cmplt_epi32(alpha, _mm_setzero_si128());
+            // const __m128i sseEdge0FuncMask = _mm_or_epi32(sseEdge0Positive,
+            //                                              _mm_andnot_epi32(sseEdge0Negative, Edge0TieBreak));
 
-            // Edge 1 test
-            const __m128i sseEdge1Positive = _mm_cmpgt_epi32(beta, _mm_setzero_si128());
-            const __m128i sseEdge1Negative = _mm_cmplt_epi32(beta, _mm_setzero_si128());
-            const __m128i sseEdge1FuncMask = _mm_or_epi32(sseEdge1Positive,
-                                                          _mm_andnot_epi32(sseEdge1Negative, Edge1TieBreak));
+            //// Edge 1 test
+            // const __m128i sseEdge1Positive = _mm_cmpgt_epi32(beta, _mm_setzero_si128());
+            // const __m128i sseEdge1Negative = _mm_cmplt_epi32(beta, _mm_setzero_si128());
+            // const __m128i sseEdge1FuncMask = _mm_or_epi32(sseEdge1Positive,
+            //                                               _mm_andnot_epi32(sseEdge1Negative, Edge1TieBreak));
 
-            // Edge 2 test
-            const __m128i sseEdge2Positive = _mm_cmpgt_epi32(gama, _mm_setzero_si128());
-            const __m128i sseEdge2Negative = _mm_cmplt_epi32(gama, _mm_setzero_si128());
-            const __m128i sseEdge2FuncMask = _mm_or_epi32(sseEdge2Positive,
-                                                          _mm_andnot_epi32(sseEdge2Negative, Edge2TieBreak));
+            //// Edge 2 test
+            // const __m128i sseEdge2Positive = _mm_cmpgt_epi32(gama, _mm_setzero_si128());
+            // const __m128i sseEdge2Negative = _mm_cmplt_epi32(gama, _mm_setzero_si128());
+            // const __m128i sseEdge2FuncMask = _mm_or_epi32(sseEdge2Positive,
+            //                                               _mm_andnot_epi32(sseEdge2Negative, Edge2TieBreak));
 
             // Combine resulting masks of all three edges
-            const __m128i mask = _mm_and_epi32(sseEdge0FuncMask,
-                                               _mm_and_epi32(sseEdge1FuncMask, sseEdge2FuncMask));
+            // const __m128i mask = _mm_and_epi32(sseEdge0FuncMask,
+            //                                   _mm_and_epi32(sseEdge1FuncMask, sseEdge2FuncMask));
+
+            const __m128i mask = _mm_cmplt_epi32(_mm_setzero_si128(), _mm_or_si128(_mm_or_si128(alpha, beta), gama));
 
             // Early out if all of this quad's pixels are outside the triangle.
             if (_mm_test_all_zeros(mask, mask))
@@ -557,9 +553,9 @@ void Textured_Shading(const __m128 *screen_space_verticies, const __m128 *world_
                     frag_colour = _mm_mul_ps(_mm_set1_ps(255.0f), lighting_contribution);
                 }
 
-                const uint8_t red = (uint8_t)frag_colour.m128_f32[0];
-                const uint8_t gre = (uint8_t)frag_colour.m128_f32[1];
-                const uint8_t blu = (uint8_t)frag_colour.m128_f32[2];
+                const uint8_t red = (uint8_t)(frag_colour.m128_f32[0] * 255.0f);
+                const uint8_t gre = (uint8_t)(frag_colour.m128_f32[1] * 255.0f);
+                const uint8_t blu = (uint8_t)(frag_colour.m128_f32[2] * 255.0f);
                 const uint8_t alp = (uint8_t)255;
 
                 // Not sure if I like this
@@ -578,6 +574,7 @@ void Textured_Shading(const __m128 *screen_space_verticies, const __m128 *world_
         }
     }
 }
+#endif
 
 void Flat_Shading(const RasterData_t rd)
 {
@@ -586,17 +583,21 @@ void Flat_Shading(const RasterData_t rd)
 
     // Unpack Vertex data
     // TODO: Fix this ordering
-    const __m128 v0 = rd.screen_space_verticies[2];
-    const __m128 v1 = rd.screen_space_verticies[1];
-    const __m128 v2 = rd.screen_space_verticies[0];
+    const __m128 v0 = rd.screen_space_verticies[2].m;
+    const __m128 v1 = rd.screen_space_verticies[1].m;
+    const __m128 v2 = rd.screen_space_verticies[0].m;
 
     // Gourand Shading
     __m128 colours[3];
     if (global_app.shading_mode == GOURAND) // We interpolate the colours in the "Vertex Shader"
     {
-        colours[0] = Light_Calculate_Shading(rd.world_space_verticies[0], rd.normals[0], global_app.camera_position, rd.light->position, rd.light);
-        colours[1] = Light_Calculate_Shading(rd.world_space_verticies[1], rd.normals[1], global_app.camera_position, rd.light->position, rd.light);
-        colours[2] = Light_Calculate_Shading(rd.world_space_verticies[2], rd.normals[2], global_app.camera_position, rd.light->position, rd.light);
+        mvec4 tmp_colours0 = Light_Calculate_Shading(rd.world_space_verticies[0], rd.normals[0], global_app.camera_position, rd.light->position, rd.light);
+        mvec4 tmp_colours1 = Light_Calculate_Shading(rd.world_space_verticies[1], rd.normals[1], global_app.camera_position, rd.light->position, rd.light);
+        mvec4 tmp_colours2 = Light_Calculate_Shading(rd.world_space_verticies[2], rd.normals[2], global_app.camera_position, rd.light->position, rd.light);
+
+        colours[0] = tmp_colours0.m;
+        colours[1] = tmp_colours1.m;
+        colours[2] = tmp_colours2.m;
 
         // We should combine the lighting colour value and the interpolated vertex colours here...
     }
@@ -718,10 +719,6 @@ void Flat_Shading(const RasterData_t rd)
             // Combine resulting masks of all three edges
             const __m128i mask = _mm_and_epi32(sseEdge0FuncMask, _mm_and_epi32(sseEdge1FuncMask, sseEdge2FuncMask));
 
-            // __m128i mask = w0 | w1 | w2;
-            // we compare < 0.0f, so we get all the values 0.0f and above, -1 values are "true"
-            // const __m128i mask = _mm_cmplt_epi32(_mm_setzero_si128(), _mm_or_si128(_mm_or_si128(alpha, beta), gama));
-
             // Early out if all of this quad's pixels are outside the triangle.
             if (_mm_test_all_zeros(mask, mask))
                 continue;
@@ -761,6 +758,10 @@ void Flat_Shading(const RasterData_t rd)
 
                 __m128 colour = {0};
                 if (global_app.shading_mode == FLAT)
+                {
+                    colour = colours[0];
+                }
+                else if (global_app.shading_mode == TEXTURED)
                 {
                     colour = colours[0];
                 }

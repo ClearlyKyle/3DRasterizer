@@ -5,9 +5,10 @@
 
 #include "textures.h"
 #include "AABB.h"
-#include "vector.h"
 #include "lights.h"
 #include "timer.h"
+
+#include "matematika.h"
 
 #include "SDL2/SDL.h"
 
@@ -35,7 +36,7 @@ typedef struct AppState_s
     Texture tex; // The diffuse texture
     Texture nrm; // The normal map texture
 
-    __m128 camera_position;
+    mvec4 camera_position;
 
     // Shading_Mode shading;
     Shading_Mode shading_mode;
@@ -72,22 +73,19 @@ void Draw_Triangle_Outline(const __m128 *verticies, const SDL_Colour col);
 
 typedef struct RasterData
 {
-    __m128 screen_space_verticies[3];
-    __m128 world_space_verticies[3];
-    __m128 normals[3];
-    __m128 tex_u;
-    __m128 tex_v;
+    mvec4 screen_space_verticies[3];
+    mvec4 world_space_verticies[3];
+    mvec4 normals[3];
+    mvec4 tex_u;
+    mvec4 tex_v;
 
     float w_values[3];
 
     Light *light;
 
-    Mat3x3 TBN;
+    mmat3 TBN;
 } RasterData_t;
 
 void Flat_Shading(const RasterData_t rd);
-
-void Textured_Shading(const __m128 *screen_space_verticies, const __m128 *world_space_verticies, const float *w_values, const __m128 *normal_values,
-                      const __m128 texture_u, const __m128 texture_v, const Mat3x3 TBN, Light *light);
 
 #endif // __RENDERER_H__

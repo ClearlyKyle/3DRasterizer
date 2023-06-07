@@ -6,15 +6,26 @@
 
 #include "Renderer.h"
 #include "ObjLoader.h"
+#include "utils.h"
 
-#define SCREEN_WIDTH  1000
-#define SCREEN_HEIGHT 900
+#include "vector.h"
+
+#define SCREEN_WIDTH  1024
+#define SCREEN_HEIGHT 512
 
 // TODO: detect what files are being loaded
 // TODO: cleanup on exit checking
 // TODO: set render mode
 // TODO: Improve object loading and setting object data
 // TODO: Better matrix multiplication
+// TODO: Load 4 triangles, and go through pipeline
+// TODO: mt?
+// TODO : Textured Shading
+// TODO : Flat Shading
+// TODO : 4 Triangle loading
+// TODO : Organise main better
+// TODO : Organise graphics and RenderState better
+// TODO : Better vector and mat functions
 
 int main(int argc, char *argv[])
 {
@@ -25,9 +36,9 @@ int main(int argc, char *argv[])
     atexit(Renderer_Destroy);
 
     // WOODEN BOX
-    // const char *obj_filename = "../../res/Wooden Box/wooden crate.obj";
-    // const char *tex_filename = "../../res/Wooden Box/crate_BaseColor.png";
-    // const char *nrm_filename = "../../res/Wooden Box/crate_Normal.png";
+    const char *obj_filename = "../../res/Wooden Box/wooden crate.obj";
+    const char *tex_filename = "../../res/Wooden Box/crate_BaseColor.png";
+    const char *nrm_filename = "../../res/Wooden Box/crate_Normal.png";
 
     // const char *obj_filename = "../../res/Crate/wood_crate.obj";
     // const char *tex_filename = "../../res/Crate/wood_crate_DIFFUSE.png";
@@ -60,9 +71,9 @@ int main(int argc, char *argv[])
     // const char *obj_filename = "../../res/Cylinder/cylinder_normals.obj";
 
     // PLANE
-    const char *obj_filename = "../../res/NormalMappingTestPlane/Normal_Plane.obj";
-    const char *tex_filename = "../../res/NormalMappingTestPlane/brickwall.png";
-    const char *nrm_filename = "../../res/NormalMappingTestPlane/brickwall_normal.png";
+    // const char *obj_filename = "../../res/NormalMappingTestPlane/Normal_Plane.obj";
+    // const char *tex_filename = "../../res/NormalMappingTestPlane/brickwall.png";
+    // const char *nrm_filename = "../../res/NormalMappingTestPlane/brickwall_normal.png";
     // const char *tex_filename = "../../res/NormalMappingTestPlane/toy_box_diffuse.png";
     // const char *nrm_filename = "../../res/NormalMappingTestPlane/toy_box_normal.png";
 
@@ -82,46 +93,40 @@ int main(int argc, char *argv[])
 
     // Load Mesh
     Mesh_Data *mesh;
+    // TODO: Better texture loading in the mesh
+    // TODO: Add checks for normals and tex coordinates
     Mesh_Get_Data(obj_filename, true, &mesh);
 
     // Projection Matrix : converts from view space to screen space
-    const Mat4x4 Projection_matrix = Get_Projection_Matrix(90.0f, (float)global_renderer.height / (float)global_renderer.width, 0.1f, 1000.0f);
+    mmat4 proj;
+    proj = mate_perspective(MATE_D2RF(60.0f), (float)global_renderer.width / (float)global_renderer.height, 0.1f, 1000.0f);
 
     // Translation Matrix : Move the object in 3D space X Y Z
-    const Mat4x4 Translation_matrix = Get_Translation_Matrix(0.0f, 0.5f, 2.5f);
+    mmat4 trans;
+    trans = mate_translate_make(0.0f, 0.0f, 4.0f);
 
     // Camera
-    global_app.camera_position = _mm_set_ps(0.0f, 0.0f, 0.0f, 0.0f);
-
-    // const float camera_position[3] = {0.0f, 0.0f, 0.0f};
-    //  const Mat4x4 View_Matrix        = CreateViewMatrix(camera_position);
-
-    // Lights
-    // const Light light = {
-    //    //                            A,    B,    G,    R
-    //    .ambient_colour  = _mm_set_ps(1.0f, 0.1f, 0.1f, 0.1f),
-    //    .diffuse_colour  = _mm_set_ps(1.0f, 0.5f, 0.5f, 0.5f), // first value is index stored at index 3
-    //    .specular_colour = _mm_set_ps(1.0f, 1.0f, 1.0f, 1.0f),
-    //    .position        = _mm_set_ps(0.0f, 1.5f, -1.0f, -2.0f),
-    //};
+    global_app.camera_position = mate_vec4_zero();
 
     Light light = {
         //                            A,    B,    G,    R     (first value is index stored at index 3)
-        .diffuse_colour  = _mm_set_ps(1.0f, 0.0f, 0.5f, 0.0f), // Change this to the texture colour at FragShader stage
-        .ambient_amount  = _mm_set1_ps(0.1f),
-        .specular_amount = _mm_set1_ps(0.2f),
-        .position        = _mm_set_ps(0.0f, -2.0f, -1.0f, 0.5f),
+        .diffuse_colour  = mate_vec4(1.0f, 0.0f, 0.5f, 0.0f), // Change this to the texture colour at FragShader stage
+        .ambient_amount  = mate_vec4_set1(0.1f),
+        .specular_amount = mate_vec4_set1(0.2f),
+        .position        = mate_vec4(0.0f, -2.0f, -1.0f, 0.5f),
     };
 
-    const float x_adjustment = 0.5f * (float)global_renderer.width;
-    const float y_adjustment = 0.5f * (float)global_renderer.height;
+    const float x_adjustment    = 0.5f * (float)global_renderer.width;
+    const float y_adjustment    = 0.5f * (float)global_renderer.height;
+    const mvec4 adjustment      = mate_vec4(x_adjustment, y_adjustment, 1.0f, 1.0f);
+    const mvec4 scale_into_view = mate_vec4(1.0f, 1.0f, 0.0f, 0.0f);
 
     // Loop timer
     struct timer looptimer    = Timer_Init_Start();
     unsigned int loop_counter = 0;
     float        fTheta       = 0.0f; // used for rotation animation
 
-    global_app.shading_mode = NORMAL_MAPPING;
+    global_app.shading_mode = FLAT;
 
     while (global_renderer.running)
     {
@@ -143,32 +148,37 @@ int main(int argc, char *argv[])
 
         Timer_Update(&looptimer);
 
-        Mat4x4 World_Matrix    = {0.0f};
-        Mat4x4 Rotation_Matrix = {0.0f};
+        mmat4 World_Matrix    = {0};
+        mmat4 Rotation_Matrix = {0};
 
         fTheta += (float)Timer_Get_Elapsed_Seconds(&looptimer) / 4;
         // fTheta = 10.0f;
 
-        const Mat4x4 matRotZ = Get_Rotation_Z_Matrix((float)DEG_to_RAD(180)); // Rotation Z
-        const Mat4x4 matRotY = Get_Rotation_Y_Matrix(fTheta);                 // Rotation Y
-        // const Mat4x4 matRotY = Get_Rotation_Y_Matrix((float)DEG_to_RAD(85));  // Rotation Y
-        const Mat4x4 matRotX = Get_Rotation_X_Matrix(0.0f); // Rotation X
+        mmat4 mrotZ, mrotY, mrotX;
 
-        Matrix_Multiply_Matrix(matRotZ.elements, matRotY.elements, Rotation_Matrix.elements);
-        Matrix_Multiply_Matrix(Rotation_Matrix.elements, matRotX.elements, Rotation_Matrix.elements);
-        Matrix_Multiply_Matrix(Rotation_Matrix.elements, Translation_matrix.elements, World_Matrix.elements);
+        mrotZ = mate_rotZ_make(MATE_D2RF(180.0f));
+        mrotY = mate_rotY_make(fTheta);
+        mrotX = mate_rotX_make(0.0f);
+
+        mmat4 rot;
+        rot = mate_rotation_make(0.0f, 1.0f, 0.0f, fTheta);
+
+        // The matrix multiplication is done in the order SRT,
+        //  where S, R, and T are the matrices for scale, rotate, and translate
+        World_Matrix    = mate_mat_mul(trans, rot);
+        Rotation_Matrix = rot;
 
         for (size_t i = 0; i < mesh->num_of_triangles; i += 1) // can we jump through triangles?
         {
-            __m128 tri1, tri2, tri3;
-            tri1 = _mm_load_ps(&mesh->vertex_coordinates[i * 12 + 0]); // 12 because we load 3 triangles at at a time looping
-            tri2 = _mm_load_ps(&mesh->vertex_coordinates[i * 12 + 4]); // through triangles. 3 traingles each spaced 4 coordinates apart
-            tri3 = _mm_load_ps(&mesh->vertex_coordinates[i * 12 + 8]); // 4 * 3 = 12; [x y z w][x y z w][x y z w]...
+            mvec4 tri1, tri2, tri3;
+            tri1 = mate_vec4_load(&mesh->vertex_coordinates[i * 12 + 0]); // 12 because we load 3 triangles at at a time looping
+            tri2 = mate_vec4_load(&mesh->vertex_coordinates[i * 12 + 4]); // through triangles. 3 traingles each spaced 4 coordinates apart
+            tri3 = mate_vec4_load(&mesh->vertex_coordinates[i * 12 + 8]); // 4 * 3 = 12; [x y z w][x y z w][x y z w]...
 
             // World_Matrix * Each Vertix = transformed Vertex
-            __m128 ws_tri1 = Matrix_Multiply_Vector_SIMD(World_Matrix.elements, tri1);
-            __m128 ws_tri2 = Matrix_Multiply_Vector_SIMD(World_Matrix.elements, tri2);
-            __m128 ws_tri3 = Matrix_Multiply_Vector_SIMD(World_Matrix.elements, tri3);
+            mvec4 ws_tri1 = mate_mat_mulv(World_Matrix, tri1);
+            mvec4 ws_tri2 = mate_mat_mulv(World_Matrix, tri2);
+            mvec4 ws_tri3 = mate_mat_mulv(World_Matrix, tri3);
 
             // Calcualte Triangle Area
             // float tri_area = (tri3.m128_f32[0] - tri1.m128_f32[0]) * (tri2.m128_f32[1] - tri1.m128_f32[1]);
@@ -176,53 +186,41 @@ int main(int argc, char *argv[])
             // tri_area       = 1.0f / tri_area;
 
             // Vector Dot Product between : Surface normal and CameraRay
-            __m128       surface_normal = Calculate_Surface_Normal_SIMD(ws_tri1, ws_tri2, ws_tri3);
-            const __m128 camera_ray     = _mm_sub_ps(ws_tri1, global_app.camera_position);
+            const mvec4 surface_normal = mate_surface_normal(ws_tri1, ws_tri2, ws_tri3);
+            const mvec4 camera_ray     = mate_vec4_sub(ws_tri1, global_app.camera_position);
 
             // Back face culling
-            const float dot_product_result = Calculate_Dot_Product_SIMD(surface_normal, camera_ray);
+            const float dot_product_result = mate_dot(surface_normal, camera_ray);
             if (dot_product_result < 0.0f)
             {
                 // Calculate the edge values for creating the tangent and bitangent vectors
                 // for use with Normal mapping
-                __m128 edge1 = _mm_sub_ps(tri2, tri1);
-                __m128 edge2 = _mm_sub_ps(tri3, tri1);
+                __m128 edge1 = _mm_sub_ps(tri2.m, tri1.m);
+                __m128 edge2 = _mm_sub_ps(tri3.m, tri1.m);
 
-                tri1 = Matrix_Multiply_Vector_SIMD(Projection_matrix.elements, ws_tri1);
-                tri2 = Matrix_Multiply_Vector_SIMD(Projection_matrix.elements, ws_tri2);
-                tri3 = Matrix_Multiply_Vector_SIMD(Projection_matrix.elements, ws_tri3);
+                tri1 = mate_mat_mulv(proj, ws_tri1);
+                tri2 = mate_mat_mulv(proj, ws_tri2);
+                tri3 = mate_mat_mulv(proj, ws_tri3);
 
                 // Camera is at the origin, and we arent moving, so we can skip this?
                 // Convert World Space --> View Space
-                // tri1 = Matrix_Multiply_Vector_SIMD(View_Matrix.elements, tri1);
-                // tri2 = Matrix_Multiply_Vector_SIMD(View_Matrix.elements, tri2);
-                // tri3 = Matrix_Multiply_Vector_SIMD(View_Matrix.elements, tri3);
-
-                // Setup texture coordinates
 
                 // Load normal values
-                __m128 normal0 = _mm_load_ps(&mesh->normal_coordinates[i * 12 + 0]);
-                __m128 normal1 = _mm_load_ps(&mesh->normal_coordinates[i * 12 + 4]);
-                __m128 normal2 = _mm_load_ps(&mesh->normal_coordinates[i * 12 + 8]);
+                mvec4 normal0 = mate_vec4_load(&mesh->normal_coordinates[i * 12 + 0]);
+                mvec4 normal1 = mate_vec4_load(&mesh->normal_coordinates[i * 12 + 4]);
+                mvec4 normal2 = mate_vec4_load(&mesh->normal_coordinates[i * 12 + 8]);
 
-                // We need some kind of normal matrix thing
-                // Mat4x4 normalMatrix = InverseMat4x4(&World_Matrix);
-                // normalMatrix        = TransposeMat4x4(&normalMatrix);
-                // normal0 = Matrix_Multiply_Vector_SIMD(normalMatrix.elements, normal0);
-                // normal1 = Matrix_Multiply_Vector_SIMD(normalMatrix.elements, normal1);
-                // normal2 = Matrix_Multiply_Vector_SIMD(normalMatrix.elements, normal2);
-
-                // Rotation only as we do not change scale or scew
-                normal0 = Matrix_Multiply_Vector_SIMD(Rotation_Matrix.elements, normal0);
-                normal1 = Matrix_Multiply_Vector_SIMD(Rotation_Matrix.elements, normal1);
-                normal2 = Matrix_Multiply_Vector_SIMD(Rotation_Matrix.elements, normal2);
+                // The correct way to do this is to construct the "normal matrix"
+                normal0 = mate_mat_mulv(Rotation_Matrix, normal0);
+                normal1 = mate_mat_mulv(Rotation_Matrix, normal1);
+                normal2 = mate_mat_mulv(Rotation_Matrix, normal2);
 
                 // tex coordinates are read in like : u u u...
                 // uv[0], uv[1], uv[2]
                 __m128 texture_v = _mm_set_ps(0.0f, mesh->uv_coordinates[6 * i + 0], mesh->uv_coordinates[6 * i + 2], mesh->uv_coordinates[6 * i + 4]);
                 __m128 texture_u = _mm_set_ps(0.0f, mesh->uv_coordinates[6 * i + 1], mesh->uv_coordinates[6 * i + 3], mesh->uv_coordinates[6 * i + 5]);
 
-                Mat3x3 TBN = {0};
+                // mmat3 TBN = {0};
                 if (global_app.shading_mode == NORMAL_MAPPING)
                 {
                     // NORMAL Mapping -----
@@ -259,41 +257,46 @@ int main(int argc, char *argv[])
                     //__m128 N = Mat3x3_mul_m128(m, normal0);
                     //__m128 T = Mat3x3_mul_m128(m, tangent);
                     __m128 T = tangent;
-                    __m128 N = normal0;
+                    __m128 N = normal0.m;
 
                     __m128 dotTN        = _mm_dp_ps(T, N, 0x7f);                                                  // dot product of T and N
                     __m128 T_proj_N     = _mm_mul_ps(dotTN, N);                                                   // projection of T onto N
                     __m128 T_perp_N     = _mm_sub_ps(T, T_proj_N);                                                // T component perpendicular to N
                     __m128 T_normalized = _mm_div_ps(T_perp_N, _mm_sqrt_ps(_mm_dp_ps(T_perp_N, T_perp_N, 0x7f))); // normalize T component
-                    // T                   = _mm_blend_ps(T_proj_N, T_normalized, 0x80);                             // blend T_proj_N and T_normalized
+                                                                                                                  // T                   = _mm_blend_ps(T_proj_N, T_normalized, 0x80);                             // blend T_proj_N and T_normalized
 
-                    TBN = Create_TBN(T_normalized, N);
-                    TBN = TransposeMat3x3(TBN);
+                    UTILS_UNUSED(T_normalized); // TODO : Move this to a "core"
+
+                    // TBN = Create_TBN(T_normalized, N);
+                    // TBN = TransposeMat3x3(TBN);
                 }
 
                 // 3D -> 2D (Projected space)
                 // Matrix Projected * Viewed Vertex = projected Vertex
-                const float one_over_w1 = 1.0f / tri1.m128_f32[3];
-                const float one_over_w2 = 1.0f / tri2.m128_f32[3];
-                const float one_over_w3 = 1.0f / tri3.m128_f32[3];
+
+                const float one_over_w1 = 1.0f / mate_vec4_get(tri1, 3);
+                const float one_over_w2 = 1.0f / mate_vec4_get(tri2, 3);
+                const float one_over_w3 = 1.0f / mate_vec4_get(tri3, 3);
 
                 // Perform x/w, y/w, z/w
-                tri1 = _mm_mul_ps(tri1, _mm_set1_ps(one_over_w1));
-                tri2 = _mm_mul_ps(tri2, _mm_set1_ps(one_over_w2));
-                tri3 = _mm_mul_ps(tri3, _mm_set1_ps(one_over_w3));
+                tri1 = mate_vec4_scale(tri1, one_over_w1);
+                tri2 = mate_vec4_scale(tri2, one_over_w2);
+                tri3 = mate_vec4_scale(tri3, one_over_w3);
 
+                // TODO : Are these the correct way around?
+                // I expecte it to be _mm_setr_ps(one_over_w1, one_over_w2, one_over_w3, 0.0f);
                 const __m128 texture_w_values = _mm_set_ps(0.0f, one_over_w1, one_over_w2, one_over_w3);
                 texture_u                     = _mm_mul_ps(texture_u, texture_w_values);
                 texture_v                     = _mm_mul_ps(texture_v, texture_w_values);
 
                 // Sacle Into View (x + 1.0f, y + 1.0f, z + 0.0f, w + 0.0f)
-                tri1 = _mm_add_ps(tri1, _mm_set_ps(0.0f, 0.0f, 1.0f, 1.0f));
-                tri2 = _mm_add_ps(tri2, _mm_set_ps(0.0f, 0.0f, 1.0f, 1.0f));
-                tri3 = _mm_add_ps(tri3, _mm_set_ps(0.0f, 0.0f, 1.0f, 1.0f));
+                tri1 = mate_vec4_add(tri1, scale_into_view);
+                tri2 = mate_vec4_add(tri2, scale_into_view);
+                tri3 = mate_vec4_add(tri3, scale_into_view);
 
-                tri1 = _mm_mul_ps(tri1, _mm_set_ps(1.0f, 1.0f, y_adjustment, x_adjustment));
-                tri2 = _mm_mul_ps(tri2, _mm_set_ps(1.0f, 1.0f, y_adjustment, x_adjustment));
-                tri3 = _mm_mul_ps(tri3, _mm_set_ps(1.0f, 1.0f, y_adjustment, x_adjustment));
+                tri1 = mate_vec4_mul(tri1, adjustment);
+                tri2 = mate_vec4_mul(tri2, adjustment);
+                tri3 = mate_vec4_mul(tri3, adjustment);
 
                 RasterData_t rd = {0};
 
