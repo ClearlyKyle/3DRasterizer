@@ -32,6 +32,10 @@ typedef struct Mesh_Data_s
 
 static int loadFile(void *ctx, const char *filename, const int is_mtl, const char *obj_filename, char **buffer, size_t *len)
 {
+    (void)is_mtl;
+    ctx          = NULL;
+    obj_filename = NULL;
+
     FILE   *fp;
     errno_t err;
 

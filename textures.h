@@ -9,11 +9,11 @@ typedef struct Texture_s
 {
     int            w, h, bpp;
     unsigned char *data;
-} Texture;
+} Texture_t;
 
-Texture Texture_Load(const char *file_path, bool alpha);
+Texture_t Texture_Load(const char *file_path, bool alpha);
 
-inline void Texture_Print_Info(const Texture t)
+inline void Texture_Print_Info(const Texture_t t)
 {
     fprintf(stderr, "Texture width  : %d\n", t.w);
     fprintf(stderr, "Texture height : %d\n", t.h);

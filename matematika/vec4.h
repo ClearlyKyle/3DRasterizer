@@ -93,8 +93,8 @@ mvec4 mate_cross(const mvec4 a, const mvec4 b)
 
     mvec4 sub = {0};
     sub.m     = _mm_sub_ps(
-            _mm_mul_ps(a.m, shuff_b.m),
-            _mm_mul_ps(b.m, shuff_a.m));
+        _mm_mul_ps(a.m, shuff_b.m),
+        _mm_mul_ps(b.m, shuff_a.m));
 
     mvec4 res = {0};
     res.m     = _mm_shuffle_ps(sub.m, sub.m, _MM_SHUFFLE(3, 0, 2, 1));
