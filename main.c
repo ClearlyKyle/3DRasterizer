@@ -29,8 +29,8 @@
 
 int main(int argc, char *argv[])
 {
-    argc = 0;
-    argv = NULL;
+    UTILS_UNUSED(argc);
+    UTILS_UNUSED(argv);
 
     Reneder_Startup("Rasterizer", SCREEN_WIDTH, SCREEN_HEIGHT);
     atexit(Renderer_Destroy);
@@ -143,6 +143,19 @@ int main(int argc, char *argv[])
             {
                 global_renderer.running = false;
                 break;
+            }
+            else if (SDL_KEYDOWN == event.type && SDL_SCANCODE_D == event.key.keysym.scancode)
+            {
+                global_app.shading_mode = (global_app.shading_mode + 1) % SHADING_COUNT;
+
+                fprintf_s(stdout, "Shading mode changed to : %s\n", Shading_Mode_Str[global_app.shading_mode]);
+            }
+            else if (SDL_KEYDOWN == event.type && SDL_SCANCODE_A == event.key.keysym.scancode)
+            {
+                global_app.shading_mode = (global_app.shading_mode == 0)
+                                              ? SHADING_COUNT - 1
+                                              : (global_app.shading_mode - 1) % SHADING_COUNT;
+                fprintf_s(stdout, "Shading mode changed to : %s\n", Shading_Mode_Str[global_app.shading_mode]);
             }
         }
 
