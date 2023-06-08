@@ -2,6 +2,7 @@
 #define __RENDERER_H__
 
 #include <stdbool.h>
+#include "utils.h"
 
 #include "textures.h"
 #include "AABB.h"
@@ -12,6 +13,8 @@
 
 #include "SDL2/SDL.h"
 
+// #define GRAPHICS_USE_SDL_RENDERER
+
 typedef struct Renderer_s
 {
     bool running;
@@ -19,22 +22,25 @@ typedef struct Renderer_s
     int  height;
     int  screen_num_pixels;
 
-    SDL_Window  *window;
-    SDL_Surface *surface;
+    SDL_Window *window;
 
+#ifdef GRAPHICS_USE_SDL_RENDERER // TODO : Remove this
+    SDL_Renderer *renderer;
+    SDL_Texture  *texture;
+#else
+    SDL_Surface     *surface;
     SDL_PixelFormat *fmt;
     uint8_t         *pixels;
+#endif
 
     float  max_depth_value;
     float *z_buffer_array;
 } Renderer;
 
-// App state and make it global
-// Add camera position
 typedef struct AppState_s
 {
-    Texture tex; // The diffuse texture
-    Texture nrm; // The normal map texture
+    Texture_t tex; // The diffuse texture
+    Texture_t nrm; // The normal map texture
 
     mvec4 camera_position;
 
@@ -42,7 +48,6 @@ typedef struct AppState_s
     Shading_Mode shading_mode;
 } AppState;
 
-// TODO: Just make this global
 extern Renderer global_renderer;
 extern AppState global_app;
 

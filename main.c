@@ -8,8 +8,6 @@
 #include "ObjLoader.h"
 #include "utils.h"
 
-#include "vector.h"
-
 #define SCREEN_WIDTH  1024
 #define SCREEN_HEIGHT 512
 
@@ -17,7 +15,6 @@
 // TODO: cleanup on exit checking
 // TODO: set render mode
 // TODO: Improve object loading and setting object data
-// TODO: Better matrix multiplication
 // TODO: Load 4 triangles, and go through pipeline
 // TODO: mt?
 // TODO : Textured Shading
@@ -81,11 +78,11 @@ int main(int argc, char *argv[])
     // const char *obj_filename = "../../res/Cone/Cone.obj";
 
     // Load texture data
-    Texture tex    = Texture_Load(tex_filename, true);
+    Texture_t tex  = Texture_Load(tex_filename, true);
     global_app.tex = tex;
 
     // Load Normal map
-    Texture nrm    = Texture_Load(nrm_filename, true);
+    Texture_t nrm  = Texture_Load(nrm_filename, true);
     global_app.nrm = nrm;
 
     Texture_Print_Info(tex);
@@ -101,9 +98,15 @@ int main(int argc, char *argv[])
     mmat4 proj;
     proj = mate_perspective(MATE_D2RF(60.0f), (float)global_renderer.width / (float)global_renderer.height, 0.1f, 1000.0f);
 
+    vec3  eye    = {0.0f, 0.0f, 1.0f};
+    vec3  center = {0.0f, 0.0f, 0.0f};
+    vec3  up     = {0.0f, 1.0f, 0.0f};
+    mmat4 view   = mate_look_at(eye, center, up);
+    UTILS_UNUSED(view);
+
     // Translation Matrix : Move the object in 3D space X Y Z
     mmat4 trans;
-    trans = mate_translate_make(0.0f, 0.0f, 4.0f);
+    trans = mate_translation_make(0.0f, 0.0f, 4.0f);
 
     // Camera
     global_app.camera_position = mate_vec4_zero();
@@ -126,7 +129,7 @@ int main(int argc, char *argv[])
     unsigned int loop_counter = 0;
     float        fTheta       = 0.0f; // used for rotation animation
 
-    global_app.shading_mode = FLAT;
+    global_app.shading_mode = GOURAND;
 
     while (global_renderer.running)
     {
@@ -211,6 +214,10 @@ int main(int argc, char *argv[])
                 __m128 edge1 = _mm_sub_ps(tri2.m, tri1.m);
                 __m128 edge2 = _mm_sub_ps(tri3.m, tri1.m);
 
+                // ws_tri1 = mate_mat_mulv(view, ws_tri1);
+                // ws_tri2 = mate_mat_mulv(view, ws_tri2);
+                // ws_tri3 = mate_mat_mulv(view, ws_tri3);
+
                 tri1 = mate_mat_mulv(proj, ws_tri1);
                 tri2 = mate_mat_mulv(proj, ws_tri2);
                 tri3 = mate_mat_mulv(proj, ws_tri3);
@@ -230,12 +237,14 @@ int main(int argc, char *argv[])
 
                 // tex coordinates are read in like : u u u...
                 // uv[0], uv[1], uv[2]
-                __m128 texture_v = _mm_set_ps(0.0f, mesh->uv_coordinates[6 * i + 0], mesh->uv_coordinates[6 * i + 2], mesh->uv_coordinates[6 * i + 4]);
-                __m128 texture_u = _mm_set_ps(0.0f, mesh->uv_coordinates[6 * i + 1], mesh->uv_coordinates[6 * i + 3], mesh->uv_coordinates[6 * i + 5]);
+                __m128 texture_u = _mm_setr_ps(mesh->uv_coordinates[6 * i + 0], mesh->uv_coordinates[6 * i + 2], mesh->uv_coordinates[6 * i + 4], 0.0f);
+                __m128 texture_v = _mm_setr_ps(mesh->uv_coordinates[6 * i + 1], mesh->uv_coordinates[6 * i + 3], mesh->uv_coordinates[6 * i + 5], 0.0f);
 
                 // mmat3 TBN = {0};
                 if (global_app.shading_mode == NORMAL_MAPPING)
                 {
+                    continue; // TMP
+
                     // NORMAL Mapping -----
                     const float deltaUV1_y = mesh->uv_coordinates[6 * i + 3] - mesh->uv_coordinates[6 * i + 1]; // u
                     const float deltaUV1_x = mesh->uv_coordinates[6 * i + 2] - mesh->uv_coordinates[6 * i + 0]; // v
@@ -296,12 +305,11 @@ int main(int argc, char *argv[])
                 tri2 = mate_vec4_scale(tri2, one_over_w2);
                 tri3 = mate_vec4_scale(tri3, one_over_w3);
 
-                // TODO : Are these the correct way around?
-                // I expecte it to be _mm_setr_ps(one_over_w1, one_over_w2, one_over_w3, 0.0f);
-                const __m128 texture_w_values = _mm_set_ps(0.0f, one_over_w1, one_over_w2, one_over_w3);
-                texture_u                     = _mm_mul_ps(texture_u, texture_w_values);
-                texture_v                     = _mm_mul_ps(texture_v, texture_w_values);
+                const __m128 w_values = _mm_setr_ps(one_over_w1, one_over_w2, one_over_w3, 0.0f);
+                texture_u             = _mm_mul_ps(texture_u, w_values);
+                texture_v             = _mm_mul_ps(texture_v, w_values);
 
+                // TODO : Change to a viewport matrix
                 // Sacle Into View (x + 1.0f, y + 1.0f, z + 0.0f, w + 0.0f)
                 tri1 = mate_vec4_add(tri1, scale_into_view);
                 tri2 = mate_vec4_add(tri2, scale_into_view);
@@ -314,6 +322,9 @@ int main(int argc, char *argv[])
                 RasterData_t rd = {0};
 
                 rd.light = &light;
+
+                rd.tex_u = (mvec4){.m = texture_u};
+                rd.tex_v = (mvec4){.m = texture_v};
 
                 rd.world_space_verticies[0] = ws_tri1;
                 rd.world_space_verticies[1] = ws_tri2;

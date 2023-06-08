@@ -28,15 +28,31 @@ void Reneder_Startup(const char *title, const int width, const int height)
         exit(2);
     }
 
-    SDL_Surface *window_surface = SDL_GetWindowSurface(global_renderer.window);
+#ifdef GRAPHICS_USE_SDL_RENDERER
+    SDL_Renderer *renderer   = SDL_CreateRenderer(global_renderer.window, -1, 0);
+    global_renderer.renderer = renderer;
 
-    // Get window data
-    global_renderer.surface           = window_surface;
-    global_renderer.fmt               = window_surface->format;
-    global_renderer.pixels            = window_surface->pixels;
+    SDL_Texture *texture    = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STATIC, width, height);
+    global_renderer.texture = texture;
+
+    global_renderer.screen_num_pixels = width * height;
+#else
+    SDL_Surface *window_surface = SDL_GetWindowSurface(global_renderer.window);
+    global_renderer.surface     = window_surface;
+
+    global_renderer.fmt = window_surface->format;
+
+    printf("Window Surface\n\tPixel format : %s\n", SDL_GetPixelFormatName(global_renderer.surface->format->format));
+    printf("\tBytesPP      : %d\n", global_renderer.fmt->BytesPerPixel);
+    printf("\tBPP          : %d\n", global_renderer.fmt->BitsPerPixel);
+    printf("\tPitch : %d\n", window_surface->pitch);
+
+    // global_renderer.pixels            = (uint8_t *)window_surface->pixels;
+    global_renderer.pixels            = (uint8_t *)window_surface->pixels;
     global_renderer.height            = window_surface->h;
     global_renderer.width             = window_surface->w;
     global_renderer.screen_num_pixels = window_surface->h * window_surface->w;
+#endif
 
     // Allocate z buffer
     float *z_buff = (float *)_aligned_malloc(sizeof(float) * global_renderer.screen_num_pixels, 16);
@@ -45,9 +61,8 @@ void Reneder_Startup(const char *title, const int width, const int height)
         fprintf(stderr, "Error with : (float *)_aligned_malloc(sizeof(float) * global_renderer.screen_num_pixels, 16);\n");
         exit(2);
     }
-
     global_renderer.z_buffer_array  = z_buff;
-    global_renderer.max_depth_value = 100.0f;
+    global_renderer.max_depth_value = 50.0f;
 
     global_renderer.running = true;
 }
@@ -60,18 +75,30 @@ void Renderer_Destroy(void)
         global_renderer.window = NULL;
     }
 
+#ifdef GRAPHICS_USE_SDL_RENDERER
+    if (global_renderer.renderer)
+    {
+        SDL_DestroyRenderer(global_renderer.renderer);
+        global_renderer.renderer = NULL;
+    }
+    if (global_renderer.texture)
+    {
+        SDL_DestroyTexture(global_renderer.texture);
+        global_renderer.texture = NULL;
+    }
+#else
     if (global_renderer.surface)
     {
         SDL_FreeSurface(global_renderer.surface);
         global_renderer.surface = NULL;
         global_renderer.pixels  = NULL;
     }
-
     if (global_renderer.pixels)
     {
         free(global_renderer.pixels);
         global_renderer.pixels = NULL;
     }
+#endif
 
     if (global_renderer.z_buffer_array)
     {
@@ -86,15 +113,13 @@ void Renderer_Destroy(void)
 
 static inline void Draw_Pixel_RGBA(const int x, const int y, const uint8_t red, const uint8_t green, const uint8_t blue, const uint8_t alpha)
 {
-    // if (x < 0 || y < 0 || x >= global_renderer.width || y >= global_renderer.height)
-    //     return;
-
     const int index = y * global_renderer.width + x;
+    ASSERT(index <= global_renderer.screen_num_pixels);
 
-    // if (index > global_renderer.screen_num_pixels)
-    //     return;
-
-    global_renderer.pixels[index] = (Uint32)((alpha << 24) + (red << 16) + (green << 8) + (blue << 0));
+    global_renderer.pixels[index * 4 + 0] = green;
+    global_renderer.pixels[index * 4 + 1] = red;
+    global_renderer.pixels[index * 4 + 2] = blue;
+    global_renderer.pixels[index * 4 + 3] = 255;
 }
 
 static inline void Draw_Pixel_SDL_Colour(const int x, const int y, const SDL_Colour *col)
@@ -163,26 +188,33 @@ static void Draw_Line(int x, int y, int x2, int y2, const SDL_Colour *col)
     }
 }
 
-void Draw_Triangle_Outline(const __m128 *verticies, const SDL_Colour col)
-{
-    float vert1[4];
-    _mm_store_ps(vert1, verticies[0]);
-    float vert2[4];
-    _mm_store_ps(vert2, verticies[1]);
-    float vert3[4];
-    _mm_store_ps(vert3, verticies[2]);
-
-    Draw_Line((int)vert1[0], (int)vert1[1], (int)vert2[0], (int)vert2[1], &col);
-    Draw_Line((int)vert2[0], (int)vert2[1], (int)vert3[0], (int)vert3[1], &col);
-    Draw_Line((int)vert3[0], (int)vert3[1], (int)vert1[0], (int)vert1[1], &col);
-}
-
 void Draw_Depth_Buffer(void)
 {
     const __m128 max_depth = _mm_set1_ps(global_renderer.max_depth_value);
     const __m128 value_255 = _mm_set1_ps(255.0f);
 
     float *pDepthBuffer = global_renderer.z_buffer_array;
+#if 1
+    for (int y = 0; y < global_renderer.height; y++)
+    {
+        for (int x = 0; x < global_renderer.width; x += 4)
+        {
+            __m128 depthvalues = _mm_load_ps(&pDepthBuffer[y * global_renderer.width + x]);
+            depthvalues        = _mm_mul_ps(_mm_add_ps(depthvalues, _mm_set1_ps(1.0f)), _mm_set1_ps(0.5f));
+            depthvalues        = _mm_rcp_ps(depthvalues);
+            depthvalues        = _mm_div_ps(depthvalues, max_depth);
+            depthvalues        = _mm_mul_ps(depthvalues, value_255);
+
+            float shading[4];
+            _mm_store_ps(shading, depthvalues);
+
+            Draw_Pixel_RGBA(x + 0, y, (uint8_t)shading[0], (uint8_t)shading[0], (uint8_t)shading[0], 255);
+            Draw_Pixel_RGBA(x + 1, y, (uint8_t)shading[1], (uint8_t)shading[1], (uint8_t)shading[1], 255);
+            Draw_Pixel_RGBA(x + 2, y, (uint8_t)shading[2], (uint8_t)shading[2], (uint8_t)shading[2], 255);
+            Draw_Pixel_RGBA(x + 3, y, (uint8_t)shading[3], (uint8_t)shading[3], (uint8_t)shading[3], 255);
+        }
+    }
+#else
 
     int rowIdx = 0;
     for (int y = 0; y < global_renderer.height; y += 2, rowIdx += 2 * global_renderer.width)
@@ -190,20 +222,28 @@ void Draw_Depth_Buffer(void)
         int index = rowIdx;
         for (int x = 0; x < global_renderer.width; x += 2, index += 4)
         {
-            __m128 depthvalues = _mm_load_ps(&pDepthBuffer[index]);
-            depthvalues        = _mm_div_ps(depthvalues, max_depth);
-            // depthvalues = _mm_min_ps(_mm_set1_ps(1.0f), depthvalues);
-            depthvalues = _mm_mul_ps(depthvalues, value_255);
+            const __m128 depthVec = _mm_load_ps(&pDepthBuffer[index]);
 
-            float shading[4];
-            _mm_store_ps(shading, depthvalues);
+            __m128 cmp = _mm_cmpeq_ps(depthVec, _mm_set1_ps(global_renderer.max_depth_value));
 
-            Draw_Pixel_RGBA(x + 0, y + 0, (uint8_t)shading[3], (uint8_t)shading[3], (uint8_t)shading[3], 255);
-            Draw_Pixel_RGBA(x + 1, y + 0, (uint8_t)shading[2], (uint8_t)shading[2], (uint8_t)shading[2], 255);
-            Draw_Pixel_RGBA(x + 0, y + 1, (uint8_t)shading[1], (uint8_t)shading[1], (uint8_t)shading[1], 255);
-            Draw_Pixel_RGBA(x + 1, y + 1, (uint8_t)shading[0], (uint8_t)shading[0], (uint8_t)shading[0], 255);
+            if (_mm_testz_si128(_mm_cvtps_epi32(cmp), _mm_cvtps_epi32(cmp)) == 0)
+                continue;
+
+            // Normalize the depth values between 0 and 1
+            __m128 normalizedDepthVec = _mm_div_ps(_mm_sub_ps(depthVec, minDepthVec), _mm_sub_ps(maxDepthVec, minDepthVec));
+
+            // Map the normalized depth values to the range of 0 to 255
+            __m128i colorValueVec = _mm_cvtps_epi32(_mm_mul_ps(normalizedDepthVec, _mm_set1_ps(255.0f)));
+
+            // Convert the packed integer values to 8-bit unsigned integers
+            __m128i colorValueU8Vec = _mm_packus_epi32(colorValueVec, colorValueVec);
+            colorValueU8Vec         = _mm_packus_epi16(colorValueU8Vec, colorValueU8Vec);
+
+            // Store the color values into the RGBA color buffer
+            _mm_storeu_si128((__m128i *)&RenderState.colour_buffer[i], colorValueU8Vec);
         }
     }
+#endif
 }
 
 /**
@@ -268,7 +308,7 @@ static inline __m128 _Phong_Shading_Get_Colour(const __m128 weights[3], const mv
  */
 static inline __m128 _Get_Normal_From_Normal_Map(const int res_v, const int res_u)
 {
-    const Texture normal_map = global_app.nrm;
+    const Texture_t normal_map = global_app.nrm;
 
     // Calculate the texture index in the normal map
     const unsigned int index = (res_u * normal_map.w + res_v) * normal_map.bpp;
@@ -296,16 +336,19 @@ static inline __m128 _Get_Normal_From_Normal_Map(const int res_v, const int res_
  */
 static inline __m128 _Get_Colour_From_Diffuse_Texture(const int res_v, const int res_u)
 {
-    const Texture texture = global_app.tex;
+    const Texture_t texture = global_app.tex; // TODO : Remove this?
+
+    ASSERT(res_u <= texture.w);
+    ASSERT(res_v <= texture.h);
+    ASSERT(texture.data);
 
     // Calculate the texture index in the texture image
     const unsigned int index = (res_u * texture.w + res_v) * texture.bpp;
 
     const unsigned char *pixel_data = texture.data + index;
 
-    return _mm_div_ps(
-        _mm_set_ps(255.0f, pixel_data[2], pixel_data[1], pixel_data[0]),
-        _mm_set1_ps(255.0f));
+    return _mm_div_ps(_mm_setr_ps(pixel_data[0], pixel_data[1], pixel_data[2], 255.0f),
+                      _mm_set1_ps(255.0f));
 }
 
 #if 0 // Not feeling ready for this yet lol
@@ -491,10 +534,10 @@ void Textured_Shading(const __m128 *screen_space_verticies, const __m128 *world_
 
             const __m128i finalMask = _mm_cvtps_epi32(which_depths_should_be_drawn);
 
+
             // Precalulate uv constants
             const __m128 depth_w = _mm_mul_ps(inv_depth, _mm_set1_ps((float)global_app.tex.w - 1.0f));
             const __m128 depth_h = _mm_mul_ps(inv_depth, _mm_set1_ps((float)global_app.tex.h - 1.0f));
-
             for (int pixel_index = 0; pixel_index < 4; pixel_index++)
             {
                 if (!finalMask.m128i_i32[pixel_index])
@@ -576,16 +619,49 @@ void Textured_Shading(const __m128 *screen_space_verticies, const __m128 *world_
 }
 #endif
 
+// NOTE : Temporary
+static inline float hsum_ps_sse3(const __m128 v)
+{
+    __m128 shuf = _mm_movehdup_ps(v); // broadcast elements 3,1 to 2,0
+    __m128 sums = _mm_add_ps(v, shuf);
+    shuf        = _mm_movehl_ps(shuf, sums); // high half -> low half
+    sums        = _mm_add_ss(sums, shuf);
+    return _mm_cvtss_f32(sums);
+}
+
 void Flat_Shading(const RasterData_t rd)
 {
     const __m128i colOffset = _mm_setr_epi32(0, 1, 2, 3); // NOTE: The "r" here!! makes loading and storing colour easier
     const __m128i rowOffset = _mm_setr_epi32(0, 0, 0, 0);
 
+    if (global_app.shading_mode == WIRE_FRAME)
+    {
+        const float *v0 = rd.screen_space_verticies[0].f;
+        const float *v1 = rd.screen_space_verticies[1].f;
+        const float *v2 = rd.screen_space_verticies[2].f;
+
+        const SDL_Colour col = {255, 255, 255, 255};
+        Draw_Line((int)v0[0], (int)v0[1], (int)v1[0], (int)v1[1], &col);
+        Draw_Line((int)v1[0], (int)v1[1], (int)v2[0], (int)v2[1], &col);
+        Draw_Line((int)v2[0], (int)v2[1], (int)v0[0], (int)v0[1], &col);
+        return;
+    }
+
     // Unpack Vertex data
-    // TODO: Fix this ordering
-    const __m128 v0 = rd.screen_space_verticies[2].m;
+    const __m128 v0 = rd.screen_space_verticies[0].m;
     const __m128 v1 = rd.screen_space_verticies[1].m;
-    const __m128 v2 = rd.screen_space_verticies[0].m;
+    const __m128 v2 = rd.screen_space_verticies[2].m;
+
+    Texture_t tex = global_app.tex;
+
+    // Setup for textured shading
+    __m128 U[3], V[3], Z[3];
+    for (size_t i = 0; i < 3; i++)
+    {
+        U[i] = _mm_set1_ps(rd.tex_u.f[i]);
+        V[i] = _mm_set1_ps(rd.tex_v.f[i]);
+        Z[i] = _mm_set1_ps(rd.screen_space_verticies[i].f[2]);
+    }
 
     // Gourand Shading
     __m128 colours[3];
@@ -763,18 +839,45 @@ void Flat_Shading(const RasterData_t rd)
             __m128i combined_colours = {0};
             if (global_app.shading_mode == SHADING_DEPTH_BUFFER)
             {
-                    continue;
+                continue;
             }
             else if (global_app.shading_mode == FLAT)
-                {
-                    colour = colours[0];
-                }
-                else if (global_app.shading_mode == TEXTURED)
-                {
-                    colour = colours[0];
-                }
-                else
-                {
+            {
+                combined_colours = _mm_set1_epi32(0x00FF00FF);
+            }
+            else if (global_app.shading_mode == TEXTURED)
+            {
+                __m128 U_w = _mm_add_ps(_mm_add_ps(_mm_mul_ps(U[0], w0), _mm_mul_ps(U[1], w1)), _mm_mul_ps(U[2], w2));
+                __m128 V_w = _mm_add_ps(_mm_add_ps(_mm_mul_ps(V[0], w0), _mm_mul_ps(V[1], w1)), _mm_mul_ps(V[2], w2));
+
+                // clamp the vector to the range [0.0f, 1.0f]
+                // U_w = _mm_max_ps(_mm_min_ps(U_w, _mm_set1_ps(1.0f)), _mm_setzero_ps());
+                // V_w = _mm_max_ps(_mm_min_ps(V_w, _mm_set1_ps(1.0f)), _mm_setzero_ps());
+
+                U_w = _mm_mul_ps(intrFactor, _mm_mul_ps(U_w, _mm_set1_ps((float)tex.w - 1)));
+                V_w = _mm_mul_ps(intrFactor, _mm_mul_ps(V_w, _mm_set1_ps((float)tex.h - 1)));
+
+                // (U + texture.width * V) * texture.bpp
+                const __m128i texture_offset = _mm_mullo_epi32(
+                    _mm_set1_epi32(tex.bpp),
+                    _mm_add_epi32(
+                        _mm_cvtps_epi32(U_w),
+                        _mm_mullo_epi32(
+                            _mm_set1_epi32(tex.w),
+                            _mm_cvtps_epi32(V_w))));
+
+                __m128i pixel_colour[4] = {0};
+                for (int i = 0; i < 4; ++i)
+                    pixel_colour[i] = _mm_loadu_si128((__m128i *)(tex.data + texture_offset.m128i_u32[i]));
+
+                const __m128i interleaved1 = _mm_unpacklo_epi32(pixel_colour[0], pixel_colour[1]);
+                const __m128i interleaved2 = _mm_unpacklo_epi32(pixel_colour[2], pixel_colour[3]);
+
+                // combined: [r1, g1, b1, a1, r2, g2, b2, a2, r3, g3, b3, a3, r4, g4, b4, a4]
+                combined_colours = _mm_unpacklo_epi64(interleaved1, interleaved2);
+            }
+            else
+            {
                     // Interpolate shaded colour
                     const __m128 weights[3] = {
                         _mm_set1_ps(w0_area.m128_f32[pixel_index]),
@@ -793,15 +896,33 @@ void Flat_Shading(const RasterData_t rd)
                     }
                 }
 
-                frag_colour[pixel_index] = _mm_cvtps_epi32(_mm_mul_ps(colour, _mm_set1_ps(255.0f)));
+                //__m128i pixel_colour[4] = {0};
+                // for (int pixel_index = 0; pixel_index < 4; pixel_index++)
+                //{
+                //    if (finalMask.m128i_i32[pixel_index] == 0)
+                //        continue;
+
+                //    __m128 colour = {0};
+
+                //    else if (global_app.shading_mode == PHONG || global_app.shading_mode == BLIN_PHONG)
+                //    {
+                //        combined_colours = _mm_set1_epi32(0x00FF00FF);
+                //        // colour = _Phong_Shading_Get_Colour(weights, rd.world_space_verticies, rd.normals, rd.light);
+                //    }
+
+                //    pixel_colour[pixel_index] = _mm_cvtps_epi32(_mm_mul_ps(colour, _mm_set1_ps(255.0f)));
+                //}
             }
 
-            // Convert the packed integer values to 8-bit unsigned integers
-            const __m128i packed_colours0 = _mm_packs_epi32(frag_colour[0], frag_colour[1]);
-            const __m128i packed_colours1 = _mm_packs_epi32(frag_colour[2], frag_colour[3]);
+            // Shuffle RGBA to BRGA
+            combined_colours = _mm_shuffle_epi8(combined_colours, _mm_setr_epi8(
+                                                                      1, 0, 2, 3,    // pix 1
+                                                                      5, 4, 6, 7,    // pix 2
+                                                                      9, 8, 10, 11,  // pix 3
+                                                                      13, 12, 14, 15 // pix 4
+                                                                      ));
 
-            const __m128i combined_colours = _mm_packus_epi16(packed_colours0, packed_colours1);
-            uint8_t      *pixel_location   = &pColourBuffer[index * 4];
+            uint8_t *pixel_location = &pColourBuffer[index * 4];
 
 #if 1 /* Fabian method */
             // We need to combine original pixel colour otherwise we would overrwite it to black lel
@@ -813,10 +934,10 @@ void Flat_Shading(const RasterData_t rd)
             _mm_storeu_si128((__m128i *)pixel_location, masked_output);
 #else
             // Mask-store 4-sample fragment values
-            _mm256_maskstore_epi32(
+            _mm_maskstore_epi32(
                 (int *)pixel_location,
-                _mm256_castps_si256(finalMask),
-                final_colour);
+                finalMask,
+                combined_colours);
 #endif
         }
     }

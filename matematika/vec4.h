@@ -45,12 +45,11 @@ mvec4 mate_vec4_set1(const float val)
     return (mvec4){.m = _mm_set1_ps(val)};
 }
 
-// May not be availble on all compilers
 MATEMATIKA_INLINE
 float mate_vec4_get(const mvec4 v, const int index)
 {
     MATEMATIKA_ASSERT(index <= 3);
-    return v.m.m128_f32[index];
+    return v.f[index];
 }
 
 MATEMATIKA_INLINE
@@ -131,6 +130,18 @@ mvec4 mate_norm(const mvec4 v)
 
     res.m = _mm_div_ps(v.m,
                        _mm_sqrt_ps(
+                           _mm_set1_ps(mate_dot(v, v))));
+    return res;
+}
+
+MATEMATIKA_INLINE
+mvec4 mate_norm3(mvec4 v)
+{
+    mvec4 res = {0};
+
+    v.f[3] = 0.0f;
+    res.m  = _mm_div_ps(v.m,
+                        _mm_sqrt_ps(
                            _mm_set1_ps(mate_dot(v, v))));
     return res;
 }
