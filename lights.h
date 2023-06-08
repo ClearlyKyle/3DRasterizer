@@ -3,6 +3,7 @@
 
 #include "matematika.h"
 
+// TODO : Prefix these
 typedef enum
 {
     WIRE_FRAME,
@@ -13,6 +14,7 @@ typedef enum
     TEXTURED,
     TEXTURED_PHONG,
     NORMAL_MAPPING,
+    SHADING_DEPTH_BUFFER,
     SHADING_COUNT
 } Shading_Mode;
 
@@ -25,6 +27,7 @@ static const char *Shading_Mode_Str[SHADING_COUNT] = {
     "TEXTURED",
     "TEXTURED_PHONG",
     "NORMAL_MAPPING",
+    "SHADING_DEPTH_BUFFER",
 };
 
 typedef struct Light_s

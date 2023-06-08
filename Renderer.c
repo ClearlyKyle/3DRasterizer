@@ -620,22 +620,20 @@ void Flat_Shading(const RasterData_t rd)
     const __m128i v2_y = _mm_cvtps_epi32(_mm_shuffle_ps(v2, v2, _MM_SHUFFLE(1, 1, 1, 1)));
 
     // Edge Setup
-    const __m128i A0 = _mm_sub_epi32(v1_y, v2_y); // A01 = [1].Y - [2].Y
-    const __m128i A1 = _mm_sub_epi32(v2_y, v0_y); // A12 = [2].Y - [0].Y
-    const __m128i A2 = _mm_sub_epi32(v0_y, v1_y); // A20 = [0].Y - [1].Y
+    const __m128i A0 = _mm_sub_epi32(v2_y, v1_y);
+    const __m128i A1 = _mm_sub_epi32(v0_y, v2_y);
+    const __m128i A2 = _mm_sub_epi32(v1_y, v0_y);
 
-    const __m128i B0 = _mm_sub_epi32(v2_x, v1_x);
-    const __m128i B1 = _mm_sub_epi32(v0_x, v2_x);
-    const __m128i B2 = _mm_sub_epi32(v1_x, v0_x);
+    const __m128i B0 = _mm_sub_epi32(v1_x, v2_x);
+    const __m128i B1 = _mm_sub_epi32(v2_x, v0_x);
+    const __m128i B2 = _mm_sub_epi32(v0_x, v1_x);
 
-    const __m128i C0 = _mm_sub_epi32(_mm_mullo_epi32(v1_x, v2_y), _mm_mullo_epi32(v2_x, v1_y));
-    const __m128i C1 = _mm_sub_epi32(_mm_mullo_epi32(v2_x, v0_y), _mm_mullo_epi32(v0_x, v2_y));
-    const __m128i C2 = _mm_sub_epi32(_mm_mullo_epi32(v0_x, v1_y), _mm_mullo_epi32(v1_x, v0_y));
+    const __m128i C0 = _mm_sub_epi32(_mm_mullo_epi32(v2_x, v1_y), _mm_mullo_epi32(v1_x, v2_y));
+    const __m128i C1 = _mm_sub_epi32(_mm_mullo_epi32(v0_x, v2_y), _mm_mullo_epi32(v2_x, v0_y));
+    const __m128i C2 = _mm_sub_epi32(_mm_mullo_epi32(v1_x, v0_y), _mm_mullo_epi32(v0_x, v1_y));
 
     // Pass in Area?
-    __m128i triArea = _mm_mullo_epi32(B2, A1);
-    triArea         = _mm_sub_epi32(triArea, _mm_mullo_epi32(B1, A2));
-
+    const __m128i triArea = _mm_sub_epi32(_mm_mullo_epi32(B2, A1), _mm_mullo_epi32(B1, A2));
     // const __m128 oneOverTriArea = _mm_div_ps(_mm_set1_ps(1.0f), _mm_cvtepi32_ps(triArea));
     const __m128 oneOverTriArea = _mm_rcp_ps(_mm_cvtepi32_ps(triArea));
 
@@ -666,9 +664,9 @@ void Flat_Shading(const RasterData_t rd)
     float   *pDepthBuffer  = global_renderer.z_buffer_array;
     uint8_t *pColourBuffer = global_renderer.pixels;
 
-    const __m128 one_over_w1 = _mm_set1_ps(rd.w_values[0]);
-    const __m128 one_over_w2 = _mm_set1_ps(rd.w_values[1]);
-    const __m128 one_over_w3 = _mm_set1_ps(rd.w_values[2]);
+    const __m128 one_over_w0 = _mm_set1_ps(rd.w_values[0]);
+    const __m128 one_over_w1 = _mm_set1_ps(rd.w_values[1]);
+    const __m128 one_over_w2 = _mm_set1_ps(rd.w_values[2]);
 
     // Generate masks used for tie-breaking rules (not to double-shade along shared edges)
     // there is no _mm_cmpge_epi32, so use lt and swap operands
@@ -690,13 +688,13 @@ void Flat_Shading(const RasterData_t rd)
     {
         // Barycentric coordinates at start of row
         __m128i alpha = sum0Row;
-        __m128i beta  = sum1Row;
-        __m128i gama  = sum2Row;
+        __m128i betaa = sum1Row;
+        __m128i gamma = sum2Row;
 
         for (int x     = aabb.minX; x <= aabb.maxX; x += 4,
                  alpha = _mm_add_epi32(alpha, aa0Inc),
-                 beta  = _mm_add_epi32(beta, aa1Inc),
-                 gama  = _mm_add_epi32(gama, aa2Inc))
+                 betaa = _mm_add_epi32(betaa, aa1Inc),
+                 gamma = _mm_add_epi32(gamma, aa2Inc))
         {
             // Test Pixel inside triangle
             const __m128i sseEdge0Positive = _mm_cmpgt_epi32(alpha, _mm_setzero_si128());
@@ -705,42 +703,52 @@ void Flat_Shading(const RasterData_t rd)
                                                           _mm_andnot_epi32(sseEdge0Negative, Edge0TieBreak));
 
             // Edge 1 test
-            const __m128i sseEdge1Positive = _mm_cmpgt_epi32(beta, _mm_setzero_si128());
-            const __m128i sseEdge1Negative = _mm_cmplt_epi32(beta, _mm_setzero_si128());
+            const __m128i sseEdge1Positive = _mm_cmpgt_epi32(betaa, _mm_setzero_si128());
+            const __m128i sseEdge1Negative = _mm_cmplt_epi32(betaa, _mm_setzero_si128());
             const __m128i sseEdge1FuncMask = _mm_or_epi32(sseEdge1Positive,
                                                           _mm_andnot_epi32(sseEdge1Negative, Edge1TieBreak));
 
             // Edge 2 test
-            const __m128i sseEdge2Positive = _mm_cmpgt_epi32(gama, _mm_setzero_si128());
-            const __m128i sseEdge2Negative = _mm_cmplt_epi32(gama, _mm_setzero_si128());
+            const __m128i sseEdge2Positive = _mm_cmpgt_epi32(gamma, _mm_setzero_si128());
+            const __m128i sseEdge2Negative = _mm_cmplt_epi32(gamma, _mm_setzero_si128());
             const __m128i sseEdge2FuncMask = _mm_or_epi32(sseEdge2Positive,
                                                           _mm_andnot_epi32(sseEdge2Negative, Edge2TieBreak));
 
             // Combine resulting masks of all three edges
             const __m128i mask = _mm_and_epi32(sseEdge0FuncMask, _mm_and_epi32(sseEdge1FuncMask, sseEdge2FuncMask));
 
+            // const __m128i mask = _mm_cmpgt_epi32(_mm_or_si128(_mm_or_si128(alpha, betaa), gamma), _mm_setzero_si128());
+
             // Early out if all of this quad's pixels are outside the triangle.
             if (_mm_test_all_zeros(mask, mask))
                 continue;
 
-            const __m128 w0_area = _mm_mul_ps(_mm_cvtepi32_ps(gama), oneOverTriArea);
-            const __m128 w1_area = _mm_mul_ps(_mm_cvtepi32_ps(beta), oneOverTriArea);
-            const __m128 w2_area = _mm_mul_ps(_mm_cvtepi32_ps(alpha), oneOverTriArea);
+            const __m128 w0 = _mm_mul_ps(_mm_cvtepi32_ps(alpha), oneOverTriArea);
+            const __m128 w1 = _mm_mul_ps(_mm_cvtepi32_ps(betaa), oneOverTriArea);
+            const __m128 w2 = _mm_mul_ps(_mm_cvtepi32_ps(gamma), oneOverTriArea);
+
+            const __m128 weights[3] = {
+                _mm_mul_ps(one_over_w0, w0),
+                _mm_mul_ps(one_over_w1, w1),
+                _mm_mul_ps(one_over_w2, w2),
+            };
+
+            __m128 intrFactor = _mm_add_ps(_mm_add_ps(weights[0], weights[1]), weights[2]);
+            intrFactor        = _mm_rcp_ps(intrFactor);
 
             // Compute barycentric-interpolated depth
-            __m128 depth = _mm_mul_ps(w0_area, one_over_w1);
-            depth        = _mm_add_ps(depth, _mm_mul_ps(w1_area, one_over_w2));
-            depth        = _mm_add_ps(depth, _mm_mul_ps(w2_area, one_over_w3));
-            depth        = _mm_rcp_ps(depth);
+            // https://stackoverflow.com/questions/74261146/why-depth-values-must-be-interpolated-directly-by-barycentric-coordinates-in-ope
+            __m128 depth = _mm_add_ps(_mm_add_ps(_mm_mul_ps(Z[0], w0), _mm_mul_ps(Z[1], w1)), _mm_mul_ps(Z[2], w2));
+            // depth        = _mm_mul_ps(intrFactor, depth);
 
             const size_t index  = y * global_renderer.width + x;
             float       *pDepth = &pDepthBuffer[index];
 
             //// DEPTH BUFFER
             const __m128 previousDepthValue           = _mm_load_ps(pDepth);
-            const __m128 are_new_depths_less_than_old = _mm_cmple_ps(depth, previousDepthValue);
+            const __m128 are_new_depths_less_than_old = _mm_cmplt_ps(depth, previousDepthValue);
 
-            if ((uint16_t)_mm_movemask_ps(are_new_depths_less_than_old) == 0x0)
+            if ((uint16_t)_mm_movemask_ps(are_new_depths_less_than_old) == 0x0000)
                 continue;
 
             const __m128 which_depths_should_be_drawn = _mm_and_ps(are_new_depths_less_than_old, _mm_castsi128_ps(mask));
@@ -749,15 +757,15 @@ void Flat_Shading(const RasterData_t rd)
 
             const __m128i finalMask = _mm_castps_si128(which_depths_should_be_drawn);
 
-            // Loop over each pixel and draw
-            __m128i frag_colour[4] = {0};
-            for (int pixel_index = 0; pixel_index < 4; pixel_index++)
-            {
-                if (finalMask.m128i_i32[pixel_index] == 0)
-                    continue;
+            intrFactor = _mm_mul_ps(intrFactor, _mm_cvtepi32_ps(_mm_abs_epi32(finalMask)));
 
-                __m128 colour = {0};
-                if (global_app.shading_mode == FLAT)
+            // Loop over each pixel and draw
+            __m128i combined_colours = {0};
+            if (global_app.shading_mode == SHADING_DEPTH_BUFFER)
+            {
+                    continue;
+            }
+            else if (global_app.shading_mode == FLAT)
                 {
                     colour = colours[0];
                 }

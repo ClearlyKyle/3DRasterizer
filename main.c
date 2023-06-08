@@ -322,7 +322,8 @@ int main(int argc, char *argv[])
             }
         }
 
-        // Draw_Depth_Buffer(&ren_data);
+        if (global_app.shading_mode == SHADING_DEPTH_BUFFER)
+            Draw_Depth_Buffer();
 
         // Update Screen
         SDL_UpdateWindowSurface(global_renderer.window);
@@ -331,8 +332,8 @@ int main(int argc, char *argv[])
         {
             loop_counter               = 0;
             const double frame_time_ms = Timer_Get_Elapsed_MS(&looptimer);
-            char         buff[32]      = {0};
-            sprintf_s(buff, 32, "%.02f ms/f %s\n", frame_time_ms, Shading_Mode_Str[global_app.shading_mode]);
+            char         buff[64]      = {0};
+            sprintf_s(buff, 64, "%.02f ms/f %s\n", frame_time_ms, Shading_Mode_Str[global_app.shading_mode]);
             SDL_SetWindowTitle(global_renderer.window, buff);
         }
         loop_counter++;
