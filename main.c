@@ -112,11 +112,10 @@ int main(int argc, char *argv[])
     global_app.camera_position = mate_vec4_zero();
 
     Light light = {
-        //                            A,    B,    G,    R     (first value is index stored at index 3)
-        .diffuse_colour  = mate_vec4(1.0f, 0.0f, 0.5f, 0.0f), // Change this to the texture colour at FragShader stage
+        .diffuse_colour  = mate_vec4_set1(0.1f),
         .ambient_amount  = mate_vec4_set1(0.1f),
-        .specular_amount = mate_vec4_set1(0.2f),
-        .position        = mate_vec4(0.0f, -2.0f, -1.0f, 0.5f),
+        .specular_amount = mate_vec4_set1(0.8f),
+        .position        = mate_vec4(1.0f, 0.0f, -1.0f, 0.0f),
     };
 
     const float x_adjustment    = 0.5f * (float)global_renderer.width;
@@ -186,15 +185,15 @@ int main(int argc, char *argv[])
 
         for (size_t i = 0; i < mesh->num_of_triangles; i += 1) // can we jump through triangles?
         {
-            mvec4 tri1, tri2, tri3;
-            tri1 = mate_vec4_load(&mesh->vertex_coordinates[i * 12 + 0]); // 12 because we load 3 triangles at at a time looping
-            tri2 = mate_vec4_load(&mesh->vertex_coordinates[i * 12 + 4]); // through triangles. 3 traingles each spaced 4 coordinates apart
-            tri3 = mate_vec4_load(&mesh->vertex_coordinates[i * 12 + 8]); // 4 * 3 = 12; [x y z w][x y z w][x y z w]...
+            mvec4 raw_v0, raw_v1, raw_v2;
+            raw_v0 = mate_vec4_load(&mesh->vertex_coordinates[i * 12 + 0]); // 12 because we load 3 triangles at at a time looping
+            raw_v1 = mate_vec4_load(&mesh->vertex_coordinates[i * 12 + 4]); // through triangles. 3 traingles each spaced 4 coordinates apart
+            raw_v2 = mate_vec4_load(&mesh->vertex_coordinates[i * 12 + 8]); // 4 * 3 = 12; [x y z w][x y z w][x y z w]...
 
             // World_Matrix * Each Vertix = transformed Vertex
-            mvec4 ws_tri1 = mate_mat_mulv(World_Matrix, tri1);
-            mvec4 ws_tri2 = mate_mat_mulv(World_Matrix, tri2);
-            mvec4 ws_tri3 = mate_mat_mulv(World_Matrix, tri3);
+            mvec4 ws_tri1 = mate_mat_mulv(World_Matrix, raw_v0);
+            mvec4 ws_tri2 = mate_mat_mulv(World_Matrix, raw_v1);
+            mvec4 ws_tri3 = mate_mat_mulv(World_Matrix, raw_v2);
 
             // Calcualte Triangle Area
             // float tri_area = (tri3.m128_f32[0] - tri1.m128_f32[0]) * (tri2.m128_f32[1] - tri1.m128_f32[1]);
@@ -211,29 +210,29 @@ int main(int argc, char *argv[])
             {
                 // Calculate the edge values for creating the tangent and bitangent vectors
                 // for use with Normal mapping
-                __m128 edge1 = _mm_sub_ps(tri2.m, tri1.m);
-                __m128 edge2 = _mm_sub_ps(tri3.m, tri1.m);
+                __m128 edge1 = _mm_sub_ps(raw_v1.m, raw_v0.m);
+                __m128 edge2 = _mm_sub_ps(raw_v2.m, raw_v0.m);
 
                 // ws_tri1 = mate_mat_mulv(view, ws_tri1);
                 // ws_tri2 = mate_mat_mulv(view, ws_tri2);
                 // ws_tri3 = mate_mat_mulv(view, ws_tri3);
 
-                tri1 = mate_mat_mulv(proj, ws_tri1);
-                tri2 = mate_mat_mulv(proj, ws_tri2);
-                tri3 = mate_mat_mulv(proj, ws_tri3);
+                mvec4 proj_v1 = mate_mat_mulv(proj, ws_tri1);
+                mvec4 proj_v2 = mate_mat_mulv(proj, ws_tri2);
+                mvec4 proj_v3 = mate_mat_mulv(proj, ws_tri3);
 
                 // Camera is at the origin, and we arent moving, so we can skip this?
                 // Convert World Space --> View Space
 
                 // Load normal values
-                mvec4 normal0 = mate_vec4_load(&mesh->normal_coordinates[i * 12 + 0]);
-                mvec4 normal1 = mate_vec4_load(&mesh->normal_coordinates[i * 12 + 4]);
-                mvec4 normal2 = mate_vec4_load(&mesh->normal_coordinates[i * 12 + 8]);
+                mvec4 raw_nrm0 = mate_vec4_load(&mesh->normal_coordinates[i * 12 + 0]);
+                mvec4 raw_nrm1 = mate_vec4_load(&mesh->normal_coordinates[i * 12 + 4]);
+                mvec4 raw_nrm2 = mate_vec4_load(&mesh->normal_coordinates[i * 12 + 8]);
 
                 // The correct way to do this is to construct the "normal matrix"
-                normal0 = mate_mat_mulv(Rotation_Matrix, normal0);
-                normal1 = mate_mat_mulv(Rotation_Matrix, normal1);
-                normal2 = mate_mat_mulv(Rotation_Matrix, normal2);
+                mvec4 ws_nrm0 = mate_mat_mulv(Rotation_Matrix, raw_nrm0);
+                mvec4 ws_nrm1 = mate_mat_mulv(Rotation_Matrix, raw_nrm1);
+                mvec4 ws_nrm2 = mate_mat_mulv(Rotation_Matrix, raw_nrm2);
 
                 // tex coordinates are read in like : u u u...
                 // uv[0], uv[1], uv[2]
@@ -279,7 +278,7 @@ int main(int argc, char *argv[])
                     //__m128 N = Mat3x3_mul_m128(m, normal0);
                     //__m128 T = Mat3x3_mul_m128(m, tangent);
                     __m128 T = tangent;
-                    __m128 N = normal0.m;
+                    __m128 N = raw_nrm0.m;
 
                     __m128 dotTN        = _mm_dp_ps(T, N, 0x7f);                                                  // dot product of T and N
                     __m128 T_proj_N     = _mm_mul_ps(dotTN, N);                                                   // projection of T onto N
@@ -295,15 +294,14 @@ int main(int argc, char *argv[])
 
                 // 3D -> 2D (Projected space)
                 // Matrix Projected * Viewed Vertex = projected Vertex
-
-                const float one_over_w1 = 1.0f / mate_vec4_get(tri1, 3);
-                const float one_over_w2 = 1.0f / mate_vec4_get(tri2, 3);
-                const float one_over_w3 = 1.0f / mate_vec4_get(tri3, 3);
+                const float one_over_w1 = 1.0f / mate_vec4_get(proj_v1, 3);
+                const float one_over_w2 = 1.0f / mate_vec4_get(proj_v2, 3);
+                const float one_over_w3 = 1.0f / mate_vec4_get(proj_v3, 3);
 
                 // Perform x/w, y/w, z/w
-                tri1 = mate_vec4_scale(tri1, one_over_w1);
-                tri2 = mate_vec4_scale(tri2, one_over_w2);
-                tri3 = mate_vec4_scale(tri3, one_over_w3);
+                proj_v1 = mate_vec4_scale(proj_v1, one_over_w1);
+                proj_v2 = mate_vec4_scale(proj_v2, one_over_w2);
+                proj_v3 = mate_vec4_scale(proj_v3, one_over_w3);
 
                 const __m128 w_values = _mm_setr_ps(one_over_w1, one_over_w2, one_over_w3, 0.0f);
                 texture_u             = _mm_mul_ps(texture_u, w_values);
@@ -311,6 +309,14 @@ int main(int argc, char *argv[])
 
                 // TODO : Change to a viewport matrix
                 // Sacle Into View (x + 1.0f, y + 1.0f, z + 0.0f, w + 0.0f)
+                proj_v1 = mate_vec4_add(proj_v1, scale_into_view);
+                proj_v2 = mate_vec4_add(proj_v2, scale_into_view);
+                proj_v3 = mate_vec4_add(proj_v3, scale_into_view);
+
+                proj_v1 = mate_vec4_mul(proj_v1, adjustment);
+                proj_v2 = mate_vec4_mul(proj_v2, adjustment);
+                proj_v3 = mate_vec4_mul(proj_v3, adjustment);
+
                 tri1 = mate_vec4_add(tri1, scale_into_view);
                 tri2 = mate_vec4_add(tri2, scale_into_view);
                 tri3 = mate_vec4_add(tri3, scale_into_view);
@@ -330,6 +336,10 @@ int main(int argc, char *argv[])
                 rd.world_space_verticies[1] = ws_tri2;
                 rd.world_space_verticies[2] = ws_tri3;
 
+                rd.screen_space_verticies[0] = proj_v1;
+                rd.screen_space_verticies[1] = proj_v2;
+                rd.screen_space_verticies[2] = proj_v3;
+
                 rd.screen_space_verticies[0] = tri1;
                 rd.screen_space_verticies[1] = tri2;
                 rd.screen_space_verticies[2] = tri3;
@@ -338,9 +348,9 @@ int main(int argc, char *argv[])
                 rd.w_values[1] = one_over_w2;
                 rd.w_values[2] = one_over_w3;
 
-                rd.normals[0] = normal0;
-                rd.normals[1] = normal1;
-                rd.normals[2] = normal2;
+                rd.normals[0] = ws_nrm0;
+                rd.normals[1] = ws_nrm1;
+                rd.normals[2] = ws_nrm2;
 
                 Flat_Shading(rd);
             }

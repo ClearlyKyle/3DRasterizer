@@ -114,12 +114,12 @@ void Renderer_Destroy(void)
 static inline void Draw_Pixel_RGBA(const int x, const int y, const uint8_t red, const uint8_t green, const uint8_t blue, const uint8_t alpha)
 {
     const int index = y * global_renderer.width + x;
-    ASSERT(index <= global_renderer.screen_num_pixels);
+    ASSERT(index >= 0 && index <= global_renderer.screen_num_pixels);
 
     global_renderer.pixels[index * 4 + 0] = green;
     global_renderer.pixels[index * 4 + 1] = red;
     global_renderer.pixels[index * 4 + 2] = blue;
-    global_renderer.pixels[index * 4 + 3] = 255;
+    global_renderer.pixels[index * 4 + 3] = alpha;
 }
 
 static inline void Draw_Pixel_SDL_Colour(const int x, const int y, const SDL_Colour *col)
@@ -265,6 +265,60 @@ static inline __m128 _Gourand_Shading_Get_Colour(const __m128 weights[3], const 
         _mm_mul_ps(weights[2], colours[2]));
 }
 
+/*
+    dest[0] = weights[0] * attibute[0].X + weights[1] * attibute[1].X + weights[2] * attibute[2].X
+    dest[1] = weights[0] * attibute[0].Y + weights[1] * attibute[1].Y + weights[2] * attibute[2].Y
+    dest[2] = weights[0] * attibute[0].Z + weights[1] * attibute[1].Z + weights[2] * attibute[2].Z
+    dest[3] = weights[0] * attibute[0].W + weights[1] * attibute[1].W + weights[2] * attibute[2].W
+
+*/
+static inline void _Interpolate_Something(const __m128 weights[3], const __m128 interpolation_factor, const __m128 attribues[3], __m128 dest[4])
+{
+    const __m128 X0 = _mm_shuffle_ps(attribues[0], attribues[0], _MM_SHUFFLE(0, 0, 0, 0));
+    const __m128 X1 = _mm_shuffle_ps(attribues[1], attribues[1], _MM_SHUFFLE(0, 0, 0, 0));
+    const __m128 X2 = _mm_shuffle_ps(attribues[2], attribues[2], _MM_SHUFFLE(0, 0, 0, 0));
+    dest[0]         = _mm_add_ps(_mm_add_ps(
+                             _mm_mul_ps(weights[0], X0),
+                             _mm_mul_ps(weights[1], X1)),
+                                 _mm_mul_ps(weights[2], X2));
+    dest[0]         = _mm_mul_ps(dest[0], interpolation_factor);
+
+    const __m128 Y0 = _mm_shuffle_ps(attribues[0], attribues[0], _MM_SHUFFLE(1, 1, 1, 1));
+    const __m128 Y1 = _mm_shuffle_ps(attribues[1], attribues[1], _MM_SHUFFLE(1, 1, 1, 1));
+    const __m128 Y2 = _mm_shuffle_ps(attribues[2], attribues[2], _MM_SHUFFLE(1, 1, 1, 1));
+    dest[1]         = _mm_add_ps(_mm_add_ps(
+                             _mm_mul_ps(weights[0], Y0),
+                             _mm_mul_ps(weights[1], Y1)),
+                                 _mm_mul_ps(weights[2], Y2));
+    dest[1]         = _mm_mul_ps(dest[1], interpolation_factor);
+
+    const __m128 Z0 = _mm_shuffle_ps(attribues[0], attribues[0], _MM_SHUFFLE(2, 2, 2, 2));
+    const __m128 Z1 = _mm_shuffle_ps(attribues[1], attribues[1], _MM_SHUFFLE(2, 2, 2, 2));
+    const __m128 Z2 = _mm_shuffle_ps(attribues[2], attribues[2], _MM_SHUFFLE(2, 2, 2, 2));
+    dest[2]         = _mm_add_ps(_mm_add_ps(
+                             _mm_mul_ps(weights[0], Z0),
+                             _mm_mul_ps(weights[1], Z1)),
+                                 _mm_mul_ps(weights[2], Z2));
+    dest[2]         = _mm_mul_ps(dest[2], interpolation_factor);
+
+    const __m128 W0 = _mm_shuffle_ps(attribues[0], attribues[0], _MM_SHUFFLE(3, 3, 3, 3));
+    const __m128 W1 = _mm_shuffle_ps(attribues[1], attribues[1], _MM_SHUFFLE(3, 3, 3, 3));
+    const __m128 W2 = _mm_shuffle_ps(attribues[2], attribues[2], _MM_SHUFFLE(3, 3, 3, 3));
+
+    dest[3] = _mm_add_ps(_mm_add_ps(
+                             _mm_mul_ps(weights[0], W0),
+                             _mm_mul_ps(weights[1], W1)),
+                         _mm_mul_ps(weights[2], W2));
+    dest[3] = _mm_mul_ps(dest[3], interpolation_factor);
+
+    // Comvert from:                to:
+    // dest[0] = X, X, X, X         dest[0] = X, Y, Z, W
+    // dest[1] = Y, Y, Y, Y         dest[1] = X, Y, Z, W
+    // dest[2] = Z, Z, Z, Z         dest[2] = X, Y, Z, W
+    // dest[3] = W, W, W, W         dest[3] = X, Y, Z, W
+    _MM_TRANSPOSE4_PS(dest[0], dest[1], dest[2], dest[3]);
+}
+
 /**
  * Calculate the final colour of the current fragment using Phong shading model. Phong shading, a normal vector is linearly
  * interpolated across the surface of the polygon from the polygon's vertex normals
@@ -293,7 +347,7 @@ static inline __m128 _Phong_Shading_Get_Colour(const __m128 weights[3], const mv
 
     // We should combine the lighting colour value and the interpolated vertex colours here...
 
-    const mvec4 shading_colour = Light_Calculate_Shading((mvec4){.m = frag_position}, (mvec4){.m = frag_normal}, global_app.camera_position, light->position, light);
+    const mvec4 shading_colour = Light_Calculate_Shading((mvec4){.m = frag_position}, (mvec4){.m = frag_normal}, global_app.camera_position, light);
 
     return shading_colour.m;
 }
@@ -652,6 +706,18 @@ void Flat_Shading(const RasterData_t rd)
     const __m128 v1 = rd.screen_space_verticies[1].m;
     const __m128 v2 = rd.screen_space_verticies[2].m;
 
+    const __m128 normals[3] = {
+        rd.normals[0].m,
+        rd.normals[1].m,
+        rd.normals[2].m,
+    };
+
+    const __m128 ws_vertices[3] = {
+        rd.world_space_verticies[0].m,
+        rd.world_space_verticies[1].m,
+        rd.world_space_verticies[2].m,
+    };
+
     Texture_t tex = global_app.tex;
 
     // Setup for textured shading
@@ -664,22 +730,20 @@ void Flat_Shading(const RasterData_t rd)
     }
 
     // Gourand Shading
-    __m128 colours[3];
+    __m128 gourand_colours[3];
     if (global_app.shading_mode == GOURAND) // We interpolate the colours in the "Vertex Shader"
     {
-        mvec4 tmp_colours0 = Light_Calculate_Shading(rd.world_space_verticies[0], rd.normals[0], global_app.camera_position, rd.light->position, rd.light);
-        mvec4 tmp_colours1 = Light_Calculate_Shading(rd.world_space_verticies[1], rd.normals[1], global_app.camera_position, rd.light->position, rd.light);
-        mvec4 tmp_colours2 = Light_Calculate_Shading(rd.world_space_verticies[2], rd.normals[2], global_app.camera_position, rd.light->position, rd.light);
+        mvec4 tmp_colours0 = Light_Calculate_Shading(rd.world_space_verticies[0], rd.normals[0], global_app.camera_position, rd.light);
+        mvec4 tmp_colours1 = Light_Calculate_Shading(rd.world_space_verticies[1], rd.normals[1], global_app.camera_position, rd.light);
+        mvec4 tmp_colours2 = Light_Calculate_Shading(rd.world_space_verticies[2], rd.normals[2], global_app.camera_position, rd.light);
 
-        colours[0] = tmp_colours0.m;
-        colours[1] = tmp_colours1.m;
-        colours[2] = tmp_colours2.m;
+        gourand_colours[0] = tmp_colours0.m;
+        gourand_colours[1] = tmp_colours1.m;
+        gourand_colours[2] = tmp_colours2.m;
 
-        // We should combine the lighting colour value and the interpolated vertex colours here...
-    }
-    else if (global_app.shading_mode == FLAT)
-    {
-        colours[0] = _mm_set_ps(1.0f, 0.0f, 0.0f, 1.0f);
+        // gourand_colours[0] = _mm_setr_ps(1.0f, 0.0f, 0.0f, 1.0f);
+        // gourand_colours[1] = _mm_setr_ps(0.0f, 1.0f, 0.0f, 1.0f);
+        // gourand_colours[2] = _mm_setr_ps(0.0f, 0.0f, 1.0f, 1.0f);
     }
 
     /* get the bounding box of the triangle */
@@ -878,40 +942,43 @@ void Flat_Shading(const RasterData_t rd)
             }
             else
             {
-                    // Interpolate shaded colour
-                    const __m128 weights[3] = {
-                        _mm_set1_ps(w0_area.m128_f32[pixel_index]),
-                        _mm_set1_ps(w1_area.m128_f32[pixel_index]),
-                        _mm_set1_ps(w2_area.m128_f32[pixel_index]),
-                    };
+                __m128i pixel_colour[4] = {0};
+                if (global_app.shading_mode == GOURAND) // GOURAND Shading ------
+                {
+                    __m128 inter_colour[4] = {0}; // this will return us  ( inter_colour[0] = R,inter_colour[1] = G, inter_colour[2] = B )
+                    _Interpolate_Something(weights, intrFactor, gourand_colours, inter_colour);
 
-                    // GOURAND Shading ------
-                    if (global_app.shading_mode == GOURAND)
-                    {
-                        colour = _Gourand_Shading_Get_Colour(weights, colours);
-                    }
-                    else if (global_app.shading_mode == PHONG || global_app.shading_mode == BLIN_PHONG)
-                    {
-                        colour = _Phong_Shading_Get_Colour(weights, rd.world_space_verticies, rd.normals, rd.light);
-                    }
+                    pixel_colour[0] = _mm_cvtps_epi32(_mm_mul_ps(inter_colour[0], _mm_set1_ps(255.0f)));
+                    pixel_colour[1] = _mm_cvtps_epi32(_mm_mul_ps(inter_colour[1], _mm_set1_ps(255.0f)));
+                    pixel_colour[2] = _mm_cvtps_epi32(_mm_mul_ps(inter_colour[2], _mm_set1_ps(255.0f)));
+                    pixel_colour[3] = _mm_cvtps_epi32(_mm_mul_ps(inter_colour[3], _mm_set1_ps(255.0f)));
+                }
+                else if (global_app.shading_mode == PHONG)
+                {
+                    // Interpolate pixel location
+                    __m128 inter_frag_location[4] = {0};
+                    _Interpolate_Something(weights, intrFactor, ws_vertices, inter_frag_location);
+
+                    __m128 inter_normal[4] = {0};
+                    _Interpolate_Something(weights, intrFactor, normals, inter_normal);
+
+                    mvec4 shading0 = Light_Calculate_Shading((mvec4){.m = inter_frag_location[0]}, (mvec4){.m = inter_normal[0]}, global_app.camera_position, rd.light);
+                    mvec4 shading1 = Light_Calculate_Shading((mvec4){.m = inter_frag_location[1]}, (mvec4){.m = inter_normal[1]}, global_app.camera_position, rd.light);
+                    mvec4 shading2 = Light_Calculate_Shading((mvec4){.m = inter_frag_location[2]}, (mvec4){.m = inter_normal[2]}, global_app.camera_position, rd.light);
+                    mvec4 shading3 = Light_Calculate_Shading((mvec4){.m = inter_frag_location[3]}, (mvec4){.m = inter_normal[3]}, global_app.camera_position, rd.light);
+
+                    pixel_colour[0] = _mm_cvtps_epi32(_mm_mul_ps(shading0.m, _mm_set1_ps(255.0f)));
+                    pixel_colour[1] = _mm_cvtps_epi32(_mm_mul_ps(shading1.m, _mm_set1_ps(255.0f)));
+                    pixel_colour[2] = _mm_cvtps_epi32(_mm_mul_ps(shading2.m, _mm_set1_ps(255.0f)));
+                    pixel_colour[3] = _mm_cvtps_epi32(_mm_mul_ps(shading3.m, _mm_set1_ps(255.0f)));
                 }
 
-                //__m128i pixel_colour[4] = {0};
-                // for (int pixel_index = 0; pixel_index < 4; pixel_index++)
-                //{
-                //    if (finalMask.m128i_i32[pixel_index] == 0)
-                //        continue;
+                // 32bit values into 16 bit values
+                const __m128i packed1 = _mm_packus_epi32(pixel_colour[0], pixel_colour[1]);
+                const __m128i packed2 = _mm_packus_epi32(pixel_colour[2], pixel_colour[3]);
 
-                //    __m128 colour = {0};
-
-                //    else if (global_app.shading_mode == PHONG || global_app.shading_mode == BLIN_PHONG)
-                //    {
-                //        combined_colours = _mm_set1_epi32(0x00FF00FF);
-                //        // colour = _Phong_Shading_Get_Colour(weights, rd.world_space_verticies, rd.normals, rd.light);
-                //    }
-
-                //    pixel_colour[pixel_index] = _mm_cvtps_epi32(_mm_mul_ps(colour, _mm_set1_ps(255.0f)));
-                //}
+                // move the 16bit values, into the 8 bit values
+                combined_colours = _mm_packus_epi16(packed1, packed2);
             }
 
             // Shuffle RGBA to BRGA
