@@ -746,10 +746,6 @@ void Flat_Shading(const RasterData_t rd)
         // gourand_colours[2] = _mm_setr_ps(0.0f, 0.0f, 1.0f, 1.0f);
     }
 
-    /* get the bounding box of the triangle */
-    union AABB_u aabb;
-    _mm_storeu_si128((__m128i *)aabb.values, Get_AABB_SIMD(v0, v1, v2, global_renderer.width, global_renderer.height));
-
     // X and Y value setup
     const __m128i v0_x = _mm_cvtps_epi32(_mm_shuffle_ps(v0, v0, _MM_SHUFFLE(0, 0, 0, 0)));
     const __m128i v1_x = _mm_cvtps_epi32(_mm_shuffle_ps(v1, v1, _MM_SHUFFLE(0, 0, 0, 0)));
@@ -758,6 +754,19 @@ void Flat_Shading(const RasterData_t rd)
     const __m128i v0_y = _mm_cvtps_epi32(_mm_shuffle_ps(v0, v0, _MM_SHUFFLE(1, 1, 1, 1)));
     const __m128i v1_y = _mm_cvtps_epi32(_mm_shuffle_ps(v1, v1, _MM_SHUFFLE(1, 1, 1, 1)));
     const __m128i v2_y = _mm_cvtps_epi32(_mm_shuffle_ps(v2, v2, _MM_SHUFFLE(1, 1, 1, 1)));
+
+    /* get the bounding box of the triangle */
+    const __m128i min_x = _mm_max_epi32(_mm_min_epi32(v0_x, _mm_min_epi32(v1_x, v2_x)), _mm_setzero_si128());
+    const __m128i max_x = _mm_min_epi32(_mm_max_epi32(v0_x, _mm_max_epi32(v1_x, v2_x)), _mm_set1_epi32(global_renderer.width));
+
+    const __m128i min_y = _mm_max_epi32(_mm_min_epi32(v0_y, _mm_min_epi32(v1_y, v2_y)), _mm_setzero_si128());
+    const __m128i max_y = _mm_min_epi32(_mm_max_epi32(v0_y, _mm_max_epi32(v1_y, v2_y)), _mm_set1_epi32(global_renderer.height));
+
+    // Extract the minimum and maximum values from the X and Y vectors
+    const int min_x_value = _mm_cvtsi128_si32(min_x);
+    const int max_x_value = _mm_cvtsi128_si32(max_x);
+    const int min_y_value = _mm_cvtsi128_si32(min_y);
+    const int max_y_value = _mm_cvtsi128_si32(max_y);
 
     // Edge Setup
     const __m128i A0 = _mm_sub_epi32(v2_y, v1_y);
