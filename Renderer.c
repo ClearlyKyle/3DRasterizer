@@ -688,7 +688,7 @@ void Flat_Shading(const RasterData_t rd)
     const __m128i colOffset = _mm_setr_epi32(0, 1, 2, 3); // NOTE: The "r" here!! makes loading and storing colour easier
     const __m128i rowOffset = _mm_setr_epi32(0, 0, 0, 0);
 
-    if (global_app.shading_mode == WIRE_FRAME)
+    if (global_app.shading_mode == SHADING_WIRE_FRAME)
     {
         const float *v0 = rd.screen_space_verticies[0].f;
         const float *v1 = rd.screen_space_verticies[1].f;
@@ -698,6 +698,12 @@ void Flat_Shading(const RasterData_t rd)
         Draw_Line((int)v0[0], (int)v0[1], (int)v1[0], (int)v1[1], &col);
         Draw_Line((int)v1[0], (int)v1[1], (int)v2[0], (int)v2[1], &col);
         Draw_Line((int)v2[0], (int)v2[1], (int)v0[0], (int)v0[1], &col);
+
+        const SDL_Colour col2 = {000, 255, 000, 255};
+        Draw_Line((int)v0[0], (int)v0[1], (int)rd.endpoints[0].f[0], (int)rd.endpoints[0].f[1], &col2);
+        Draw_Line((int)v1[0], (int)v1[1], (int)rd.endpoints[1].f[0], (int)rd.endpoints[1].f[1], &col2);
+        Draw_Line((int)v2[0], (int)v2[1], (int)rd.endpoints[2].f[0], (int)rd.endpoints[2].f[1], &col2);
+
         return;
     }
 
@@ -731,7 +737,7 @@ void Flat_Shading(const RasterData_t rd)
 
     // Gourand Shading
     __m128 gourand_colours[3];
-    if (global_app.shading_mode == GOURAND) // We interpolate the colours in the "Vertex Shader"
+    if (global_app.shading_mode == SHADING_GOURAUD) // We interpolate the colours in the "Vertex Shader"
     {
         mvec4 tmp_colours0 = Light_Calculate_Shading(rd.world_space_verticies[0], rd.normals[0], global_app.camera_position, rd.light);
         mvec4 tmp_colours1 = Light_Calculate_Shading(rd.world_space_verticies[1], rd.normals[1], global_app.camera_position, rd.light);
@@ -794,8 +800,8 @@ void Flat_Shading(const RasterData_t rd)
     const __m128i bb1Inc = B1;
     const __m128i bb2Inc = B2;
 
-    const __m128i col = _mm_add_epi32(colOffset, _mm_set1_epi32(aabb.minX));
-    const __m128i row = _mm_add_epi32(rowOffset, _mm_set1_epi32(aabb.minY));
+    const __m128i col = _mm_add_epi32(colOffset, _mm_set1_epi32(min_x_value));
+    const __m128i row = _mm_add_epi32(rowOffset, _mm_set1_epi32(min_y_value));
 
     const __m128i aa0Col = _mm_mullo_epi32(A0, col);
     const __m128i aa1Col = _mm_mullo_epi32(A1, col);
@@ -830,7 +836,7 @@ void Flat_Shading(const RasterData_t rd)
                                                _mm_and_epi32(_mm_cmplt_epi32(_mm_setzero_si128(), bb2Inc), _mm_cmpeq_epi32(aa2Inc, _mm_setzero_si128())));
 
     // Rasterize
-    for (int y       = aabb.minY; y <= aabb.maxY; y += 1,
+    for (int y       = min_y_value; y <= max_y_value; y += 1,
              sum0Row = _mm_add_epi32(sum0Row, bb0Inc),
              sum1Row = _mm_add_epi32(sum1Row, bb1Inc),
              sum2Row = _mm_add_epi32(sum2Row, bb2Inc))
@@ -840,7 +846,7 @@ void Flat_Shading(const RasterData_t rd)
         __m128i betaa = sum1Row;
         __m128i gamma = sum2Row;
 
-        for (int x     = aabb.minX; x <= aabb.maxX; x += 4,
+        for (int x     = min_x_value; x <= max_x_value; x += 4,
                  alpha = _mm_add_epi32(alpha, aa0Inc),
                  betaa = _mm_add_epi32(betaa, aa1Inc),
                  gamma = _mm_add_epi32(gamma, aa2Inc))
@@ -914,11 +920,11 @@ void Flat_Shading(const RasterData_t rd)
             {
                 continue;
             }
-            else if (global_app.shading_mode == FLAT)
+            else if (global_app.shading_mode == SHADING_FLAT)
             {
                 combined_colours = _mm_set1_epi32(0x00FF00FF);
             }
-            else if (global_app.shading_mode == TEXTURED)
+            else if (global_app.shading_mode == SHADING_TEXTURED)
             {
                 __m128 U_w = _mm_add_ps(_mm_add_ps(_mm_mul_ps(U[0], w0), _mm_mul_ps(U[1], w1)), _mm_mul_ps(U[2], w2));
                 __m128 V_w = _mm_add_ps(_mm_add_ps(_mm_mul_ps(V[0], w0), _mm_mul_ps(V[1], w1)), _mm_mul_ps(V[2], w2));
@@ -952,17 +958,24 @@ void Flat_Shading(const RasterData_t rd)
             else
             {
                 __m128i pixel_colour[4] = {0};
-                if (global_app.shading_mode == GOURAND) // GOURAND Shading ------
+                if (global_app.shading_mode == SHADING_GOURAUD) // GOURAND Shading ------
                 {
                     __m128 inter_colour[4] = {0}; // this will return us  ( inter_colour[0] = R,inter_colour[1] = G, inter_colour[2] = B )
                     _Interpolate_Something(weights, intrFactor, gourand_colours, inter_colour);
 
-                    pixel_colour[0] = _mm_cvtps_epi32(_mm_mul_ps(inter_colour[0], _mm_set1_ps(255.0f)));
-                    pixel_colour[1] = _mm_cvtps_epi32(_mm_mul_ps(inter_colour[1], _mm_set1_ps(255.0f)));
-                    pixel_colour[2] = _mm_cvtps_epi32(_mm_mul_ps(inter_colour[2], _mm_set1_ps(255.0f)));
-                    pixel_colour[3] = _mm_cvtps_epi32(_mm_mul_ps(inter_colour[3], _mm_set1_ps(255.0f)));
+                    // _MM_FROUND_TO_NEAREST_INT: rounding should be performed to the nearest integer value
+                    // _MM_FROUND_NO_EXC: rounding should not generate any exceptions (stops exception if the input is NaN (Not a Number))
+                    const __m128 cvt_colout0 = _mm_round_ps(_mm_mul_ps(inter_colour[0], _mm_set1_ps(255.0f)), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
+                    const __m128 cvt_colout1 = _mm_round_ps(_mm_mul_ps(inter_colour[1], _mm_set1_ps(255.0f)), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
+                    const __m128 cvt_colout2 = _mm_round_ps(_mm_mul_ps(inter_colour[2], _mm_set1_ps(255.0f)), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
+                    const __m128 cvt_colout3 = _mm_round_ps(_mm_mul_ps(inter_colour[3], _mm_set1_ps(255.0f)), _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
+
+                    pixel_colour[0] = _mm_cvtps_epi32(cvt_colout0);
+                    pixel_colour[1] = _mm_cvtps_epi32(cvt_colout1);
+                    pixel_colour[2] = _mm_cvtps_epi32(cvt_colout2);
+                    pixel_colour[3] = _mm_cvtps_epi32(cvt_colout3);
                 }
-                else if (global_app.shading_mode == PHONG)
+                else if (global_app.shading_mode == SHADING_PHONG)
                 {
                     // Interpolate pixel location
                     __m128 inter_frag_location[4] = {0};

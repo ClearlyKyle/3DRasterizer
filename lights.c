@@ -35,7 +35,7 @@ static float Calculate_Specular_Amount(const mvec4 L, const mvec4 E, const mvec4
     float specular_power = 0.0f;
     float dot_product    = 0.0f;
 
-    if (global_app.shading_mode == BLIN_PHONG || global_app.shading_mode == NORMAL_MAPPING)
+    if (global_app.shading_mode == SHADING_BLIN_PHONG || global_app.shading_mode == SHADING_NORMAL_MAPPING)
     {
         // Calculate the Halfway vector (H) between the light source direction (L) and the view direction (E)
         const mvec4 H = mate_norm(mate_vec4_add(L, E));

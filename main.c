@@ -240,7 +240,7 @@ int main(int argc, char *argv[])
                 __m128 texture_v = _mm_setr_ps(mesh->uv_coordinates[6 * i + 1], mesh->uv_coordinates[6 * i + 3], mesh->uv_coordinates[6 * i + 5], 0.0f);
 
                 // mmat3 TBN = {0};
-                if (global_app.shading_mode == NORMAL_MAPPING)
+                if (global_app.shading_mode == SHADING_NORMAL_MAPPING)
                 {
                     continue; // TMP
 
