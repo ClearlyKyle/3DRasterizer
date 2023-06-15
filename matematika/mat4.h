@@ -162,8 +162,14 @@ mmat4 dash_mat_copy(const mmat4 src)
 }
 
 MATEMATIKA_INLINE
-mmat4 mate_rotation_make(const float x, const float y, const float z, const float angle)
+mmat4 mate_rotation_make(float x, float y, float z, const float angle)
 {
+    /* normalise x, y, z */
+    float sq = sqrtf(x * x + y * y + z * z);
+    x        = sq == 0.0f ? 0.0f : x / sq;
+    y        = sq == 0.0f ? 0.0f : y / sq;
+    z        = sq == 0.0f ? 0.0f : z / sq;
+
     mmat4       res = {0};
     const float c   = cosf(angle);
     const float s   = sinf(angle);
