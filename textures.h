@@ -5,13 +5,16 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-typedef struct Texture_s
+#include "utils.h"
+
+typedef struct Texture
 {
     int            w, h, bpp;
     unsigned char *data;
 } Texture_t;
 
-Texture_t Texture_Load(const char *file_path, bool alpha);
+Texture_t Texture_Load(const char *file_path, bool alpha, bool flip);
+void      Texture_Destroy(Texture_t *t);
 
 inline void Texture_Print_Info(const Texture_t t)
 {
