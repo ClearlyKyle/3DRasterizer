@@ -55,6 +55,24 @@ mmat3 mate_mat4_to_mat3(const mmat4 m)
 }
 
 MATEMATIKA_INLINE
+mmat3 mate_mat4_make_mat3_transpose(const mmat4 m)
+{
+    mmat3 res = {0};
+
+    res.f[0][0] = m.f[0][0];
+    res.f[0][1] = m.f[1][0];
+    res.f[0][2] = m.f[2][0];
+    res.f[1][0] = m.f[0][1];
+    res.f[1][1] = m.f[1][1];
+    res.f[1][2] = m.f[2][1];
+    res.f[2][0] = m.f[0][2];
+    res.f[2][1] = m.f[1][2];
+    res.f[2][2] = m.f[2][2];
+
+    return res;
+}
+
+MATEMATIKA_INLINE
 mmat3 mate_mat3_transpose(const mmat3 m)
 {
     mmat3 res = {0};
