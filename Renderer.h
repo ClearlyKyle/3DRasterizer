@@ -4,9 +4,7 @@
 #include <stdbool.h>
 #include "utils.h"
 
-#include "textures.h"
-#include "AABB.h"
-#include "lights.h"
+#include "app.h"
 #include "timer.h"
 
 #include "matematika.h"
@@ -37,19 +35,7 @@ typedef struct Renderer_s
     float *z_buffer_array;
 } Renderer;
 
-typedef struct AppState_s
-{
-    Texture_t tex; // The diffuse texture
-    Texture_t nrm; // The normal map texture
-
-    mvec4 camera_position;
-
-    // Shading_Mode shading;
-    Shading_Mode shading_mode;
-} AppState;
-
 extern Renderer global_renderer;
-extern AppState global_app;
 
 void Reneder_Startup(const char *title, const int width, const int height);
 void Renderer_Destroy(void);
@@ -74,13 +60,13 @@ inline void Renderer_Clear_Screen_Pixels(void)
 }
 
 void Draw_Depth_Buffer(void);
-void Draw_Triangle_Outline(const __m128 *verticies, const SDL_Colour col);
 
 typedef struct RasterData
 {
     mvec4 screen_space_verticies[3];
     mvec4 world_space_verticies[3];
     mvec4 normals[3];
+    mvec4 endpoints[3];
     mvec4 tex_u;
     mvec4 tex_v;
 

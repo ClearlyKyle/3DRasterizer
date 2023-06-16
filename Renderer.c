@@ -1,12 +1,10 @@
 #include "Renderer.h"
 
 Renderer global_renderer = {0};
-AppState global_app      = {0}; // TODO: Rename this
 
 void Reneder_Startup(const char *title, const int width, const int height)
 {
     memset((void *)&global_renderer, 0, sizeof(Renderer));
-    memset((void *)&global_app, 0, sizeof(AppState));
 
     if (SDL_Init(SDL_INIT_VIDEO) != 0)
     {
@@ -62,7 +60,7 @@ void Reneder_Startup(const char *title, const int width, const int height)
         exit(2);
     }
     global_renderer.z_buffer_array  = z_buff;
-    global_renderer.max_depth_value = 50.0f;
+    global_renderer.max_depth_value = 100.0f;
 
     global_renderer.running = true;
 }
@@ -200,10 +198,10 @@ void Draw_Depth_Buffer(void)
         for (int x = 0; x < global_renderer.width; x += 4)
         {
             __m128 depthvalues = _mm_load_ps(&pDepthBuffer[y * global_renderer.width + x]);
-            depthvalues        = _mm_mul_ps(_mm_add_ps(depthvalues, _mm_set1_ps(1.0f)), _mm_set1_ps(0.5f));
-            depthvalues        = _mm_rcp_ps(depthvalues);
             depthvalues        = _mm_div_ps(depthvalues, max_depth);
-            depthvalues        = _mm_mul_ps(depthvalues, value_255);
+            // depthvalues        = _mm_mul_ps(_mm_add_ps(depthvalues, _mm_set1_ps(1.0f)), _mm_set1_ps(0.5f));
+            // depthvalues = _mm_rcp_ps(depthvalues);
+            depthvalues = _mm_mul_ps(depthvalues, value_255);
 
             float shading[4];
             _mm_store_ps(shading, depthvalues);
@@ -214,6 +212,20 @@ void Draw_Depth_Buffer(void)
             Draw_Pixel_RGBA(x + 3, y, (uint8_t)shading[3], (uint8_t)shading[3], (uint8_t)shading[3], 255);
         }
     }
+
+    float whats_min_depth = global_renderer.max_depth_value;
+    float whats_max_depth = 0.0f;
+    for (size_t i = 0; i < global_renderer.height * global_renderer.width; i++)
+    {
+        const float val = pDepthBuffer[i];
+
+        if (val == global_renderer.max_depth_value)
+            continue;
+
+        whats_max_depth = val > whats_max_depth ? val : whats_max_depth;
+        whats_min_depth = val < whats_min_depth ? val : whats_min_depth;
+    }
+    printf("Depth - min : %f, max : %f\n", whats_min_depth, whats_max_depth);
 #else
 
     int rowIdx = 0;
@@ -270,46 +282,48 @@ static inline __m128 _Gourand_Shading_Get_Colour(const __m128 weights[3], const 
     dest[1] = weights[0] * attibute[0].Y + weights[1] * attibute[1].Y + weights[2] * attibute[2].Y
     dest[2] = weights[0] * attibute[0].Z + weights[1] * attibute[1].Z + weights[2] * attibute[2].Z
     dest[3] = weights[0] * attibute[0].W + weights[1] * attibute[1].W + weights[2] * attibute[2].W
-
 */
-static inline void _Interpolate_Something(const __m128 weights[3], const __m128 interpolation_factor, const __m128 attribues[3], __m128 dest[4])
+static inline void _Interpolate_Something(const __m128 persp[3], const __m128 attribues[3], __m128 dest[4])
 {
     const __m128 X0 = _mm_shuffle_ps(attribues[0], attribues[0], _MM_SHUFFLE(0, 0, 0, 0));
     const __m128 X1 = _mm_shuffle_ps(attribues[1], attribues[1], _MM_SHUFFLE(0, 0, 0, 0));
     const __m128 X2 = _mm_shuffle_ps(attribues[2], attribues[2], _MM_SHUFFLE(0, 0, 0, 0));
-    dest[0]         = _mm_add_ps(_mm_add_ps(
-                             _mm_mul_ps(weights[0], X0),
-                             _mm_mul_ps(weights[1], X1)),
-                                 _mm_mul_ps(weights[2], X2));
-    dest[0]         = _mm_mul_ps(dest[0], interpolation_factor);
+
+    __m128 preX[3];
+    preX[0] = _mm_mul_ps(X0, persp[0]);
+    preX[1] = _mm_mul_ps(X1, persp[1]);
+    preX[2] = _mm_mul_ps(X2, persp[2]);
+    dest[0] = _mm_add_ps(_mm_add_ps(preX[0], preX[1]), preX[2]);
 
     const __m128 Y0 = _mm_shuffle_ps(attribues[0], attribues[0], _MM_SHUFFLE(1, 1, 1, 1));
     const __m128 Y1 = _mm_shuffle_ps(attribues[1], attribues[1], _MM_SHUFFLE(1, 1, 1, 1));
     const __m128 Y2 = _mm_shuffle_ps(attribues[2], attribues[2], _MM_SHUFFLE(1, 1, 1, 1));
-    dest[1]         = _mm_add_ps(_mm_add_ps(
-                             _mm_mul_ps(weights[0], Y0),
-                             _mm_mul_ps(weights[1], Y1)),
-                                 _mm_mul_ps(weights[2], Y2));
-    dest[1]         = _mm_mul_ps(dest[1], interpolation_factor);
+
+    __m128 preY[3];
+    preY[0] = _mm_mul_ps(Y0, persp[0]);
+    preY[1] = _mm_mul_ps(Y1, persp[1]);
+    preY[2] = _mm_mul_ps(Y2, persp[2]);
+    dest[1] = _mm_add_ps(_mm_add_ps(preY[0], preY[1]), preY[2]);
 
     const __m128 Z0 = _mm_shuffle_ps(attribues[0], attribues[0], _MM_SHUFFLE(2, 2, 2, 2));
     const __m128 Z1 = _mm_shuffle_ps(attribues[1], attribues[1], _MM_SHUFFLE(2, 2, 2, 2));
     const __m128 Z2 = _mm_shuffle_ps(attribues[2], attribues[2], _MM_SHUFFLE(2, 2, 2, 2));
-    dest[2]         = _mm_add_ps(_mm_add_ps(
-                             _mm_mul_ps(weights[0], Z0),
-                             _mm_mul_ps(weights[1], Z1)),
-                                 _mm_mul_ps(weights[2], Z2));
-    dest[2]         = _mm_mul_ps(dest[2], interpolation_factor);
+
+    __m128 preZ[3];
+    preZ[0] = _mm_mul_ps(Z0, persp[0]);
+    preZ[1] = _mm_mul_ps(Z1, persp[1]);
+    preZ[2] = _mm_mul_ps(Z2, persp[2]);
+    dest[2] = _mm_add_ps(_mm_add_ps(preZ[0], preZ[1]), preZ[2]);
 
     const __m128 W0 = _mm_shuffle_ps(attribues[0], attribues[0], _MM_SHUFFLE(3, 3, 3, 3));
     const __m128 W1 = _mm_shuffle_ps(attribues[1], attribues[1], _MM_SHUFFLE(3, 3, 3, 3));
     const __m128 W2 = _mm_shuffle_ps(attribues[2], attribues[2], _MM_SHUFFLE(3, 3, 3, 3));
 
-    dest[3] = _mm_add_ps(_mm_add_ps(
-                             _mm_mul_ps(weights[0], W0),
-                             _mm_mul_ps(weights[1], W1)),
-                         _mm_mul_ps(weights[2], W2));
-    dest[3] = _mm_mul_ps(dest[3], interpolation_factor);
+    __m128 preW[3];
+    preW[0] = _mm_mul_ps(W0, persp[0]);
+    preW[1] = _mm_mul_ps(W1, persp[1]);
+    preW[2] = _mm_mul_ps(W2, persp[2]);
+    dest[3] = _mm_add_ps(_mm_add_ps(preW[0], preW[1]), preW[2]);
 
     // Comvert from:                to:
     // dest[0] = X, X, X, X         dest[0] = X, Y, Z, W
@@ -362,7 +376,7 @@ static inline __m128 _Phong_Shading_Get_Colour(const __m128 weights[3], const mv
  */
 static inline __m128 _Get_Normal_From_Normal_Map(const int res_v, const int res_u)
 {
-    const Texture_t normal_map = global_app.nrm;
+    const Texture_t normal_map = global_app.obj.bump;
 
     // Calculate the texture index in the normal map
     const unsigned int index = (res_u * normal_map.w + res_v) * normal_map.bpp;
@@ -390,7 +404,7 @@ static inline __m128 _Get_Normal_From_Normal_Map(const int res_v, const int res_
  */
 static inline __m128 _Get_Colour_From_Diffuse_Texture(const int res_v, const int res_u)
 {
-    const Texture_t texture = global_app.tex; // TODO : Remove this?
+    const Texture_t texture = global_app.obj.diffuse;
 
     ASSERT(res_u <= texture.w);
     ASSERT(res_v <= texture.h);
@@ -405,274 +419,6 @@ static inline __m128 _Get_Colour_From_Diffuse_Texture(const int res_v, const int
                       _mm_set1_ps(255.0f));
 }
 
-#if 0 // Not feeling ready for this yet lol
-void Textured_Shading(const __m128 *screen_space_verticies, const __m128 *world_space_verticies, const float *w_values, const __m128 *normal_values,
-                      const __m128 texture_u, const __m128 texture_v, const mmat3 TBN, Light *light)
-{
-    // Unpack Vertex data
-    const __m128 v0 = screen_space_verticies[2];
-    const __m128 v1 = screen_space_verticies[1];
-    const __m128 v2 = screen_space_verticies[0];
-
-    __m128 world_v0 = world_space_verticies[2];
-    __m128 world_v1 = world_space_verticies[1];
-    __m128 world_v2 = world_space_verticies[0];
-
-    __m128 light_position  = light->position;
-    __m128 camera_position = global_app.camera_position;
-
-    if (global_app.shading_mode == NORMAL_MAPPING)
-    {
-        /*
-        Instead of sending the inverse of the TBN matrix to the "fragment shader",
-        we send a tangent-space light position, camera position, and vertex position to the fragment shader.
-        This saves us from having to do matrix multiplications in the fragment shader.
-
-       TangentLightPos = TBN * light_position;
-       TangentViewPos  = TBN * camera_position;
-       TangentFragPos  = TBN * vec3(model * vec4(vert_pos, 1.0));
-
-       vec3(model * vec4(vert_pos, 1.0)) < are the verts in world space
-       */
-        light_position  = Mat3x3_mul_m128(TBN, light->position);            // Tangent light position
-        camera_position = Mat3x3_mul_m128(TBN, global_app.camera_position); // Tangent camera position
-
-        world_v0 = Mat3x3_mul_m128(TBN, world_v0);
-        world_v1 = Mat3x3_mul_m128(TBN, world_v1);
-        world_v2 = Mat3x3_mul_m128(TBN, world_v2);
-    }
-
-    /* get the bounding box of the triangle */
-    union AABB_u aabb;
-    _mm_storeu_si128((__m128i *)aabb.values, Get_AABB_SIMD(v0, v1, v2, global_renderer.width, global_renderer.height));
-
-    // X and Y value setup
-    const __m128i v0_x = _mm_cvtps_epi32(_mm_shuffle_ps(v0, v0, _MM_SHUFFLE(0, 0, 0, 0)));
-    const __m128i v1_x = _mm_cvtps_epi32(_mm_shuffle_ps(v1, v1, _MM_SHUFFLE(0, 0, 0, 0)));
-    const __m128i v2_x = _mm_cvtps_epi32(_mm_shuffle_ps(v2, v2, _MM_SHUFFLE(0, 0, 0, 0)));
-
-    const __m128i v0_y = _mm_cvtps_epi32(_mm_shuffle_ps(v0, v0, _MM_SHUFFLE(1, 1, 1, 1)));
-    const __m128i v1_y = _mm_cvtps_epi32(_mm_shuffle_ps(v1, v1, _MM_SHUFFLE(1, 1, 1, 1)));
-    const __m128i v2_y = _mm_cvtps_epi32(_mm_shuffle_ps(v2, v2, _MM_SHUFFLE(1, 1, 1, 1)));
-
-    // Edge Setup
-    const __m128i A0 = _mm_sub_epi32(v1_y, v2_y); // A01 = [1].Y - [2].Y
-    const __m128i A1 = _mm_sub_epi32(v2_y, v0_y); // A12 = [2].Y - [0].Y
-    const __m128i A2 = _mm_sub_epi32(v0_y, v1_y); // A20 = [0].Y - [1].Y
-
-    const __m128i B0 = _mm_sub_epi32(v2_x, v1_x);
-    const __m128i B1 = _mm_sub_epi32(v0_x, v2_x);
-    const __m128i B2 = _mm_sub_epi32(v1_x, v0_x);
-
-    const __m128i C0 = _mm_sub_epi32(_mm_mullo_epi32(v1_x, v2_y), _mm_mullo_epi32(v2_x, v1_y));
-    const __m128i C1 = _mm_sub_epi32(_mm_mullo_epi32(v2_x, v0_y), _mm_mullo_epi32(v0_x, v2_y));
-    const __m128i C2 = _mm_sub_epi32(_mm_mullo_epi32(v0_x, v1_y), _mm_mullo_epi32(v1_x, v0_y));
-
-    __m128i triArea = _mm_mullo_epi32(B2, A1);
-    triArea         = _mm_sub_epi32(triArea, _mm_mullo_epi32(B1, A2));
-
-    const __m128 oneOverTriArea = _mm_rcp_ps(_mm_cvtepi32_ps(triArea));
-
-    const __m128i aa0Inc = _mm_slli_epi32(A0, 1);
-    const __m128i aa1Inc = _mm_slli_epi32(A1, 1);
-    const __m128i aa2Inc = _mm_slli_epi32(A2, 1);
-
-    const __m128i bb0Inc = _mm_slli_epi32(B0, 1);
-    const __m128i bb1Inc = _mm_slli_epi32(B1, 1);
-    const __m128i bb2Inc = _mm_slli_epi32(B2, 1);
-
-    const __m128i colOffset = _mm_set_epi32(0, 1, 0, 1);
-    const __m128i rowOffset = _mm_set_epi32(0, 0, 1, 1);
-
-    const __m128i col    = _mm_add_epi32(colOffset, _mm_set1_epi32(aabb.minX));
-    const __m128i aa0Col = _mm_mullo_epi32(A0, col);
-    const __m128i aa1Col = _mm_mullo_epi32(A1, col);
-    const __m128i aa2Col = _mm_mullo_epi32(A2, col);
-
-    __m128i row    = _mm_add_epi32(rowOffset, _mm_set1_epi32(aabb.minY));
-    __m128i bb0Row = _mm_add_epi32(_mm_mullo_epi32(B0, row), C0);
-    __m128i bb1Row = _mm_add_epi32(_mm_mullo_epi32(B1, row), C1);
-    __m128i bb2Row = _mm_add_epi32(_mm_mullo_epi32(B2, row), C2);
-
-    __m128i sum0Row = _mm_add_epi32(aa0Col, bb0Row);
-    __m128i sum1Row = _mm_add_epi32(aa1Col, bb1Row);
-    __m128i sum2Row = _mm_add_epi32(aa2Col, bb2Row);
-
-    // Cast depth buffer to float
-    float *pDepthBuffer = global_renderer.z_buffer_array;
-    int    rowIdx       = (aabb.minY * global_renderer.width + 2 * aabb.minX);
-
-    const __m128 one_over_w1 = _mm_set1_ps(w_values[2]);
-    const __m128 one_over_w2 = _mm_set1_ps(w_values[1]);
-    const __m128 one_over_w3 = _mm_set1_ps(w_values[0]);
-
-    // Generate masks used for tie-breaking rules (not to double-shade along shared edges)
-    // there is no _mm_cmpge_epi32, so use lt and swap operands
-    // _mm_cmplt_epi32(bb0Inc, _mm_setzero_si128()) - becomes - _mm_cmplt_epi32(_mm_setzero_si128(), bb0Inc)
-    const __m128i Edge0TieBreak = _mm_or_epi32(_mm_cmpgt_epi32(aa0Inc, _mm_setzero_si128()),
-                                               _mm_and_epi32(_mm_cmplt_epi32(_mm_setzero_si128(), bb0Inc), _mm_cmpeq_epi32(aa0Inc, _mm_setzero_si128())));
-
-    const __m128i Edge1TieBreak = _mm_or_epi32(_mm_cmpgt_epi32(aa1Inc, _mm_setzero_si128()),
-                                               _mm_and_epi32(_mm_cmplt_epi32(_mm_setzero_si128(), bb1Inc), _mm_cmpeq_epi32(aa1Inc, _mm_setzero_si128())));
-
-    const __m128i Edge2TieBreak = _mm_or_epi32(_mm_cmpgt_epi32(aa2Inc, _mm_setzero_si128()),
-                                               _mm_and_epi32(_mm_cmplt_epi32(_mm_setzero_si128(), bb2Inc), _mm_cmpeq_epi32(aa2Inc, _mm_setzero_si128())));
-
-    // Rasterize
-    const int row_index_step_amount = 2 * global_renderer.width;
-    for (int y = aabb.minY; y < aabb.maxY; y += 2,
-             rowIdx += row_index_step_amount,
-             sum0Row = _mm_add_epi32(sum0Row, bb0Inc),
-             sum1Row = _mm_add_epi32(sum1Row, bb1Inc),
-             sum2Row = _mm_add_epi32(sum2Row, bb2Inc))
-    {
-        // Barycentric coordinates at start of row
-        int     index = rowIdx;
-        __m128i alpha = sum0Row;
-        __m128i beta  = sum1Row;
-        __m128i gama  = sum2Row;
-
-        for (int x = aabb.minX; x < aabb.maxX; x += 2,
-                 index += 4,
-                 alpha = _mm_add_epi32(alpha, aa0Inc),
-                 beta  = _mm_add_epi32(beta, aa1Inc),
-                 gama  = _mm_add_epi32(gama, aa2Inc))
-        {
-            // "FRAGMENT SHADER"
-
-            // Test Pixel inside triangle
-            // const __m128i sseEdge0Positive = _mm_cmpgt_epi32(alpha, _mm_setzero_si128());
-            // const __m128i sseEdge0Negative = _mm_cmplt_epi32(alpha, _mm_setzero_si128());
-            // const __m128i sseEdge0FuncMask = _mm_or_epi32(sseEdge0Positive,
-            //                                              _mm_andnot_epi32(sseEdge0Negative, Edge0TieBreak));
-
-            //// Edge 1 test
-            // const __m128i sseEdge1Positive = _mm_cmpgt_epi32(beta, _mm_setzero_si128());
-            // const __m128i sseEdge1Negative = _mm_cmplt_epi32(beta, _mm_setzero_si128());
-            // const __m128i sseEdge1FuncMask = _mm_or_epi32(sseEdge1Positive,
-            //                                               _mm_andnot_epi32(sseEdge1Negative, Edge1TieBreak));
-
-            //// Edge 2 test
-            // const __m128i sseEdge2Positive = _mm_cmpgt_epi32(gama, _mm_setzero_si128());
-            // const __m128i sseEdge2Negative = _mm_cmplt_epi32(gama, _mm_setzero_si128());
-            // const __m128i sseEdge2FuncMask = _mm_or_epi32(sseEdge2Positive,
-            //                                               _mm_andnot_epi32(sseEdge2Negative, Edge2TieBreak));
-
-            // Combine resulting masks of all three edges
-            // const __m128i mask = _mm_and_epi32(sseEdge0FuncMask,
-            //                                   _mm_and_epi32(sseEdge1FuncMask, sseEdge2FuncMask));
-
-            const __m128i mask = _mm_cmplt_epi32(_mm_setzero_si128(), _mm_or_si128(_mm_or_si128(alpha, beta), gama));
-
-            // Early out if all of this quad's pixels are outside the triangle.
-            if (_mm_test_all_zeros(mask, mask))
-                continue;
-
-            const __m128 w0_area = _mm_mul_ps(_mm_cvtepi32_ps(alpha), oneOverTriArea);
-            const __m128 w1_area = _mm_mul_ps(_mm_cvtepi32_ps(beta), oneOverTriArea);
-            const __m128 w2_area = _mm_mul_ps(_mm_cvtepi32_ps(gama), oneOverTriArea);
-
-            // Compute barycentric-interpolated depth
-            __m128 depth = _mm_mul_ps(w0_area, one_over_w1);
-            depth        = _mm_add_ps(depth, _mm_mul_ps(w1_area, one_over_w2));
-            depth        = _mm_add_ps(depth, _mm_mul_ps(w2_area, one_over_w3));
-
-            __m128 inv_depth = _mm_rcp_ps(depth); // 1.0 / depth
-
-            //// DEPTH BUFFER
-            const __m128 previousDepthValue           = _mm_load_ps(&pDepthBuffer[index]);
-            const __m128 are_new_depths_less_than_old = _mm_cmplt_ps(inv_depth, previousDepthValue);
-            const __m128 which_depths_should_be_drawn = _mm_and_ps(are_new_depths_less_than_old, _mm_cvtepi32_ps(mask));
-            const __m128 updated_depth_values         = _mm_blendv_ps(previousDepthValue, inv_depth, which_depths_should_be_drawn);
-            _mm_store_ps(&pDepthBuffer[index], updated_depth_values);
-
-            const __m128i finalMask = _mm_cvtps_epi32(which_depths_should_be_drawn);
-
-
-            // Precalulate uv constants
-            const __m128 depth_w = _mm_mul_ps(inv_depth, _mm_set1_ps((float)global_app.tex.w - 1.0f));
-            const __m128 depth_h = _mm_mul_ps(inv_depth, _mm_set1_ps((float)global_app.tex.h - 1.0f));
-            for (int pixel_index = 0; pixel_index < 4; pixel_index++)
-            {
-                if (!finalMask.m128i_i32[pixel_index])
-                    continue;
-
-                const __m128 weights = _mm_set_ps(0.0f, w2_area.m128_f32[pixel_index], w1_area.m128_f32[pixel_index], w0_area.m128_f32[pixel_index]);
-
-                const __m128 u = _mm_mul_ps(_mm_mul_ps(texture_u, weights), _mm_set1_ps(depth_w.m128_f32[pixel_index]));
-                const __m128 v = _mm_mul_ps(_mm_mul_ps(texture_v, weights), _mm_set1_ps(depth_h.m128_f32[pixel_index]));
-
-                const int res_u = (int)hsum_ps_sse3(u);
-                const int res_v = (int)hsum_ps_sse3(v);
-
-                __m128 frag_colour = {0};
-                if (global_app.shading_mode == TEXTURED)
-                {
-                    frag_colour = _Get_Colour_From_Diffuse_Texture(res_v, res_u);
-                }
-                else if (global_app.shading_mode == TEXTURED_PHONG)
-                {
-                    const __m128 all_weights[3] = {
-                        _mm_set1_ps(w2_area.m128_f32[pixel_index]),
-                        _mm_set1_ps(w1_area.m128_f32[pixel_index]),
-                        _mm_set1_ps(w0_area.m128_f32[pixel_index]),
-                    };
-                    // Calculate lighting
-                    const __m128 lighting_contribution = _Phong_Shading_Get_Colour(all_weights, world_space_verticies, normal_values, light);
-
-                    // Combine the lighting and texture colour together
-                    const __m128 diff_colour = _Get_Colour_From_Diffuse_Texture(res_v, res_u);
-
-                    frag_colour = _mm_mul_ps(diff_colour, lighting_contribution);
-                }
-                else if (global_app.shading_mode == NORMAL_MAPPING)
-                {
-                    const __m128 weight1 = _mm_set1_ps(w0_area.m128_f32[pixel_index]);
-                    const __m128 weight2 = _mm_set1_ps(w1_area.m128_f32[pixel_index]);
-                    const __m128 weight3 = _mm_set1_ps(w2_area.m128_f32[pixel_index]);
-
-                    const __m128 frag_position = _mm_add_ps(
-                        _mm_add_ps(
-                            _mm_mul_ps(weight1, world_v0),
-                            _mm_mul_ps(weight2, world_v1)),
-                        _mm_mul_ps(weight3, world_v2));
-
-                    const __m128 frag_normal = _Get_Normal_From_Normal_Map(res_v, res_u);
-
-                    // Get the diffuse colour from the diffuse texture
-                    const __m128 diff_colour = _Get_Colour_From_Diffuse_Texture(res_v, res_u);
-                    light->diffuse_colour    = diff_colour;
-
-                    // Calculate lighting
-                    const __m128 lighting_contribution = Light_Calculate_Shading(frag_position, frag_normal, camera_position, light_position, light);
-
-                    // frag_colour = _mm_mul_ps(_mm_set1_ps(1.0f), lighting_contribution);
-                    frag_colour = _mm_mul_ps(_mm_set1_ps(255.0f), lighting_contribution);
-                }
-
-                const uint8_t red = (uint8_t)(frag_colour.m128_f32[0] * 255.0f);
-                const uint8_t gre = (uint8_t)(frag_colour.m128_f32[1] * 255.0f);
-                const uint8_t blu = (uint8_t)(frag_colour.m128_f32[2] * 255.0f);
-                const uint8_t alp = (uint8_t)255;
-
-                // Not sure if I like this
-                if (pixel_index == 3) // index 3
-                    Draw_Pixel_RGBA(x + 0, y + 0, red, gre, blu, alp);
-
-                else if (pixel_index == 2) // index 2
-                    Draw_Pixel_RGBA(x + 1, y + 0, red, gre, blu, alp);
-
-                else if (pixel_index == 1) // index 1
-                    Draw_Pixel_RGBA(x + 0, y + 1, red, gre, blu, alp);
-
-                else if (pixel_index == 0) // index 0
-                    Draw_Pixel_RGBA(x + 1, y + 1, red, gre, blu, alp);
-            }
-        }
-    }
-}
-#endif
-
 // NOTE : Temporary
 static inline float hsum_ps_sse3(const __m128 v)
 {
@@ -685,6 +431,14 @@ static inline float hsum_ps_sse3(const __m128 v)
 
 void Flat_Shading(const RasterData_t rd)
 {
+    //// All verts must be inside the near clip volume
+    //__m128 W0 = _mm_cmpgt_ps(xformedPos[0].W, _mm_setzero_ps());
+    //__m128 W1 = _mm_cmpgt_ps(xformedPos[1].W, _mm_setzero_ps());
+    //__m128 W2 = _mm_cmpgt_ps(xformedPos[2].W, _mm_setzero_ps());
+
+    //__m128       accept  = _mm_and_ps(_mm_and_ps(accept1, W0), _mm_and_ps(W1, W2));
+    // unsigned int triMask = _mm_movemask_ps(accept) & laneMask;
+
     const __m128i colOffset = _mm_setr_epi32(0, 1, 2, 3); // NOTE: The "r" here!! makes loading and storing colour easier
     const __m128i rowOffset = _mm_setr_epi32(0, 0, 0, 0);
 
@@ -699,10 +453,15 @@ void Flat_Shading(const RasterData_t rd)
         Draw_Line((int)v1[0], (int)v1[1], (int)v2[0], (int)v2[1], &col);
         Draw_Line((int)v2[0], (int)v2[1], (int)v0[0], (int)v0[1], &col);
 
-        const SDL_Colour col2 = {000, 255, 000, 255};
-        Draw_Line((int)v0[0], (int)v0[1], (int)rd.endpoints[0].f[0], (int)rd.endpoints[0].f[1], &col2);
-        Draw_Line((int)v1[0], (int)v1[1], (int)rd.endpoints[1].f[0], (int)rd.endpoints[1].f[1], &col2);
-        Draw_Line((int)v2[0], (int)v2[1], (int)rd.endpoints[2].f[0], (int)rd.endpoints[2].f[1], &col2);
+        const SDL_Colour col2 = {255, 000, 000, 255};
+        if (mate_dot(rd.normals[0], global_app.camera_position) < 0.0f)
+            Draw_Line((int)v0[0], (int)v0[1], (int)rd.endpoints[0].f[0], (int)rd.endpoints[0].f[1], &col2);
+
+        if (mate_dot(rd.normals[1], global_app.camera_position) < 0.0f)
+            Draw_Line((int)v1[0], (int)v1[1], (int)rd.endpoints[1].f[0], (int)rd.endpoints[1].f[1], &col2);
+
+        if (mate_dot(rd.normals[2], global_app.camera_position) < 0.0f)
+            Draw_Line((int)v2[0], (int)v2[1], (int)rd.endpoints[2].f[0], (int)rd.endpoints[2].f[1], &col2);
 
         return;
     }
@@ -724,15 +483,17 @@ void Flat_Shading(const RasterData_t rd)
         rd.world_space_verticies[2].m,
     };
 
-    Texture_t tex = global_app.tex;
+    Texture_t tex = global_app.obj.diffuse;
+    ASSERT(tex.data);
 
     // Setup for textured shading
-    __m128 U[3], V[3], Z[3];
+    __m128 U[3], V[3], Z[3], W[3];
     for (size_t i = 0; i < 3; i++)
     {
         U[i] = _mm_set1_ps(rd.tex_u.f[i]);
         V[i] = _mm_set1_ps(rd.tex_v.f[i]);
         Z[i] = _mm_set1_ps(rd.screen_space_verticies[i].f[2]);
+        W[i] = _mm_set1_ps(rd.screen_space_verticies[i].f[3]);
     }
 
     // Gourand Shading
@@ -763,10 +524,10 @@ void Flat_Shading(const RasterData_t rd)
 
     /* get the bounding box of the triangle */
     const __m128i min_x = _mm_max_epi32(_mm_min_epi32(v0_x, _mm_min_epi32(v1_x, v2_x)), _mm_setzero_si128());
-    const __m128i max_x = _mm_min_epi32(_mm_max_epi32(v0_x, _mm_max_epi32(v1_x, v2_x)), _mm_set1_epi32(global_renderer.width));
+    const __m128i max_x = _mm_min_epi32(_mm_max_epi32(v0_x, _mm_max_epi32(v1_x, v2_x)), _mm_set1_epi32(global_renderer.width - 1));
 
     const __m128i min_y = _mm_max_epi32(_mm_min_epi32(v0_y, _mm_min_epi32(v1_y, v2_y)), _mm_setzero_si128());
-    const __m128i max_y = _mm_min_epi32(_mm_max_epi32(v0_y, _mm_max_epi32(v1_y, v2_y)), _mm_set1_epi32(global_renderer.height));
+    const __m128i max_y = _mm_min_epi32(_mm_max_epi32(v0_y, _mm_max_epi32(v1_y, v2_y)), _mm_set1_epi32(global_renderer.height - 1));
 
     // Extract the minimum and maximum values from the X and Y vectors
     const int min_x_value = _mm_cvtsi128_si32(min_x);
@@ -775,6 +536,7 @@ void Flat_Shading(const RasterData_t rd)
     const int max_y_value = _mm_cvtsi128_si32(max_y);
 
     // Edge Setup
+#if 0
     const __m128i A0 = _mm_sub_epi32(v2_y, v1_y);
     const __m128i A1 = _mm_sub_epi32(v0_y, v2_y);
     const __m128i A2 = _mm_sub_epi32(v1_y, v0_y);
@@ -788,8 +550,28 @@ void Flat_Shading(const RasterData_t rd)
     const __m128i C2 = _mm_sub_epi32(_mm_mullo_epi32(v1_x, v0_y), _mm_mullo_epi32(v0_x, v1_y));
 
     // Pass in Area?
-    const __m128i triArea = _mm_sub_epi32(_mm_mullo_epi32(B2, A1), _mm_mullo_epi32(B1, A2));
+     const __m128i triArea = _mm_sub_epi32(_mm_mullo_epi32(B2, A1), _mm_mullo_epi32(B1, A2));
+    //__m128i triArea = _mm_sub_epi32(_mm_mullo_epi32(B1, A2), _mm_mullo_epi32(B2, A1));
+#else
+    const __m128i A0 = _mm_sub_epi32(v1_y, v2_y); // A01 = [1].Y - [2].Y
+    const __m128i A1 = _mm_sub_epi32(v2_y, v0_y); // A12 = [2].Y - [0].Y
+    const __m128i A2 = _mm_sub_epi32(v0_y, v1_y); // A20 = [0].Y - [1].Y
+
+    const __m128i B0 = _mm_sub_epi32(v2_x, v1_x);
+    const __m128i B1 = _mm_sub_epi32(v0_x, v2_x);
+    const __m128i B2 = _mm_sub_epi32(v1_x, v0_x);
+
+    const __m128i C0 = _mm_sub_epi32(_mm_mullo_epi32(v1_x, v2_y), _mm_mullo_epi32(v2_x, v1_y));
+    const __m128i C1 = _mm_sub_epi32(_mm_mullo_epi32(v2_x, v0_y), _mm_mullo_epi32(v0_x, v2_y));
+    const __m128i C2 = _mm_sub_epi32(_mm_mullo_epi32(v0_x, v1_y), _mm_mullo_epi32(v1_x, v0_y));
+
+    // const __m128i triArea = _mm_sub_epi32(_mm_mullo_epi32(B1, A2), _mm_mullo_epi32(B2, A1));
+    const __m128i triArea = _mm_sub_epi32(_mm_mullo_epi32(B2, A1), _mm_mullo_epi32(B1, A2)); // intel
+
+#endif
+    // Pass in Area?
     // const __m128 oneOverTriArea = _mm_div_ps(_mm_set1_ps(1.0f), _mm_cvtepi32_ps(triArea));
+    // const __m128 oneOverTriArea = _mm_rcp_ps(_mm_mul_ps(_mm_cvtepi32_ps(triArea), _mm_set1_ps(0.5f)));
     const __m128 oneOverTriArea = _mm_rcp_ps(_mm_cvtepi32_ps(triArea));
 
     const __m128i aa0Inc = _mm_slli_epi32(A0, 2);
@@ -882,37 +664,40 @@ void Flat_Shading(const RasterData_t rd)
             const __m128 w1 = _mm_mul_ps(_mm_cvtepi32_ps(betaa), oneOverTriArea);
             const __m128 w2 = _mm_mul_ps(_mm_cvtepi32_ps(gamma), oneOverTriArea);
 
-            const __m128 weights[3] = {
+            const __m128 w_vals[3] = {
                 _mm_mul_ps(one_over_w0, w0),
                 _mm_mul_ps(one_over_w1, w1),
                 _mm_mul_ps(one_over_w2, w2),
             };
 
-            __m128 intrFactor = _mm_add_ps(_mm_add_ps(weights[0], weights[1]), weights[2]);
-            intrFactor        = _mm_rcp_ps(intrFactor);
-
             // Compute barycentric-interpolated depth
             // https://stackoverflow.com/questions/74261146/why-depth-values-must-be-interpolated-directly-by-barycentric-coordinates-in-ope
-            __m128 depth = _mm_add_ps(_mm_add_ps(_mm_mul_ps(Z[0], w0), _mm_mul_ps(Z[1], w1)), _mm_mul_ps(Z[2], w2));
-            // depth        = _mm_mul_ps(intrFactor, depth);
+            __m128 gl_FragCoord_z = _mm_add_ps(_mm_add_ps(_mm_mul_ps(Z[0], w0), _mm_mul_ps(Z[1], w1)), _mm_mul_ps(Z[2], w2));
+            // gl_FragCoord_z        = _mm_rcp_ps(gl_FragCoord_z);
+
+            __m128 gl_FragCoord_w = _mm_add_ps(_mm_add_ps(w_vals[0], w_vals[1]), w_vals[2]);
+            gl_FragCoord_w        = _mm_rcp_ps(gl_FragCoord_w);
+
+            __m128 persp[3];
+            persp[0] = _mm_mul_ps(w_vals[0], gl_FragCoord_w);
+            persp[1] = _mm_mul_ps(w_vals[1], gl_FragCoord_w);
+            persp[2] = _mm_mul_ps(w_vals[2], gl_FragCoord_w);
 
             const size_t index  = y * global_renderer.width + x;
             float       *pDepth = &pDepthBuffer[index];
 
             //// DEPTH BUFFER
             const __m128 previousDepthValue           = _mm_load_ps(pDepth);
-            const __m128 are_new_depths_less_than_old = _mm_cmplt_ps(depth, previousDepthValue);
+            const __m128 are_new_depths_less_than_old = _mm_cmplt_ps(gl_FragCoord_z, previousDepthValue);
 
             if ((uint16_t)_mm_movemask_ps(are_new_depths_less_than_old) == 0x0000)
                 continue;
 
             const __m128 which_depths_should_be_drawn = _mm_and_ps(are_new_depths_less_than_old, _mm_castsi128_ps(mask));
-            const __m128 updated_depth_values         = _mm_blendv_ps(previousDepthValue, depth, which_depths_should_be_drawn);
+            const __m128 updated_depth_values         = _mm_blendv_ps(previousDepthValue, gl_FragCoord_z, which_depths_should_be_drawn);
             _mm_store_ps(pDepth, updated_depth_values);
 
             const __m128i finalMask = _mm_castps_si128(which_depths_should_be_drawn);
-
-            intrFactor = _mm_mul_ps(intrFactor, _mm_cvtepi32_ps(_mm_abs_epi32(finalMask)));
 
             // Loop over each pixel and draw
             __m128i combined_colours = {0};
@@ -926,24 +711,37 @@ void Flat_Shading(const RasterData_t rd)
             }
             else if (global_app.shading_mode == SHADING_TEXTURED)
             {
-                __m128 U_w = _mm_add_ps(_mm_add_ps(_mm_mul_ps(U[0], w0), _mm_mul_ps(U[1], w1)), _mm_mul_ps(U[2], w2));
-                __m128 V_w = _mm_add_ps(_mm_add_ps(_mm_mul_ps(V[0], w0), _mm_mul_ps(V[1], w1)), _mm_mul_ps(V[2], w2));
+                __m128 newU[3];
+                newU[0] = _mm_mul_ps(U[0], persp[0]);
+                newU[1] = _mm_mul_ps(U[1], persp[1]);
+                newU[2] = _mm_mul_ps(U[2], persp[2]);
 
-                // clamp the vector to the range [0.0f, 1.0f]
-                // U_w = _mm_max_ps(_mm_min_ps(U_w, _mm_set1_ps(1.0f)), _mm_setzero_ps());
-                // V_w = _mm_max_ps(_mm_min_ps(V_w, _mm_set1_ps(1.0f)), _mm_setzero_ps());
+                __m128 newV[3];
+                newV[0] = _mm_mul_ps(V[0], persp[0]);
+                newV[1] = _mm_mul_ps(V[1], persp[1]);
+                newV[2] = _mm_mul_ps(V[2], persp[2]);
 
-                U_w = _mm_mul_ps(intrFactor, _mm_mul_ps(U_w, _mm_set1_ps((float)tex.w - 1)));
-                V_w = _mm_mul_ps(intrFactor, _mm_mul_ps(V_w, _mm_set1_ps((float)tex.h - 1)));
+                __m128 U_w = _mm_add_ps(_mm_add_ps(newU[0], newU[1]), newU[2]);
+                __m128 V_w = _mm_add_ps(_mm_add_ps(newV[0], newV[1]), newV[2]);
+
+                //// clamp the vector to the range [0.0f, 1.0f]
+                U_w = _mm_max_ps(_mm_min_ps(U_w, _mm_set1_ps(1.0f)), _mm_setzero_ps());
+                V_w = _mm_max_ps(_mm_min_ps(V_w, _mm_set1_ps(1.0f)), _mm_setzero_ps());
+
+                U_w = _mm_mul_ps(U_w, _mm_set1_ps((float)tex.w - 1));
+                V_w = _mm_mul_ps(V_w, _mm_set1_ps((float)tex.h - 1));
 
                 // (U + texture.width * V) * texture.bpp
-                const __m128i texture_offset = _mm_mullo_epi32(
+                __m128i texture_offset = _mm_mullo_epi32(
                     _mm_set1_epi32(tex.bpp),
                     _mm_add_epi32(
                         _mm_cvtps_epi32(U_w),
                         _mm_mullo_epi32(
                             _mm_set1_epi32(tex.w),
                             _mm_cvtps_epi32(V_w))));
+
+                const __m128i which_tex_coords_to_get = _mm_abs_epi32(finalMask);
+                texture_offset                        = _mm_mullo_epi32(texture_offset, which_tex_coords_to_get);
 
                 __m128i pixel_colour[4] = {0};
                 for (int i = 0; i < 4; ++i)
@@ -961,7 +759,7 @@ void Flat_Shading(const RasterData_t rd)
                 if (global_app.shading_mode == SHADING_GOURAUD) // GOURAND Shading ------
                 {
                     __m128 inter_colour[4] = {0}; // this will return us  ( inter_colour[0] = R,inter_colour[1] = G, inter_colour[2] = B )
-                    _Interpolate_Something(weights, intrFactor, gourand_colours, inter_colour);
+                    _Interpolate_Something(persp, gourand_colours, inter_colour);
 
                     // _MM_FROUND_TO_NEAREST_INT: rounding should be performed to the nearest integer value
                     // _MM_FROUND_NO_EXC: rounding should not generate any exceptions (stops exception if the input is NaN (Not a Number))
@@ -975,14 +773,14 @@ void Flat_Shading(const RasterData_t rd)
                     pixel_colour[2] = _mm_cvtps_epi32(cvt_colout2);
                     pixel_colour[3] = _mm_cvtps_epi32(cvt_colout3);
                 }
-                else if (global_app.shading_mode == SHADING_PHONG)
+                else if (global_app.shading_mode == SHADING_PHONG || global_app.shading_mode == SHADING_BLIN_PHONG)
                 {
                     // Interpolate pixel location
                     __m128 inter_frag_location[4] = {0};
-                    _Interpolate_Something(weights, intrFactor, ws_vertices, inter_frag_location);
+                    _Interpolate_Something(persp, ws_vertices, inter_frag_location);
 
                     __m128 inter_normal[4] = {0};
-                    _Interpolate_Something(weights, intrFactor, normals, inter_normal);
+                    _Interpolate_Something(persp, normals, inter_normal);
 
                     mvec4 shading0 = Light_Calculate_Shading((mvec4){.m = inter_frag_location[0]}, (mvec4){.m = inter_normal[0]}, global_app.camera_position, rd.light);
                     mvec4 shading1 = Light_Calculate_Shading((mvec4){.m = inter_frag_location[1]}, (mvec4){.m = inter_normal[1]}, global_app.camera_position, rd.light);
