@@ -1,6 +1,6 @@
 #include "lights.h"
 
-#include "Renderer.h"
+#include "app.h"
 
 /**
  * Calculates the diffuse component of the lighting equation for a given light direction, and surface normal
@@ -10,11 +10,11 @@
  *
  * @return The diffuse amount, with values between 0 and 1.0f, the first component
  */
-static inline float Calculate_Diffuse_Amount(const mvec4 L, const mvec4 N)
+static inline float _Calculate_Diffuse_Amount(const mvec4 L, const mvec4 N)
 {
-    const float dot_product = mate_dot(N, L);
+    const float dot_product = mate_dot(L, N);
 
-    const float diffuse_amount = (const float)fmax(dot_product, 0.0);
+    const float diffuse_amount = fmaxf(dot_product, 0.0f);
 
     return diffuse_amount;
 }
@@ -30,7 +30,7 @@ static inline float Calculate_Diffuse_Amount(const mvec4 L, const mvec4 N)
  *
  * @return An float containing the specular power, with values between 0 and 1.0f
  */
-static float Calculate_Specular_Amount(const mvec4 L, const mvec4 E, const mvec4 N, const float shininess)
+static float _Calculate_Specular_Amount(const mvec4 L, const mvec4 E, const mvec4 N, const float shininess)
 {
     float specular_power = 0.0f;
     float dot_product    = 0.0f;
@@ -38,7 +38,7 @@ static float Calculate_Specular_Amount(const mvec4 L, const mvec4 E, const mvec4
     if (global_app.shading_mode == SHADING_BLIN_PHONG || global_app.shading_mode == SHADING_NORMAL_MAPPING)
     {
         // Calculate the Halfway vector (H) between the light source direction (L) and the view direction (E)
-        const mvec4 H = mate_norm(mate_vec4_add(L, E));
+        const mvec4 H = mate_norm3(mate_vec4_add(L, E));
 
         // Calculate the specular component using the dot product of the surface normal (N) and the halfway vector (H)
         dot_product = mate_dot(N, H);
@@ -46,7 +46,7 @@ static float Calculate_Specular_Amount(const mvec4 L, const mvec4 E, const mvec4
     else // PHONG
     {
         // Calculate R - the reflection vector
-        const mvec4 R = mate_norm(mate_reflect(mate_negate(L), N));
+        const mvec4 R = mate_norm3(mate_negate(mate_reflect(L, N)));
 
         dot_product = mate_dot(E, R);
     }
@@ -64,39 +64,34 @@ static float Calculate_Specular_Amount(const mvec4 L, const mvec4 E, const mvec4
  * @param camera_position  The position of the camera viewing the surface
  * @param light            A pointer to a Light struct containing information about the light source
  *
- * @return An __m128 vector containing the RGB values of the shading at the point, with values between 0 and 255.
+ * @return An __m128 vector containing the RGB values of the shading at the point, with values between 0.0f and 1.0f.
  */
-mvec4 Light_Calculate_Shading(const mvec4 position, const mvec4 normal, const mvec4 camera_position, const mvec4 light_position, const Light *light)
+mvec4 Light_Calculate_Shading(const mvec4 position, const mvec4 normal, const mvec4 camera_position, const Light *light)
 {
     // Normalise the Noraml
-    // const __m128 N = normal;
-    const mvec4 N = mate_norm(normal);
-    //
+    const mvec4 N = mate_norm3(normal);
+
     // Calculate L - direction to the light source
-    // const __m128 L = _mm_sub_ps(light_position, position);
-    const mvec4 L = mate_norm(mate_vec4_sub(light_position, position));
+    const mvec4 L = mate_norm3(mate_vec4_sub(light->position, position));
 
     // Calculate E - view direction
     // const __m128 E = _mm_sub_ps(camera_position, position);
-    const mvec4 E = mate_norm(mate_vec4_sub(camera_position, position));
+    const mvec4 E = mate_norm3(mate_vec4_sub(camera_position, position));
 
     // Calculate Ambient Term:
     const mvec4 Iamb = mate_vec4_mul(light->diffuse_colour, light->ambient_amount);
 
     // Calculate Diffuse Term:
-    const float diffuse_amount = Calculate_Diffuse_Amount(L, N);
+    const float diffuse_amount = _Calculate_Diffuse_Amount(L, normal);
     const mvec4 Idiff          = mate_vec4_scale(light->diffuse_colour, diffuse_amount); // Might need to set the Alpha here
 
     // Calculate Specular Term:
-    const float shininess = 32.0f;
-    const float specular  = Calculate_Specular_Amount(L, E, N, shininess);
+    const float shininess = 128.0f;
+    const float specular  = _Calculate_Specular_Amount(L, E, N, shininess);
     const mvec4 Ispec     = mate_vec4_scale(light->specular_amount, specular);
 
-    const mvec4 lighting_amount = mate_vec4_clamp(
-        mate_vec4_add(
-            mate_vec4_add(Iamb, Idiff),
-            Ispec),
-        0.0f, 1.0f);
+    mvec4 lighting_amount = mate_vec4_add(mate_vec4_add(Iamb, Idiff), Ispec);
+    lighting_amount       = mate_vec4_clamp(lighting_amount, 0.0f, 1.0f);
 
     return lighting_amount;
 }

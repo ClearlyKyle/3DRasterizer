@@ -3,7 +3,6 @@
 
 #include "matematika.h"
 
-// TODO : Prefix these
 typedef enum
 {
     SHADING_WIRE_FRAME,
@@ -27,7 +26,7 @@ static const char *Shading_Mode_Str[SHADING_COUNT] = {
     "TEXTURED",
     "TEXTURED_PHONG",
     "NORMAL_MAPPING",
-    "SHADING_DEPTH_BUFFER",
+    "DEPTH_BUFFER",
 };
 
 typedef struct Light_s
@@ -38,6 +37,6 @@ typedef struct Light_s
     mvec4 specular_amount;
 } Light;
 
-mvec4 Light_Calculate_Shading(const mvec4 position, const mvec4 normal, const mvec4 camera_position, const mvec4 light_position, const Light *light);
+mvec4 Light_Calculate_Shading(const mvec4 position, const mvec4 normal, const mvec4 camera_position, const Light *light);
 
 #endif // __LIGHTS_H__
