@@ -1,5 +1,8 @@
 #include "obj.h"
 
+#define FLT_MAX 3.402823466e+38F
+#define FLT_MIN 1.175494351e-38F
+
 #define TINYOBJ_LOADER_C_IMPLEMENTATION
 #include "./libs/tinyobj_loader_c.h"
 
@@ -141,6 +144,10 @@ ObjectData_t Object_Load(const char *file_name)
     ASSERT(uv_coordinates);
     ret_obj.uv_coordinates = uv_coordinates;
 
+    float bbmin[3], bbmax[3]; // Bounding Box (x, y, z)
+    bbmin[0] = bbmin[1] = bbmin[2] = FLT_MAX;
+    bbmax[0] = bbmax[1] = bbmax[2] = -FLT_MAX;
+
     for (unsigned int i = 0; i < number_of_verticies; ++i)
     {
         ASSERT(attribute.face_num_verts[i % 3] % 3 == 0); /* assume all triangle faces. */
@@ -162,7 +169,29 @@ ObjectData_t Object_Load(const char *file_name)
         /* Get texture data */
         uv_coordinates[(i * 2) + 0] = attribute.texcoords[idx.vt_idx * 2 + 0]; // u
         uv_coordinates[(i * 2) + 1] = attribute.texcoords[idx.vt_idx * 2 + 1]; // v
+
+        for (unsigned int coord = 0; coord < 3; ++coord)
+        {
+            const float value = vertex_coordinates[(i * 4) + coord];
+            bbmin[coord]      = (value < bbmin[coord]) ? value : bbmin[coord];
+            bbmax[coord]      = (value > bbmax[coord]) ? value : bbmax[coord];
+        }
     }
+    printf("bbmin (%f, %f, %f)\n", bbmin[0], bbmin[1], bbmin[2]);
+    printf("bbmax (%f, %f, %f)\n", bbmax[0], bbmax[1], bbmax[2]);
+
+    const float height = bbmax[1] - bbmin[1];
+
+    ret_obj.transform = mate_translation_make(0.0f, -height * 0.5f, 0.0f);
+
+    float scale_amount = 1.0f / (height);
+
+    printf("height : %f\n", height);
+    printf("scale amount : %f\n", scale_amount);
+
+    mmat4 scale = mate_scale_make(scale_amount, scale_amount, scale_amount);
+
+    ret_obj.transform = mate_mat_mul(scale, ret_obj.transform);
 
     return ret_obj;
 }

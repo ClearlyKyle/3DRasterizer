@@ -1,6 +1,7 @@
 #ifndef __OBJ_H__
 #define __OBJ_H__
 
+#include "matematika.h"
 #include "textures.h"
 
 typedef struct ObjectData
@@ -14,6 +15,8 @@ typedef struct ObjectData
     int has_textures;
     int has_normals;
     int has_texcoords;
+
+    mmat4 transform;
 
     Texture_t diffuse;
     Texture_t bump;
