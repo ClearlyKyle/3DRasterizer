@@ -453,6 +453,7 @@ void Flat_Shading(const RasterData_t rd)
         Draw_Line((int)v1[0], (int)v1[1], (int)v2[0], (int)v2[1], &col);
         Draw_Line((int)v2[0], (int)v2[1], (int)v0[0], (int)v0[1], &col);
 
+#if 0 /* Drawing normals */
         const SDL_Colour col2 = {255, 000, 000, 255};
         if (mate_dot(rd.normals[0], global_app.camera_position) < 0.0f)
             Draw_Line((int)v0[0], (int)v0[1], (int)rd.endpoints[0].f[0], (int)rd.endpoints[0].f[1], &col2);
@@ -462,7 +463,7 @@ void Flat_Shading(const RasterData_t rd)
 
         if (mate_dot(rd.normals[2], global_app.camera_position) < 0.0f)
             Draw_Line((int)v2[0], (int)v2[1], (int)rd.endpoints[2].f[0], (int)rd.endpoints[2].f[1], &col2);
-
+#endif
         return;
     }
 
@@ -484,7 +485,6 @@ void Flat_Shading(const RasterData_t rd)
     };
 
     Texture_t tex = global_app.obj.diffuse;
-    ASSERT(tex.data);
 
     // Setup for textured shading
     __m128 U[3], V[3], Z[3], W[3];
