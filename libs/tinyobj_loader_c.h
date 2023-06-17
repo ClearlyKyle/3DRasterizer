@@ -1029,7 +1029,7 @@ static int tinyobj_parse_and_index_mtl_file(tinyobj_material_t **materials_out,
     }
 
     /* bump texture */
-    if ((0 == strncmp(token, "map_bump", 8)) && IS_SPACE(token[8])) {
+    if ((0 == _strnicmp(token, "map_bump", 8)) && IS_SPACE(token[8])) {
       token += 9;
       material.bump_texname = my_strdup(token, (size_t) (line_end - token));
       continue;
