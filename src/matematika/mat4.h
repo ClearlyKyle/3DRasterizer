@@ -55,11 +55,11 @@ mmat4 mate_mat_mul(const mmat4 m1, const mmat4 m2)
         const __m128 brod3 = _mm_shuffle_ps(m2.m[i], m2.m[i], _MM_SHUFFLE(2, 2, 2, 2));
         const __m128 brod4 = _mm_shuffle_ps(m2.m[i], m2.m[i], _MM_SHUFFLE(3, 3, 3, 3));
         const __m128 row   = _mm_add_ps(_mm_add_ps(
-                                            _mm_mul_ps(brod1, m1.m[0]),
-                                            _mm_mul_ps(brod2, m1.m[1])),
+                                          _mm_mul_ps(brod1, m1.m[0]),
+                                          _mm_mul_ps(brod2, m1.m[1])),
                                         _mm_add_ps(
-                                            _mm_mul_ps(brod3, m1.m[2]),
-                                            _mm_mul_ps(brod4, m1.m[3])));
+                                          _mm_mul_ps(brod3, m1.m[2]),
+                                          _mm_mul_ps(brod4, m1.m[3])));
         res.m[i]           = row;
     }
     return res;
@@ -71,11 +71,11 @@ mmat4 mate_mat_mul(const mmat4 m1, const mmat4 m2)
     __m128 brod3 = _mm_shuffle_ps(m2.m[0], m2.m[0], _MM_SHUFFLE(2, 2, 2, 2));
     __m128 brod4 = _mm_shuffle_ps(m2.m[0], m2.m[0], _MM_SHUFFLE(3, 3, 3, 3));
     __m128 row   = _mm_add_ps(_mm_add_ps(
-                                  _mm_mul_ps(brod1, m1.m[0]),
-                                  _mm_mul_ps(brod2, m1.m[1])),
+                                _mm_mul_ps(brod1, m1.m[0]),
+                                _mm_mul_ps(brod2, m1.m[1])),
                               _mm_add_ps(
-                                  _mm_mul_ps(brod3, m1.m[2]),
-                                  _mm_mul_ps(brod4, m1.m[3])));
+                                _mm_mul_ps(brod3, m1.m[2]),
+                                _mm_mul_ps(brod4, m1.m[3])));
     res.m[0]     = row;
 
     brod1    = _mm_shuffle_ps(m2.m[1], m2.m[1], _MM_SHUFFLE(0, 0, 0, 0));
@@ -83,11 +83,11 @@ mmat4 mate_mat_mul(const mmat4 m1, const mmat4 m2)
     brod3    = _mm_shuffle_ps(m2.m[1], m2.m[1], _MM_SHUFFLE(2, 2, 2, 2));
     brod4    = _mm_shuffle_ps(m2.m[1], m2.m[1], _MM_SHUFFLE(3, 3, 3, 3));
     row      = _mm_add_ps(_mm_add_ps(
-                              _mm_mul_ps(brod1, m1.m[0]),
-                              _mm_mul_ps(brod2, m1.m[1])),
+                         _mm_mul_ps(brod1, m1.m[0]),
+                         _mm_mul_ps(brod2, m1.m[1])),
                           _mm_add_ps(
-                              _mm_mul_ps(brod3, m1.m[2]),
-                              _mm_mul_ps(brod4, m1.m[3])));
+                         _mm_mul_ps(brod3, m1.m[2]),
+                         _mm_mul_ps(brod4, m1.m[3])));
     res.m[1] = row;
 
     brod1    = _mm_shuffle_ps(m2.m[2], m2.m[2], _MM_SHUFFLE(0, 0, 0, 0));
@@ -95,11 +95,11 @@ mmat4 mate_mat_mul(const mmat4 m1, const mmat4 m2)
     brod3    = _mm_shuffle_ps(m2.m[2], m2.m[2], _MM_SHUFFLE(2, 2, 2, 2));
     brod4    = _mm_shuffle_ps(m2.m[2], m2.m[2], _MM_SHUFFLE(3, 3, 3, 3));
     row      = _mm_add_ps(_mm_add_ps(
-                              _mm_mul_ps(brod1, m1.m[0]),
-                              _mm_mul_ps(brod2, m1.m[1])),
+                         _mm_mul_ps(brod1, m1.m[0]),
+                         _mm_mul_ps(brod2, m1.m[1])),
                           _mm_add_ps(
-                              _mm_mul_ps(brod3, m1.m[2]),
-                              _mm_mul_ps(brod4, m1.m[3])));
+                         _mm_mul_ps(brod3, m1.m[2]),
+                         _mm_mul_ps(brod4, m1.m[3])));
     res.m[2] = row;
 
     brod1    = _mm_shuffle_ps(m2.m[3], m2.m[3], _MM_SHUFFLE(0, 0, 0, 0));
@@ -107,11 +107,11 @@ mmat4 mate_mat_mul(const mmat4 m1, const mmat4 m2)
     brod3    = _mm_shuffle_ps(m2.m[3], m2.m[3], _MM_SHUFFLE(2, 2, 2, 2));
     brod4    = _mm_shuffle_ps(m2.m[3], m2.m[3], _MM_SHUFFLE(3, 3, 3, 3));
     row      = _mm_add_ps(_mm_add_ps(
-                              _mm_mul_ps(brod1, m1.m[0]),
-                              _mm_mul_ps(brod2, m1.m[1])),
+                         _mm_mul_ps(brod1, m1.m[0]),
+                         _mm_mul_ps(brod2, m1.m[1])),
                           _mm_add_ps(
-                              _mm_mul_ps(brod3, m1.m[2]),
-                              _mm_mul_ps(brod4, m1.m[3])));
+                         _mm_mul_ps(brod3, m1.m[2]),
+                         _mm_mul_ps(brod4, m1.m[3])));
     res.m[3] = row;
     return res;
 #endif
@@ -268,11 +268,11 @@ mmat4 mate_look_at(const vec3 eye, const vec3 center, const vec3 up)
 
     mvec4 sub     = {0};
     sub.m         = _mm_sub_ps(center4.m, eye4.m);
-    const mvec4 f = mate_norm(sub);
-    const mvec4 s = mate_norm(mate_cross(f, up4));
+    const mvec4 f = mate_norm3(sub);
+    const mvec4 s = mate_norm3(mate_cross(f, up4));
     const mvec4 u = mate_cross(s, f);
 
-    mmat4 res;
+    mmat4 res   = {0};
     res.f[0][0] = s.f[0];
     res.f[0][1] = u.f[0];
     res.f[0][2] = -f.f[0];

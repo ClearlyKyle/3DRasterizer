@@ -59,6 +59,14 @@ mvec4 mate_vec4_add(const mvec4 v1, const mvec4 v2)
 }
 
 MATEMATIKA_INLINE
+mvec4 mate_vec4_add3(const mvec4 v1, const mvec4 v2)
+{
+    mvec4 tmp = mate_vec4_add(v1, v2);
+    tmp.f[3]  = v1.f[3];
+    return tmp;
+}
+
+MATEMATIKA_INLINE
 mvec4 mate_vec4_sub(const mvec4 v1, const mvec4 v2)
 {
     return (mvec4){.m = _mm_sub_ps(v1.m, v2.m)};
@@ -85,6 +93,14 @@ mvec4 mate_vec4_clamp(const mvec4 v, const float min, const float max)
 MATEMATIKA_INLINE
 mvec4 mate_cross(const mvec4 a, const mvec4 b)
 {
+#if 0
+    float c[3];
+    c[0] = a.f[1] * b.f[2] - a.f[2] * b.f[1];
+    c[1] = a.f[2] * b.f[0] - a.f[0] * b.f[2];
+    c[2] = a.f[0] * b.f[1] - a.f[1] * b.f[0];
+
+    return (mvec4){c[0], c[1], c[2], 0.0f};
+#else
     mvec4 shuff_a = {0};
     shuff_a.m     = _mm_shuffle_ps(a.m, a.m, _MM_SHUFFLE(3, 0, 2, 1));
     mvec4 shuff_b = {0};
@@ -97,13 +113,14 @@ mvec4 mate_cross(const mvec4 a, const mvec4 b)
 
     mvec4 res = {0};
     res.m     = _mm_shuffle_ps(sub.m, sub.m, _MM_SHUFFLE(3, 0, 2, 1));
-    res.f[3]  = 0.0f;
+    // res.f[3]  = 0.0f;
 
     return res;
+#endif
 }
 
 MATEMATIKA_INLINE
-float mate_dot(const mvec4 a, const mvec4 b)
+float mate_dot(mvec4 a, mvec4 b)
 {
 #if 0
     mvec4 res = {0};
@@ -118,8 +135,12 @@ float mate_dot(const mvec4 a, const mvec4 b)
     shuf        = _mm_movehl_ps(shuf, sums);
     sums        = _mm_add_ss(sums, shuf);
     return _mm_cvtss_f32(sums);
+#elif 1
+    return (a.f[0] * b.f[0]) + (a.f[1] * b.f[1]) + (a.f[2] * b.f[2]);
 #else
-    return _mm_cvtss_f32(_mm_dp_ps(a.m, b.m, 0xF1));
+    // a.f[3] = b.f[3] = 0.0f;
+    return _mm_cvtss_f32(_mm_dp_ps(a.m, b.m, 0x7f));
+    // return _mm_cvtss_f32(_mm_dp_ps(a.m, b.m, 0xF1));
 #endif
 }
 
@@ -171,7 +192,7 @@ mvec4 mate_surface_normal(const mvec4 A, const mvec4 B, const mvec4 C)
 
     mvec4 cross = mate_cross(AB, AC);
 
-    return mate_norm(cross);
+    return mate_norm3(cross);
 }
 
 #endif // __VEC4_H__

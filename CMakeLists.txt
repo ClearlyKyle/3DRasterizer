@@ -5,30 +5,29 @@ project(main)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 
 if(MSVC)
-    # Set warning level to 4
-    add_compile_options(/W4)
+    add_compile_options(/W4) # Set warning level to 4
 endif()
 
 find_package(SDL2 CONFIG REQUIRED)
 
+include_directories(src/matematika)
+include_directories(libs)
+
 set(RESTER_SOURCE
-    "main.c"
-    "vector.h"
-    "vector.c"
-    "Renderer.h"
-    "Renderer.c"
-    "lights.h"
-    "lights.c"
-    "textures.h"
-    "textures.c"
-    "AABB.h"
-    "ObjLoader.h"
-    "timer.h"
+    "src/main.c"
+    "src/Renderer.h"
+    "src/Renderer.c"
+    "src/lights.h"
+    "src/lights.c"
+    "src/obj.h"
+    "src/obj.c"
+    "src/app.h"
+    "src/app.c"
+    "src/textures.h"
+    "src/textures.c"
 )
 
 add_executable(${CMAKE_PROJECT_NAME} ${RESTER_SOURCE})
-add_executable(VECTOR_TEST vector_test.c vector.h vector.c lights.h lights.c)
-add_executable(OBJECT_TEST ObjLoader_test.c ObjLoader.h)
 
 # SDL2::SDL2main needs to come first to compile with GCC 10.3.0
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE SDL2::SDL2main SDL2::SDL2)

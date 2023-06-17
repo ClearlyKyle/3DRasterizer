@@ -1,7 +1,7 @@
 #include "textures.h"
 
 #define STB_IMAGE_IMPLEMENTATION
-#include "libs/stb_image.h"
+#include "stb_image.h"
 
 inline void Texture_Print_Info(const Texture_t t)
 {

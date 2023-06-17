@@ -4,7 +4,7 @@
 #define FLT_MIN 1.175494351e-38F
 
 #define TINYOBJ_LOADER_C_IMPLEMENTATION
-#include "./libs/tinyobj_loader_c.h"
+#include "tinyobj_loader_c.h"
 
 static int _load_file(void *ctx, const char *filename, const int is_mtl, const char *obj_filename, char **buffer, size_t *len)
 {
