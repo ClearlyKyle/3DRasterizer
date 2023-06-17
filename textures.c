@@ -3,27 +3,24 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "libs/stb_image.h"
 
-Texture_t Texture_Load(const char *file_path, bool alpha, bool flip)
+inline void Texture_Print_Info(const Texture_t t)
 {
-    UTILS_UNUSED(alpha);
+    fprintf(stderr, "Texture width  : %d\n", t.w);
+    fprintf(stderr, "Texture height : %d\n", t.h);
+    fprintf(stderr, "Texture bbp    : %d\n", t.bpp);
+}
 
+Texture_t Texture_Load(const char *file_path, bool flip)
+{
     Texture_t t = {0};
 
     // textures oriented tha same as you view them in paint
     stbi_set_flip_vertically_on_load(flip ? 1 : 0);
 
-    // int format = alpha ? STBI_rgb_alpha : STBI_rgb;
-
     unsigned char *data = stbi_load(file_path, &t.w, &t.h, &t.bpp, 0);
-    if (!data)
-    {
-        fprintf(stderr, "Loading image : %s\n", stbi_failure_reason());
-        ASSERT(data);
-        return t;
-    }
+    ASSERTF(data, "Error! Loading Texture : %s\n", file_path);
 
     t.data = data;
-
     return t;
 }
 

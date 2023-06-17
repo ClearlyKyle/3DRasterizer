@@ -13,14 +13,8 @@ typedef struct Texture
     unsigned char *data;
 } Texture_t;
 
-Texture_t Texture_Load(const char *file_path, bool alpha, bool flip);
+void      Texture_Print_Info(const Texture_t t);
+Texture_t Texture_Load(const char *file_path, bool flip);
 void      Texture_Destroy(Texture_t *t);
-
-inline void Texture_Print_Info(const Texture_t t)
-{
-    fprintf(stderr, "Texture width  : %d\n", t.w);
-    fprintf(stderr, "Texture height : %d\n", t.h);
-    fprintf(stderr, "Texture bbp    : %d\n", t.bpp);
-}
 
 #endif // __TEXTURES_H__
