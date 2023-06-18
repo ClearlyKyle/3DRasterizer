@@ -72,8 +72,6 @@ typedef struct RasterData
 
     float w_values[3];
 
-    Light *light;
-
     mmat3 TBN;
 } RasterData_t;
 
