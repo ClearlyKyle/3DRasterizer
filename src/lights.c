@@ -66,7 +66,7 @@ static float _Calculate_Specular_Amount(const mvec4 L, const mvec4 E, const mvec
  *
  * @return An __m128 vector containing the RGB values of the shading at the point, with values between 0.0f and 1.0f.
  */
-mvec4 Light_Calculate_Shading(const mvec4 position, const mvec4 normal, const mvec4 camera_position, const Light *light)
+mvec4 Light_Calculate_Shading(const mvec4 position, const mvec4 normal, const mvec4 camera_position, const Light_t *light)
 {
     // Normalise the Noraml
     const mvec4 N = mate_norm3(normal);

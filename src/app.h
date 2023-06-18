@@ -8,7 +8,8 @@ typedef struct AppState_s
 {
     ObjectData_t obj;
 
-    mvec4 camera_position;
+    Light_t light;
+    mvec4   camera_position;
 
     Shading_Mode shading_mode;
 } AppState;

@@ -35,8 +35,8 @@ typedef struct Light_s
     mvec4 diffuse_colour;
     mvec4 ambient_amount;
     mvec4 specular_amount;
-} Light;
+} Light_t;
 
-mvec4 Light_Calculate_Shading(const mvec4 position, const mvec4 normal, const mvec4 camera_position, const Light *light);
+mvec4 Light_Calculate_Shading(const mvec4 position, const mvec4 normal, const mvec4 camera_position, const Light_t *light);
 
 #endif // __LIGHTS_H__

@@ -51,10 +51,7 @@ int main(int argc, char *argv[])
     vec3  up     = {0.0f, -1.0f, 0.0f};
     mmat4 view   = mate_look_at(eye, center, up);
 
-    // Translation Matrix : Move the object in 3D space X Y Z
-    mmat4 trans = mate_translation_make(0.0f, 0.0f, 0.0f);
-
-    Light light = {
+    global_app.light = (Light_t){
         .ambient_amount  = mate_vec4(0.1f, 0.1f, 0.1f, 1.0f),
         .diffuse_colour  = mate_vec4(0.5f, 0.5f, 0.5f, 1.0f),
         .specular_amount = mate_vec4(0.8f, 0.8f, 0.8f, 1.0f),

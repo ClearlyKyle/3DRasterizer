@@ -344,7 +344,7 @@ static inline void _Interpolate_Something(const __m128 persp[3], const __m128 at
  *
  * @return: the final colour of the fragment using the Phong shading model
  */
-static inline __m128 _Phong_Shading_Get_Colour(const __m128 weights[3], const mvec4 world_space_coords[3], const mvec4 normals[3], const Light *light)
+static inline __m128 _Phong_Shading_Get_Colour(const __m128 weights[3], const mvec4 world_space_coords[3], const mvec4 normals[3], const Light_t *light)
 {
     const __m128 frag_position = _mm_add_ps(
         _mm_add_ps(
@@ -439,8 +439,7 @@ void Flat_Shading(const RasterData_t rd)
     //__m128       accept  = _mm_and_ps(_mm_and_ps(accept1, W0), _mm_and_ps(W1, W2));
     // unsigned int triMask = _mm_movemask_ps(accept) & laneMask;
 
-    const __m128i colOffset = _mm_setr_epi32(0, 1, 2, 3); // NOTE: The "r" here!! makes loading and storing colour easier
-    const __m128i rowOffset = _mm_setr_epi32(0, 0, 0, 0);
+    Light_t light_data = global_app.light;
 
     if (global_app.shading_mode == SHADING_WIRE_FRAME)
     {
