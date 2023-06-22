@@ -75,6 +75,6 @@ typedef struct RasterData
     mmat3 TBN;
 } RasterData_t;
 
-void Flat_Shading(const RasterData_t rd);
+void Flat_Shading(const RasterData_t rd[4], const uint8_t collected_triangles_count);
 
 #endif // __RENDERER_H__

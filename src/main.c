@@ -43,10 +43,10 @@ int main(int argc, char *argv[])
     mmat4 proj = mate_perspective(MATE_D2RF(60.0f), (float)global_renderer.width / (float)global_renderer.height, 0.1f, global_renderer.max_depth_value);
 
     // Camera
-    const float camera_z_position = 5.0f;
+    const float camera_z_position = 2.5f;
     global_app.camera_position    = (mvec4){0.0f, 0.0f, camera_z_position, 0.0f};
 
-    vec3  eye    = {0.0f, 2.0f, camera_z_position};
+    vec3  eye    = {0.0f, 0.6f, camera_z_position};
     vec3  center = {0.0f, 0.0f, 0.0f};
     vec3  up     = {0.0f, -1.0f, 0.0f};
     mmat4 view   = mate_look_at(eye, center, up);
@@ -109,6 +109,10 @@ int main(int argc, char *argv[])
         const mmat4 model_view_matrix = mate_mat_mul(view, model_matrix);
         const mmat4 MVP               = mate_mat_mul(proj, model_view_matrix);
 
+        RasterData_t       rd[4]                         = {0};
+        uint8_t            number_of_collected_triangles = 0;
+        const unsigned int number_of_triangles           = object.number_of_triangles;
+
         for (size_t i = 0; i < object.number_of_triangles; ++i) // can we jump through triangles?
         {
             mvec4 raw_v0 = mate_vec4_load(&object.vertex_coordinates[i * 12 + 0]); // 12 because we load 3 triangles at at a time looping
@@ -155,33 +159,13 @@ int main(int argc, char *argv[])
 
             // float sign = AB.f[0] * AC.f[1] - AC.f[0] * AB.f[1];
 
-            //// float tri_area = (B2 * A1) - (B1 * A2);
-            // float tri_area = (B1 * A2) - (B2 * A1);
-            //// float tri_area = -1.0f;
-            // tri_area = 1.0f / tri_area;
-
-            // Vector Dot Product between : Surface normal and CameraRay
-            // const mvec4 surface_normal = mate_surface_normal(ws_tri1, ws_tri2, ws_tri3);
-            // const mvec4 camera_ray     = mate_vec4_sub(ws_tri1, global_app.camera_position);
-
             // Back face culling
-            // const float dot_product_result = mate_dot(surface_normal, camera_ray);
-            // const float dot_product_result = -1.0f;
             // if (sign > 0.0f)
             {
-                RasterData_t rd = {0};
-
                 // Calculate the edge values for creating the tangent and bitangent vectors
                 // for use with Normal mapping
                 __m128 edge1 = _mm_sub_ps(raw_v1.m, raw_v0.m);
                 __m128 edge2 = _mm_sub_ps(raw_v2.m, raw_v0.m);
-
-                // ws_tri1 = mate_mat_mulv(view, ws_tri1);
-                // ws_tri2 = mate_mat_mulv(view, ws_tri2);
-                // ws_tri3 = mate_mat_mulv(view, ws_tri3);
-
-                // Camera is at the origin, and we arent moving, so we can skip this?
-                // Convert World Space --> View Space
 
                 // Load normal values
                 mvec4 raw_nrm2 = mate_vec4_load(&object.normal_coordinates[i * 12 + 0]);
@@ -189,8 +173,6 @@ int main(int argc, char *argv[])
                 mvec4 raw_nrm0 = mate_vec4_load(&object.normal_coordinates[i * 12 + 8]);
 
                 /* Construct the Normal Matrix*/
-                // mmat3 nrm_matrix = {0};
-                //  nrm_matrix       = mate_mat4_to_mat3(model_matrix);
                 mmat3 nrm_matrix = mate_mat3_inv(mate_mat4_make_mat3_transpose(model_matrix));
 
                 vec3 new_n0, new_n1, new_n2;
@@ -209,8 +191,8 @@ int main(int argc, char *argv[])
                     __m128 texture_u = _mm_setr_ps(object.uv_coordinates[6 * i + 0], object.uv_coordinates[6 * i + 2], object.uv_coordinates[6 * i + 4], 0.0f);
                     __m128 texture_v = _mm_setr_ps(object.uv_coordinates[6 * i + 1], object.uv_coordinates[6 * i + 3], object.uv_coordinates[6 * i + 5], 0.0f);
 
-                    rd.tex_u = (mvec4){.m = texture_u};
-                    rd.tex_v = (mvec4){.m = texture_v};
+                    rd[number_of_collected_triangles].tex_u = (mvec4){.m = texture_u};
+                    rd[number_of_collected_triangles].tex_v = (mvec4){.m = texture_v};
                 }
 
                 // mmat3 TBN = {0};
@@ -291,29 +273,33 @@ int main(int argc, char *argv[])
                 end1 = mate_vec4_mul(end1, adjustment);
                 end2 = mate_vec4_mul(end2, adjustment);
 
-                rd.light = &light;
+                rd[number_of_collected_triangles].world_space_verticies[0] = ws_tri0;
+                rd[number_of_collected_triangles].world_space_verticies[1] = ws_tri1;
+                rd[number_of_collected_triangles].world_space_verticies[2] = ws_tri2;
 
-                rd.world_space_verticies[0] = ws_tri0;
-                rd.world_space_verticies[1] = ws_tri1;
-                rd.world_space_verticies[2] = ws_tri2;
+                rd[number_of_collected_triangles].screen_space_verticies[0] = proj_v0;
+                rd[number_of_collected_triangles].screen_space_verticies[1] = proj_v1;
+                rd[number_of_collected_triangles].screen_space_verticies[2] = proj_v2;
 
-                rd.screen_space_verticies[0] = proj_v0;
-                rd.screen_space_verticies[1] = proj_v1;
-                rd.screen_space_verticies[2] = proj_v2;
+                rd[number_of_collected_triangles].endpoints[0] = end0;
+                rd[number_of_collected_triangles].endpoints[1] = end1;
+                rd[number_of_collected_triangles].endpoints[2] = end2;
 
-                rd.endpoints[0] = end0;
-                rd.endpoints[1] = end1;
-                rd.endpoints[2] = end2;
+                rd[number_of_collected_triangles].w_values[0] = one_over_w0; // NOTE : Do we need to store these?
+                rd[number_of_collected_triangles].w_values[1] = one_over_w1;
+                rd[number_of_collected_triangles].w_values[2] = one_over_w2;
 
-                rd.w_values[0] = one_over_w0;
-                rd.w_values[1] = one_over_w1;
-                rd.w_values[2] = one_over_w2;
+                rd[number_of_collected_triangles].normals[0] = ws_nrm0;
+                rd[number_of_collected_triangles].normals[1] = ws_nrm1;
+                rd[number_of_collected_triangles].normals[2] = ws_nrm2;
 
-                rd.normals[0] = ws_nrm0;
-                rd.normals[1] = ws_nrm1;
-                rd.normals[2] = ws_nrm2;
+                number_of_collected_triangles++;
 
-                Flat_Shading(rd);
+                if (number_of_collected_triangles < 4 && i < number_of_triangles)
+                    continue;
+
+                Flat_Shading(rd, number_of_collected_triangles);
+                number_of_collected_triangles = 0;
             }
         }
 
