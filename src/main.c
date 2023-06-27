@@ -37,19 +37,15 @@ int main(int argc, char *argv[])
     ObjectData_t object = Object_Load(obj_filename);
     global_app.obj      = object;
 
-    global_renderer.max_depth_value = 6.0f;
+    global_renderer.max_depth_value = 10.0f;
 
     // Projection Matrix : converts from view space to screen space
     mmat4 proj = mate_perspective(MATE_D2RF(60.0f), (float)global_renderer.width / (float)global_renderer.height, 0.1f, global_renderer.max_depth_value);
 
     // Camera
-    const float camera_z_position = 2.5f;
-    global_app.camera_position    = (mvec4){0.0f, 0.0f, camera_z_position, 0.0f};
-
-    vec3  eye    = {0.0f, 0.6f, camera_z_position};
-    vec3  center = {0.0f, 0.0f, 0.0f};
-    vec3  up     = {0.0f, -1.0f, 0.0f};
-    mmat4 view   = mate_look_at(eye, center, up);
+    const vec3 center            = {0.0f, 0.0f, 0.0f};
+    const vec3 up                = {0.0f, -1.0f, 0.0f};
+    float      camera_z_position = 2.5f;
 
     global_app.light = (Light_t){
         .ambient_amount  = mate_vec4(0.1f, 0.1f, 0.1f, 1.0f),
@@ -96,13 +92,25 @@ int main(int argc, char *argv[])
                                               : (global_app.shading_mode - 1) % SHADING_COUNT;
                 fprintf_s(stdout, "Shading mode changed to : %s\n", Shading_Mode_Str[global_app.shading_mode]);
             }
+            else if (event.type == SDL_MOUSEWHEEL)
+            {
+                camera_z_position -= (float)event.wheel.y * 0.1f;
+                if (camera_z_position < 1.1f)
+                    camera_z_position = 1.1f;
+            }
         }
 
         Timer_Update(&looptimer);
 
+        global_app.camera_position = (mvec4){0.0f, 0.0f, camera_z_position, 0.0f};
+
+        const vec3  eye  = {0.0f, 0.6f, camera_z_position};
+        const mmat4 view = mate_look_at(eye, center, up);
+
         fTheta += (float)Timer_Get_Elapsed_Seconds(&looptimer) / 4;
 
         const mmat4 rotation_matrix = mate_rotation_make(0.0f, 1.0f, 0.0f, fTheta);
+        // const mmat4 rotation_matrix = mate_rotation_make(0.0f, 1.0f, 0.0f, 0.0f);
 
         // The matrix multiplication is done in the order SRT (Scale, Rotate, and Translate)
         const mmat4 model_matrix      = mate_mat_mul(object.transform, rotation_matrix);
@@ -113,7 +121,7 @@ int main(int argc, char *argv[])
         uint8_t            number_of_collected_triangles = 0;
         const unsigned int number_of_triangles           = object.number_of_triangles;
 
-        for (size_t i = 0; i < object.number_of_triangles; ++i) // can we jump through triangles?
+        for (size_t i = 0; i <= object.number_of_triangles; ++i) // can we jump through triangles?
         {
             mvec4 raw_v0 = mate_vec4_load(&object.vertex_coordinates[i * 12 + 0]); // 12 because we load 3 triangles at at a time looping
             mvec4 raw_v1 = mate_vec4_load(&object.vertex_coordinates[i * 12 + 4]); // through triangles. 3 traingles each spaced 4 coordinates apart
@@ -150,7 +158,6 @@ int main(int argc, char *argv[])
             proj_v1 = mate_vec4_scale(proj_v1, one_over_w1);
             proj_v2 = mate_vec4_scale(proj_v2, one_over_w2);
 
-            // TODO : Change to a viewport matrix
             // Sacle Into View (x + 1.0f, y + 1.0f, z + 1.0f, w + 0.0f)
             proj_v0 = mate_vec4_add(proj_v0, scale_into_view);
             proj_v1 = mate_vec4_add(proj_v1, scale_into_view);
