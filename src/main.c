@@ -129,9 +129,21 @@ int main(int argc, char *argv[])
 
             // 3D -> 2D (Projected space)
             // Matrix Projected * Viewed Vertex = projected Vertex
-            const float one_over_w0 = 1.0f / proj_v0.f[3];
-            const float one_over_w1 = 1.0f / proj_v1.f[3];
-            const float one_over_w2 = 1.0f / proj_v2.f[3];
+            const float w0 = proj_v0.f[3];
+            const float w1 = proj_v1.f[3];
+            const float w2 = proj_v2.f[3];
+
+            // Clipping (not the best, but its something)
+            if (!(-w0 <= proj_v0.f[0] && proj_v0.f[0] <= w0) || !(-w0 <= proj_v0.f[1] && proj_v0.f[1] <= w0) || !(-w0 <= proj_v0.f[2] && proj_v0.f[2] <= w0))
+                continue;
+            if (!(-w1 <= proj_v1.f[0] && proj_v1.f[0] <= w1) || !(-w1 <= proj_v1.f[1] && proj_v1.f[1] <= w1) || !(-w1 <= proj_v1.f[2] && proj_v1.f[2] <= w1))
+                continue;
+            if (!(-w2 <= proj_v2.f[0] && proj_v2.f[0] <= w2) || !(-w2 <= proj_v2.f[1] && proj_v2.f[1] <= w2) || !(-w2 <= proj_v2.f[2] && proj_v2.f[2] <= w2))
+                continue;
+
+            const float one_over_w0 = 1.0f / w0;
+            const float one_over_w1 = 1.0f / w1;
+            const float one_over_w2 = 1.0f / w2;
 
             // Perform x/w, y/w, z/w
             proj_v0 = mate_vec4_scale(proj_v0, one_over_w0);
