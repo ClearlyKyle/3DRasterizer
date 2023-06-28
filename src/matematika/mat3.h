@@ -36,6 +36,23 @@ void mate_mat3_mulv(const mmat3 m, const vec3 v, vec3 dest)
 }
 
 MATEMATIKA_INLINE
+mvec4 mate_mat3_mulv4(const mmat3 m, const mvec4 v)
+{
+    // mvec4 res = {0};
+    // res.f[0]  = m.f[0][0] * v.f[0] + m.f[1][0] * v.f[1] + m.f[2][0] * v.f[2];
+    // res.f[1]  = m.f[0][1] * v.f[0] + m.f[1][1] * v.f[1] + m.f[2][1] * v.f[2];
+    // res.f[2]  = m.f[0][2] * v.f[0] + m.f[1][2] * v.f[1] + m.f[2][2] * v.f[2];
+    // res.f[3]  = 0.0f;
+    return (mvec4){
+        .f = {
+            m.f[0][0] * v.f[0] + m.f[1][0] * v.f[1] + m.f[2][0] * v.f[2],
+            m.f[0][1] * v.f[0] + m.f[1][1] * v.f[1] + m.f[2][1] * v.f[2],
+            m.f[0][2] * v.f[0] + m.f[1][2] * v.f[1] + m.f[2][2] * v.f[2],
+            0.0f,
+        }};
+}
+
+MATEMATIKA_INLINE
 mmat3 mate_mat4_to_mat3(const mmat4 m)
 {
     mmat3 res   = {0};
@@ -114,22 +131,23 @@ mmat3 mate_mat3_inv(mmat3 m)
     return mate_mat3_scale(res, det);
 }
 
-// mmat3 mate_tbn_create(const mvec4 Tangent, const mvec4 Normal)
-//{
-//     mvec4 Bitangent = mate_cross(Normal, Tangent);
+MATEMATIKA_INLINE
+mmat3 mate_tbn_create(const mvec4 Tangent, const mvec4 Normal)
+{
+    const mvec4 Bitangent = mate_cross(Normal, Tangent);
 
-//    mmat3 TBN       = {0};
-//    TBN.elements[0] = Tangent.m128_f32[0];
-//    TBN.elements[1] = Bitangent.m128_f32[0];
-//    TBN.elements[2] = Normal.m128_f32[0];
-//    TBN.elements[3] = Tangent.m128_f32[1];
-//    TBN.elements[4] = Bitangent.m128_f32[1];
-//    TBN.elements[5] = Normal.m128_f32[1];
-//    TBN.elements[6] = Tangent.m128_f32[2];
-//    TBN.elements[7] = Bitangent.m128_f32[2];
-//    TBN.elements[8] = Normal.m128_f32[2];
+    mmat3 TBN   = {0};
+    TBN.f[0][0] = Tangent.f[0];
+    TBN.f[0][1] = Bitangent.f[0];
+    TBN.f[0][2] = Normal.f[0];
+    TBN.f[1][0] = Tangent.f[1];
+    TBN.f[1][1] = Bitangent.f[1];
+    TBN.f[1][2] = Normal.f[1];
+    TBN.f[2][0] = Tangent.f[2];
+    TBN.f[2][1] = Bitangent.f[2];
+    TBN.f[2][2] = Normal.f[2];
 
-//    return TBN;
-//}
+    return TBN;
+}
 
 #endif // __MAT3_H__
