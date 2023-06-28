@@ -13,8 +13,9 @@ typedef struct Texture
     unsigned char *data;
 } Texture_t;
 
-void      Texture_Print_Info(const Texture_t t);
-Texture_t Texture_Load(const char *file_path, bool flip);
-void      Texture_Destroy(Texture_t *t);
+void           Texture_Print_Info(const Texture_t t);
+Texture_t      Texture_Load(const char *file_path, bool flip);
+unsigned char *Texture_Get_Pixel(const Texture_t t, const int x, const int y);
+void           Texture_Destroy(Texture_t *t);
 
 #endif // __TEXTURES_H__

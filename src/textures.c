@@ -24,6 +24,11 @@ Texture_t Texture_Load(const char *file_path, bool flip)
     return t;
 }
 
+unsigned char *Texture_Get_Pixel(const Texture_t t, const int x, const int y)
+{
+    return t.data + ((x + t.w * y) * t.bpp);
+}
+
 void Texture_Destroy(Texture_t *t)
 {
     if (t->data)
