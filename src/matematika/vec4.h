@@ -28,6 +28,12 @@ mvec4 mate_vec4_load(const float *v)
 }
 
 MATEMATIKA_INLINE
+mvec4 mate_vec4_make(const __m128 v)
+{
+    return (mvec4){.m = v};
+}
+
+MATEMATIKA_INLINE
 mvec4 mate_cvt_vec3(const vec3 vec, const float w)
 {
     return (mvec4){.m = _mm_setr_ps(vec[0], vec[1], vec[2], w)};
