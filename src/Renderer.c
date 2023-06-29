@@ -438,8 +438,13 @@ void Flat_Shading(const RasterData_t rd[4], const uint8_t collected_triangles_co
         __m128 tri3_vert_i = rd[3].screen_space_verticies[i].m; // Get vertex i from triangle 3
 
         _MM_TRANSPOSE4_PS(tri0_vert_i, tri1_vert_i, tri2_vert_i, tri3_vert_i);
+
+        tri0_vert_i = _mm_add_ps(tri0_vert_i, _mm_set1_ps(0.5f));
         X_values[i] = _mm_cvtps_epi32(tri0_vert_i);
+
+        tri0_vert_i = _mm_add_ps(tri1_vert_i, _mm_set1_ps(0.5f));
         Y_values[i] = _mm_cvtps_epi32(tri1_vert_i);
+
         Z_values[i] = tri2_vert_i;
         W_values[i] = tri3_vert_i;
     }
