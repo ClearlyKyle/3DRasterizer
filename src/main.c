@@ -328,14 +328,16 @@ int main(int argc, char *argv[])
         // Update Screen
         SDL_UpdateWindowSurface(global_renderer.window);
 
-        if (loop_counter == 32)
+        if (loop_counter >= 64)
         {
-            loop_counter               = 0;
-            const double frame_time_ms = Timer_Get_Elapsed_MS(&looptimer);
-            char         buff[64]      = {0};
-            sprintf_s(buff, 64, "%.02f ms/f %s\n", frame_time_ms, Shading_Mode_Str[global_app.shading_mode]);
+            char buff[64] = {0};
+            sprintf_s(buff, 64, "%.02f ms/f %s\n", loop_accumulated_timer / loop_counter, Shading_Mode_Str[global_app.shading_mode]);
             SDL_SetWindowTitle(global_renderer.window, buff);
+
+            loop_counter           = 0;
+            loop_accumulated_timer = 0.0;
         }
+        loop_accumulated_timer += Timer_Get_Elapsed_MS(&looptimer);
         loop_counter++;
     }
 
