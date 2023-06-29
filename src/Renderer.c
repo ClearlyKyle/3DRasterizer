@@ -719,7 +719,7 @@ void Flat_Shading(const RasterData_t rd[4], const uint8_t collected_triangles_co
                 {
                     combined_colours = _mm_set1_epi32(0x00FF00FF);
                 }
-                else if (global_app.shading_mode == SHADING_TEXTURED)
+                else if (global_app.shading_mode == SHADING_TEXTURED || global_app.shading_mode == SHADING_NORMAL_MAPPING || global_app.shading_mode == SHADING_TEXTURED_PHONG)
                 {
                     __m128 newU[3];
                     newU[0] = _mm_mul_ps(U[0], persp[0]);
@@ -757,11 +757,38 @@ void Flat_Shading(const RasterData_t rd[4], const uint8_t collected_triangles_co
                     for (int i = 0; i < 4; ++i)
                         pixel_colour[i] = _mm_loadu_si128((__m128i *)(tex.data + texture_offset.m128i_u32[i]));
 
+                    if (global_app.shading_mode == SHADING_TEXTURED_PHONG)
+                    {
+                        // Interpolate pixel location
+                        __m128 inter_frag_location[4] = {0};
+                        _Interpolate_Something(persp, ws_vertices, inter_frag_location);
+
+                        __m128 inter_normal[4] = {0};
+                        _Interpolate_Something(persp, normals, inter_normal);
+
+                        for (int i = 0; i < 4; ++i)
+                        {
+                            light_data.diffuse_colour.m = _mm_setr_ps(pixel_colour[i].m128i_u8[0] / 255.0f,
+                                                                      pixel_colour[i].m128i_u8[1] / 255.0f,
+                                                                      pixel_colour[i].m128i_u8[2] / 255.0f,
+                                                                      1.0f);
+
+                            mvec4 shading0 = Light_Calculate_Shading((mvec4){.m = inter_frag_location[i]}, (mvec4){.m = inter_normal[i]}, global_app.camera_position, &light_data);
+
+                            pixel_colour[i] = _mm_cvtps_epi32(_mm_mul_ps(shading0.m, _mm_set1_ps(255.0f)));
+                        }
+
+                        const __m128i interleaved1 = _mm_packus_epi32(pixel_colour[0], pixel_colour[1]);
+                        const __m128i interleaved2 = _mm_packus_epi32(pixel_colour[2], pixel_colour[3]);
+
+                        combined_colours = _mm_packus_epi16(interleaved1, interleaved2);
+                    }
                     const __m128i interleaved1 = _mm_unpacklo_epi32(pixel_colour[0], pixel_colour[1]);
                     const __m128i interleaved2 = _mm_unpacklo_epi32(pixel_colour[2], pixel_colour[3]);
 
                     // combined: [r1, g1, b1, a1, r2, g2, b2, a2, r3, g3, b3, a3, r4, g4, b4, a4]
                     combined_colours = _mm_unpacklo_epi64(interleaved1, interleaved2);
+                    }
                 }
                 else
                 {
