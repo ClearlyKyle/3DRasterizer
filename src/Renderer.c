@@ -125,13 +125,13 @@ static inline void Draw_Pixel_SDL_Colour(const int x, const int y, const SDL_Col
     Draw_Pixel_RGBA(x, y, col->r, col->g, col->b, col->a);
 }
 
-// THE EXTREMELY FAST LINE ALGORITHM Variation E (Addition Fixed Point PreCalc)
 // http://www.edepot.com/algorithm.html
-static void Draw_Line(int x, int y, int x2, int y2, const SDL_Colour *col)
+static void _draw_line(const int x, const int y, const int x2, const int y2, const SDL_Colour *col)
 {
     bool yLonger  = false;
     int  shortLen = y2 - y;
     int  longLen  = x2 - x;
+
     if (abs(shortLen) > abs(longLen))
     {
         int swap = shortLen;
@@ -139,50 +139,24 @@ static void Draw_Line(int x, int y, int x2, int y2, const SDL_Colour *col)
         longLen  = swap;
         yLonger  = true;
     }
-    int decInc;
-    if (longLen == 0)
-        decInc = 0;
-    else
-        decInc = (shortLen << 16) / longLen;
+
+    const int incrementVal = (longLen < 0) ? -1 : 1;
+
+    double multDiff = (longLen == 0.0) ? (double)shortLen : (double)shortLen / (double)longLen;
 
     if (yLonger)
     {
-        if (longLen > 0)
+        for (int i = 0; i != longLen; i += incrementVal)
         {
-            longLen += y;
-            for (int j = 0x8000 + (x << 16); y <= longLen; ++y)
-            {
-                Draw_Pixel_SDL_Colour(j >> 16, y, col);
-                j += decInc;
+            Draw_Pixel_SDL_Colour(x + (int)((double)i * multDiff), y + i, col);
             }
-            return;
         }
-        longLen += y;
-        for (int j = 0x8000 + (x << 16); y >= longLen; --y)
+    else
         {
-            Draw_Pixel_SDL_Colour(j >> 16, y, col);
-
-            j -= decInc;
-        }
-        return;
-    }
-
-    if (longLen > 0)
+        for (int i = 0; i != longLen; i += incrementVal)
     {
-        longLen += x;
-        for (int j = 0x8000 + (y << 16); x <= longLen; ++x)
-        {
-            Draw_Pixel_SDL_Colour(x, j >> 16, col);
-
-            j += decInc;
+            Draw_Pixel_SDL_Colour(x + i, y + (int)((double)i * multDiff), col);
         }
-        return;
-    }
-    longLen += x;
-    for (int j = 0x8000 + (y << 16); x >= longLen; --x)
-    {
-        Draw_Pixel_SDL_Colour(x, j >> 16, col);
-        j -= decInc;
     }
 }
 
