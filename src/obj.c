@@ -182,7 +182,11 @@ ObjectData_t Object_Load(const char *file_name)
 
     const float height = bbmax[1] - bbmin[1];
 
-    ret_obj.transform = mate_translation_make(0.0f, -height * 0.5f, 0.0f);
+    float centerx = -(bbmin[0] + bbmax[0]) * 0.5f;
+    float centery = -(bbmin[1] + bbmax[1]) * 0.5f;
+    float centerz = -(bbmin[2] + bbmax[2]) * 0.5f;
+
+    ret_obj.transform = mate_translation_make(centerx, centery, centerz);
 
     float scale_amount = 1.0f / (height);
 

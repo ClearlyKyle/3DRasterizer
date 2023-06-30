@@ -559,11 +559,8 @@ void Flat_Shading(const RasterData_t rd[4], const uint8_t collected_triangles_co
             gourand_colours[0] = tmp_colours0.m;
             gourand_colours[1] = tmp_colours1.m;
             gourand_colours[2] = tmp_colours2.m;
-
-            // gourand_colours[0] = _mm_setr_ps(1.0f, 0.0f, 0.0f, 1.0f);
-            // gourand_colours[1] = _mm_setr_ps(0.0f, 1.0f, 0.0f, 1.0f);
-            // gourand_colours[2] = _mm_setr_ps(0.0f, 0.0f, 1.0f, 1.0f);
         }
+
         __m128i a0 = _mm_set1_epi32(A0.m128i_i32[lane]);
         __m128i a1 = _mm_set1_epi32(A1.m128i_i32[lane]);
         __m128i a2 = _mm_set1_epi32(A2.m128i_i32[lane]);
