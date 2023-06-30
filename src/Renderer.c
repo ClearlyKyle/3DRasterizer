@@ -511,15 +511,10 @@ void Flat_Shading(const RasterData_t rd[4], const uint8_t collected_triangles_co
         Z[1] = _mm_set1_ps(Z_values[1].m128_f32[lane]);
         Z[2] = _mm_set1_ps(Z_values[2].m128_f32[lane]);
 
-        __m128 W[3];
-        W[0] = _mm_set1_ps(W_values[0].m128_f32[lane]);
-        W[1] = _mm_set1_ps(W_values[1].m128_f32[lane]);
-        W[2] = _mm_set1_ps(W_values[2].m128_f32[lane]);
-
         const __m128 ws_vertices[3] = {
-            rd[lane].w_values[0],
-            rd[lane].w_values[1],
-            rd[lane].w_values[2],
+            rd[lane].world_space_verticies[0].m,
+            rd[lane].world_space_verticies[1].m,
+            rd[lane].world_space_verticies[2].m,
         };
 
         const __m128 normals[3] = {
