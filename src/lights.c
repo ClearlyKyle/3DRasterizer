@@ -35,7 +35,7 @@ static float _Calculate_Specular_Amount(const mvec4 L, const mvec4 E, const mvec
     float specular_power = 0.0f;
     float dot_product    = 0.0f;
 
-    if (global_app.shading_mode == SHADING_BLIN_PHONG || global_app.shading_mode == SHADING_NORMAL_MAPPING)
+    if (global_app.shading_mode == SHADING_BLIN_PHONG)
     {
         // Calculate the Halfway vector (H) between the light source direction (L) and the view direction (E)
         const mvec4 H = mate_norm3(mate_vec4_add(L, E));
@@ -75,7 +75,6 @@ mvec4 Light_Calculate_Shading(const mvec4 position, const mvec4 normal, const mv
     const mvec4 L = mate_norm3(mate_vec4_sub(light->position, position));
 
     // Calculate E - view direction
-    // const __m128 E = _mm_sub_ps(camera_position, position);
     const mvec4 E = mate_norm3(mate_vec4_sub(camera_position, position));
 
     // Calculate Ambient Term:

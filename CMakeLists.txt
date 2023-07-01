@@ -4,8 +4,11 @@ project(main)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 
+set(CMAKE_C_STANDARD 11) # Set the desired C standard (e.g., C11)
+
 if(MSVC)
     add_compile_options(/W4) # Set warning level to 4
+    add_compile_options(/openmp:llvm)
 endif()
 
 find_package(SDL2 CONFIG REQUIRED)

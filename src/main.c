@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <float.h>
+#include <omp.h>
 
 #include "SDL2/SDL.h"
 
@@ -117,6 +118,10 @@ int main(int argc, char *argv[])
         const mmat4 model_view_matrix = mate_mat_mul(view, model_matrix);
         const mmat4 MVP               = mate_mat_mul(proj, model_view_matrix);
 
+#pragma omp parallel
+        {
+#pragma omp single
+            {
         RasterData_t       rd[4]                         = {0};
         uint8_t            number_of_collected_triangles = 0;
         const unsigned int number_of_triangles           = object.number_of_triangles;
@@ -317,11 +322,23 @@ int main(int argc, char *argv[])
                 if (number_of_collected_triangles < 4 && i < number_of_triangles)
                     continue;
 
+#pragma omp task
+                        {
+                            // Time the task
+                            // const double start_time = omp_get_wtime();
+
                 Flat_Shading(rd, number_of_collected_triangles);
+
+                            // const double end_time     = omp_get_wtime();
+                            // const double elapsed_time = end_time - start_time;
+                            // printf("Thread (%d) - task execution time: %f seconds\n", omp_get_thread_num(), elapsed_time);
+                        }
                 number_of_collected_triangles = 0;
             }
         }
-
+#pragma omp taskwait
+            }
+        }
         if (global_app.shading_mode == SHADING_DEPTH_BUFFER)
             Draw_Depth_Buffer();
 
