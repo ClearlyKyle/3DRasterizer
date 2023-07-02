@@ -195,9 +195,9 @@ int main(int argc, char *argv[])
                 mmat3 nrm_matrix = mate_mat3_inv(mate_mat4_make_mat3_transpose(model_matrix));
 
                 vec3 new_n0, new_n1, new_n2;
-                mate_mat3_mulv(nrm_matrix, (vec3){raw_nrm0.f[0], raw_nrm0.f[1], raw_nrm0.f[2]}, new_n2);
+                        mate_mat3_mulv(nrm_matrix, (vec3){raw_nrm0.f[0], raw_nrm0.f[1], raw_nrm0.f[2]}, new_n0);
                 mate_mat3_mulv(nrm_matrix, (vec3){raw_nrm1.f[0], raw_nrm1.f[1], raw_nrm1.f[2]}, new_n1);
-                mate_mat3_mulv(nrm_matrix, (vec3){raw_nrm2.f[0], raw_nrm2.f[1], raw_nrm2.f[2]}, new_n0);
+                        mate_mat3_mulv(nrm_matrix, (vec3){raw_nrm2.f[0], raw_nrm2.f[1], raw_nrm2.f[2]}, new_n2);
 
                 mvec4 ws_nrm0 = {.f = {new_n0[0], new_n0[1], new_n0[2], 0.0f}};
                 mvec4 ws_nrm1 = {.f = {new_n1[0], new_n1[1], new_n1[2], 0.0f}};
