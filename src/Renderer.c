@@ -187,19 +187,19 @@ void Draw_Depth_Buffer(void)
         }
     }
 
-    float whats_min_depth = global_renderer.max_depth_value;
-    float whats_max_depth = 0.0f;
-    for (size_t i = 0; i < global_renderer.height * global_renderer.width; i++)
-    {
-        const float val = pDepthBuffer[i];
+    // float whats_min_depth = global_renderer.max_depth_value;
+    // float whats_max_depth = 0.0f;
+    // for (size_t i = 0; i < global_renderer.height * global_renderer.width; i++)
+    //{
+    //     const float val = pDepthBuffer[i];
 
-        if (val == global_renderer.max_depth_value)
-            continue;
+    //    if (val == global_renderer.max_depth_value)
+    //        continue;
 
-        whats_max_depth = val > whats_max_depth ? val : whats_max_depth;
-        whats_min_depth = val < whats_min_depth ? val : whats_min_depth;
-    }
-    printf("Depth - min : %f, max : %f\n", whats_min_depth, whats_max_depth);
+    //    whats_max_depth = val > whats_max_depth ? val : whats_max_depth;
+    //    whats_min_depth = val < whats_min_depth ? val : whats_min_depth;
+    //}
+    // printf("Depth - min : %f, max : %f\n", whats_min_depth, whats_max_depth);
 #else
 
     int rowIdx = 0;
