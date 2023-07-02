@@ -186,11 +186,6 @@ int main(int argc, char *argv[])
             // Back face culling
             // if (sign > 0.0f)
             {
-                // Calculate the edge values for creating the tangent and bitangent vectors
-                // for use with Normal mapping
-                __m128 edge1 = _mm_sub_ps(raw_v1.m, raw_v0.m);
-                __m128 edge2 = _mm_sub_ps(raw_v2.m, raw_v0.m);
-
                 // Load normal values
                 mvec4 raw_nrm2 = mate_vec4_load(&object.normal_coordinates[i * 12 + 0]);
                 mvec4 raw_nrm1 = mate_vec4_load(&object.normal_coordinates[i * 12 + 4]);
@@ -219,25 +214,78 @@ int main(int argc, char *argv[])
                     rd[number_of_collected_triangles].tex_v = (mvec4){.m = texture_v};
                 }
 
-                // mmat3 TBN = {0};
+                        // NORMAL Mapping -----
+                        mmat3 TBN = {0};
                 if (global_app.shading_mode == SHADING_NORMAL_MAPPING)
                 {
-                    continue; // TMP
+                            // Calculate the edge values for creating the tangent and bitangent vectors
+                            // for use with Normal mapping
+                            mvec4 edge1 = mate_vec4_sub(raw_v1, raw_v0);
+                            mvec4 edge2 = mate_vec4_sub(raw_v2, raw_v0);
 
-                    // NORMAL Mapping -----
-                    const float deltaUV1_y = object.uv_coordinates[6 * i + 3] - object.uv_coordinates[6 * i + 1]; // u
-                    const float deltaUV1_x = object.uv_coordinates[6 * i + 2] - object.uv_coordinates[6 * i + 0]; // v
+                            // texture_u -> U0, U1, U2
+                            // texture_v -> V0, V1, V2
+
+                            const float delta_uv1_x = object.uv_coordinates[6 * i + 2] - object.uv_coordinates[6 * i + 0]; // u
+                            const float delta_uv1_y = object.uv_coordinates[6 * i + 3] - object.uv_coordinates[6 * i + 1]; // v
 
                     // Note, these are flipped
-                    const float deltaUV2_y = object.uv_coordinates[6 * i + 5] - object.uv_coordinates[6 * i + 1]; // u
-                    const float deltaUV2_x = object.uv_coordinates[6 * i + 4] - object.uv_coordinates[6 * i + 0]; // v
+                            const float delta_uv2_x = object.uv_coordinates[6 * i + 4] - object.uv_coordinates[6 * i + 0]; // u
+                            const float delta_uv2_y = object.uv_coordinates[6 * i + 5] - object.uv_coordinates[6 * i + 1]; // v
 
-                    const float f = 1.0f / (deltaUV1_x * deltaUV2_y - deltaUV2_x * deltaUV1_y);
+                            const float f = 1.0f / (delta_uv1_x * delta_uv2_y - delta_uv2_x * delta_uv1_y);
 
-                    __m128 tangent = _mm_sub_ps(
-                        _mm_mul_ps(_mm_set1_ps(deltaUV2_y), edge1),
-                        _mm_mul_ps(_mm_set1_ps(deltaUV1_y), edge2));
-                    tangent = _mm_mul_ps(_mm_set1_ps(f), tangent);
+                            vec3 tangent;
+                            tangent[0] = f * (delta_uv2_y * edge1.f[0] - delta_uv1_y * edge2.f[0]);
+                            tangent[1] = f * (delta_uv2_y * edge1.f[1] - delta_uv1_y * edge2.f[1]);
+                            tangent[2] = f * (delta_uv2_y * edge1.f[2] - delta_uv1_y * edge2.f[2]);
+
+                            vec3 bitangent;
+                            bitangent[0] = f * (-delta_uv2_x * edge1.f[0] + delta_uv1_x * edge2.f[0]);
+                            bitangent[1] = f * (-delta_uv2_x * edge1.f[1] + delta_uv1_x * edge2.f[1]);
+                            bitangent[2] = f * (-delta_uv2_x * edge1.f[2] + delta_uv1_x * edge2.f[2]);
+
+                            vec3 N = {new_n0[0], new_n0[1], new_n0[2]}; // Should this be surface normal?
+                            mate_vec3_normalise(N);
+
+                            vec3 T;
+                            mate_mat3_mulv(nrm_matrix, tangent, T);
+                            mate_vec3_normalise(T);
+
+                            vec3 B;
+                            mate_mat3_mulv(nrm_matrix, bitangent, B);
+                            mate_vec3_normalise(B);
+
+                            // mate_vec3_cross(N, T, B); // can build the bitangent from the N and T
+                            // mate_vec3_normalise(B);
+
+                            /* Gram-Schmidt orthogonalize : t = normalize(t - n * dot(n, t)) */
+                            vec3 rhs;
+                            mate_vec3_scale(N, mate_vec3_dot(N, T), rhs);
+                            mate_vec3_sub(T, rhs, T);
+                            mate_vec3_normalise(T);
+
+                            /* Handedness */
+                            vec3 tmp;
+                            mate_vec3_cross(N, T, tmp);
+                            if (mate_vec3_dot(tmp, B) < 0.0f)
+                                mate_vec3_negate(T);
+
+                            // Now our matrix is ready to take world coordinates, and put them into tangent space
+                            // Transpose to make a TBN that can convert vertices into Tangent space
+
+                            /* same as transpose */
+                            TBN.f[0][0] = T[0];
+                            TBN.f[1][0] = T[1];
+                            TBN.f[2][0] = T[2];
+
+                            TBN.f[0][1] = B[0];
+                            TBN.f[1][1] = B[1];
+                            TBN.f[2][1] = B[2];
+
+                            TBN.f[0][2] = N[0];
+                            TBN.f[1][2] = N[1];
+                            TBN.f[2][2] = N[2];
 
                     /*
                     the TBN matrix is used to transform vectors from tangent space into world space,
@@ -250,26 +298,7 @@ int main(int argc, char *argv[])
                                 tangent space, and use this matrix to transform not the normal, but the other
                                 relevant lighting variables to tangent space; the normal is then again in the
                                 same space as the other lighting variables
-
-                    We are using method 2 here... (I hope lol)
                     */
-                    // const Mat3x3 m = Mat4x4_to_Mat3x3(World_Matrix);
-
-                    //__m128 N = Mat3x3_mul_m128(m, normal0);
-                    //__m128 T = Mat3x3_mul_m128(m, tangent);
-                    __m128 T = tangent;
-                    __m128 N = raw_nrm0.m;
-
-                    __m128 dotTN        = _mm_dp_ps(T, N, 0x7f);                                                  // dot product of T and N
-                    __m128 T_proj_N     = _mm_mul_ps(dotTN, N);                                                   // projection of T onto N
-                    __m128 T_perp_N     = _mm_sub_ps(T, T_proj_N);                                                // T component perpendicular to N
-                    __m128 T_normalized = _mm_div_ps(T_perp_N, _mm_sqrt_ps(_mm_dp_ps(T_perp_N, T_perp_N, 0x7f))); // normalize T component
-                                                                                                                  // T                   = _mm_blend_ps(T_proj_N, T_normalized, 0x80);                             // blend T_proj_N and T_normalized
-
-                    UTILS_UNUSED(T_normalized); // TODO : Move this to a "core"
-
-                    // TBN = Create_TBN(T_normalized, N);
-                    // TBN = TransposeMat3x3(TBN);
                 }
 
                 mvec4 end0 = mate_vec4_add3(raw_v0, mate_vec4_scale(raw_nrm0, 0.4f));
