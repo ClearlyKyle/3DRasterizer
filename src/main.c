@@ -48,13 +48,6 @@ int main(int argc, char *argv[])
     const vec3 up                = {0.0f, -1.0f, 0.0f};
     float      camera_z_position = 2.5f;
 
-    global_app.light = (Light_t){
-        .ambient_amount  = mate_vec4(0.1f, 0.1f, 0.1f, 1.0f),
-        .diffuse_colour  = mate_vec4(0.5f, 0.5f, 0.5f, 1.0f),
-        .specular_amount = mate_vec4(0.8f, 0.8f, 0.8f, 1.0f),
-        .position        = mate_vec4(1.0f, 0.0f, 6.0f, 0.0f),
-    };
-
     const float x_adjustment    = 0.5f * (float)global_renderer.width;
     const float y_adjustment    = 0.5f * (float)global_renderer.height;
     const mvec4 adjustment      = mate_vec4(x_adjustment, y_adjustment, 1.0f, 1.0f);
@@ -102,6 +95,14 @@ int main(int argc, char *argv[])
         }
 
         Timer_Update(&looptimer);
+
+        // Set this everyloop as the lighting calculation for normal mapping will alter the position
+        global_app.light = (Light_t){
+            .ambient_amount  = mate_vec4(0.1f, 0.1f, 0.1f, 1.0f),
+            .diffuse_colour  = mate_vec4(0.3f, 0.3f, 0.3f, 1.0f),
+            .specular_amount = mate_vec4(0.8f, 0.8f, 0.8f, 1.0f),
+            .position        = mate_vec4(1.0f, 0.0f, 6.0f, 0.0f),
+        };
 
         global_app.camera_position = (mvec4){0.0f, 0.0f, camera_z_position, 0.0f};
 
@@ -346,9 +347,11 @@ int main(int argc, char *argv[])
                 rd[number_of_collected_triangles].normals[1] = ws_nrm1;
                 rd[number_of_collected_triangles].normals[2] = ws_nrm2;
 
+                        rd[number_of_collected_triangles].TBN = TBN;
+
                 number_of_collected_triangles++;
 
-                if (number_of_collected_triangles < 4 && i < number_of_triangles)
+                        if (number_of_collected_triangles < 4 && i <= number_of_triangles)
                     continue;
 
 #pragma omp task
