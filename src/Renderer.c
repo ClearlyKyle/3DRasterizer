@@ -149,12 +149,12 @@ static void _draw_line(const int x, const int y, const int x2, const int y2, con
         for (int i = 0; i != longLen; i += incrementVal)
         {
             Draw_Pixel_SDL_Colour(x + (int)((double)i * multDiff), y + i, col);
-            }
         }
+    }
     else
-        {
-        for (int i = 0; i != longLen; i += incrementVal)
     {
+        for (int i = 0; i != longLen; i += incrementVal)
+        {
             Draw_Pixel_SDL_Colour(x + i, y + (int)((double)i * multDiff), col);
         }
     }
@@ -407,16 +407,11 @@ static inline float hsum_ps_sse3(const __m128 v)
 
 void Flat_Shading(const RasterData_t rd[4], const uint8_t collected_triangles_count)
 {
-    //// All verts must be inside the near clip volume
-    //__m128 W0 = _mm_cmpgt_ps(xformedPos[0].W, _mm_setzero_ps());
-    //__m128 W1 = _mm_cmpgt_ps(xformedPos[1].W, _mm_setzero_ps());
-    //__m128 W2 = _mm_cmpgt_ps(xformedPos[2].W, _mm_setzero_ps());
-
-    //__m128       accept  = _mm_and_ps(_mm_and_ps(accept1, W0), _mm_and_ps(W1, W2));
-    // unsigned int triMask = _mm_movemask_ps(accept) & laneMask;
-
     Texture_t tex = global_app.obj.diffuse;
     ASSERT(tex.data);
+
+    Texture_t nrm = global_app.obj.bump;
+    ASSERT(nrm.data);
 
     Light_t light_data = global_app.light;
 
@@ -477,6 +472,9 @@ void Flat_Shading(const RasterData_t rd[4], const uint8_t collected_triangles_co
     const __m128i startY = _mm_and_si128(_mm_max_epi32(_mm_min_epi32(_mm_min_epi32(Y_values[0], Y_values[1]), Y_values[2]), _mm_set1_epi32(0)), _mm_set1_epi32(0xFFFFFFFE));
     const __m128i endY   = _mm_min_epi32(_mm_add_epi32(_mm_max_epi32(_mm_max_epi32(Y_values[0], Y_values[1]), Y_values[2]), _mm_set1_epi32(1)), _mm_set1_epi32(global_renderer.height));
 
+    // Light position will be changed with normal mapping, we need to preserve the old value
+    mvec4 world_space_light_positon = light_data.position;
+
     /* lane is the counter for how many triangles were loaded, if only 3 were loaded, it
         should only be 3, etc...
     */
@@ -484,12 +482,51 @@ void Flat_Shading(const RasterData_t rd[4], const uint8_t collected_triangles_co
     {
 #ifdef COMPUTE_AREA_IN_RASTER
         const float area_value = oneOverTriArea.m128_f32[lane];
-        if (area_value < 0.0f)
-            continue;
+        // if (area_value <= 0.0f)
+        //     continue;
 #else
         const float area_value = vertex_data[lane].area;
 #endif
         const __m128 inv_area = _mm_set1_ps(area_value);
+
+        if (global_app.shading_mode == SHADING_WIRE_FRAME)
+        {
+            const float *v0 = rd[lane].screen_space_verticies[0].f;
+            const float *v1 = rd[lane].screen_space_verticies[1].f;
+            const float *v2 = rd[lane].screen_space_verticies[2].f;
+
+            const SDL_Colour col = {255, 255, 255, 255};
+            _draw_line((int)v0[0], (int)v0[1], (int)v1[0], (int)v1[1], &col);
+            _draw_line((int)v1[0], (int)v1[1], (int)v2[0], (int)v2[1], &col);
+            _draw_line((int)v2[0], (int)v2[1], (int)v0[0], (int)v0[1], &col);
+
+#if 0 /* Drawing normals */
+        const SDL_Colour col2 = {255, 000, 000, 255};
+        if (mate_dot(rd.normals[0], global_app.camera_position) < 0.0f)
+            Draw_Line((int)v0[0], (int)v0[1], (int)rd.endpoints[0].f[0], (int)rd.endpoints[0].f[1], &col2);
+
+        if (mate_dot(rd.normals[1], global_app.camera_position) < 0.0f)
+            Draw_Line((int)v1[0], (int)v1[1], (int)rd.endpoints[1].f[0], (int)rd.endpoints[1].f[1], &col2);
+
+        if (mate_dot(rd.normals[2], global_app.camera_position) < 0.0f)
+            Draw_Line((int)v2[0], (int)v2[1], (int)rd.endpoints[2].f[0], (int)rd.endpoints[2].f[1], &col2);
+#endif
+            continue;
+        }
+
+        mvec4  tang_cam_pos      = {0};
+        __m128 tang_world_pos[3] = {0};
+        if (global_app.shading_mode == SHADING_NORMAL_MAPPING)
+        {
+            const mmat3 TBN = rd[lane].TBN;
+
+            light_data.position = mate_mat3_mulv4(TBN, world_space_light_positon);  // Tangent light position
+            tang_cam_pos        = mate_mat3_mulv4(TBN, global_app.camera_position); // Tangent camera position
+
+            tang_world_pos[0] = mate_mat3_mulv4(TBN, rd[lane].world_space_verticies[0]).m;
+            tang_world_pos[1] = mate_mat3_mulv4(TBN, rd[lane].world_space_verticies[1]).m;
+            tang_world_pos[2] = mate_mat3_mulv4(TBN, rd[lane].world_space_verticies[2]).m;
+        }
 
         const int startXx = startX.m128i_i32[lane];
         const int endXx   = endX.m128i_i32[lane];
@@ -522,31 +559,6 @@ void Flat_Shading(const RasterData_t rd[4], const uint8_t collected_triangles_co
             rd[lane].normals[1].m,
             rd[lane].normals[2].m,
         };
-
-        if (global_app.shading_mode == SHADING_WIRE_FRAME)
-        {
-            const float *v0 = rd[lane].screen_space_verticies[0].f;
-            const float *v1 = rd[lane].screen_space_verticies[1].f;
-            const float *v2 = rd[lane].screen_space_verticies[2].f;
-
-            const SDL_Colour col = {255, 255, 255, 255};
-            Draw_Line((int)v0[0], (int)v0[1], (int)v1[0], (int)v1[1], &col);
-            Draw_Line((int)v1[0], (int)v1[1], (int)v2[0], (int)v2[1], &col);
-            Draw_Line((int)v2[0], (int)v2[1], (int)v0[0], (int)v0[1], &col);
-
-#if 0 /* Drawing normals */
-        const SDL_Colour col2 = {255, 000, 000, 255};
-        if (mate_dot(rd.normals[0], global_app.camera_position) < 0.0f)
-            Draw_Line((int)v0[0], (int)v0[1], (int)rd.endpoints[0].f[0], (int)rd.endpoints[0].f[1], &col2);
-
-        if (mate_dot(rd.normals[1], global_app.camera_position) < 0.0f)
-            Draw_Line((int)v1[0], (int)v1[1], (int)rd.endpoints[1].f[0], (int)rd.endpoints[1].f[1], &col2);
-
-        if (mate_dot(rd.normals[2], global_app.camera_position) < 0.0f)
-            Draw_Line((int)v2[0], (int)v2[1], (int)rd.endpoints[2].f[0], (int)rd.endpoints[2].f[1], &col2);
-#endif
-            return;
-        }
 
         // GOURAUD Shading
         __m128 gourand_colours[3];
@@ -775,11 +787,57 @@ void Flat_Shading(const RasterData_t rd[4], const uint8_t collected_triangles_co
 
                         combined_colours = _mm_packus_epi16(interleaved1, interleaved2);
                     }
-                    const __m128i interleaved1 = _mm_unpacklo_epi32(pixel_colour[0], pixel_colour[1]);
-                    const __m128i interleaved2 = _mm_unpacklo_epi32(pixel_colour[2], pixel_colour[3]);
+                    else if (global_app.shading_mode == SHADING_NORMAL_MAPPING)
+                    {
+                        // Interpolate pixel location
+                        __m128 tang_frag_pos[4] = {0};
+                        _Interpolate_Something(persp, tang_world_pos, tang_frag_pos);
 
-                    // combined: [r1, g1, b1, a1, r2, g2, b2, a2, r3, g3, b3, a3, r4, g4, b4, a4]
-                    combined_colours = _mm_unpacklo_epi64(interleaved1, interleaved2);
+                        // Could this be the same as "texture_offset"? nope, nrm map is 3bpp
+                        __m128i nrm_texture_offset = _mm_mullo_epi32(
+                            _mm_set1_epi32(nrm.bpp),
+                            _mm_add_epi32(
+                                _mm_cvtps_epi32(U_w),
+                                _mm_mullo_epi32(
+                                    _mm_set1_epi32(nrm.w),
+                                    _mm_cvtps_epi32(V_w))));
+
+                        // nrm_texture_offset = _mm_mullo_epi32(nrm_texture_offset, which_tex_coords_to_get);
+
+                        for (int i = 0; i < 4; ++i)
+                        {
+                            // normal[0] = ((nrmRGB[0] / 255.0f) * 2.0f) - 1.0f;
+                            unsigned char *nrm_ptr    = nrm.data + nrm_texture_offset.m128i_u32[i];
+                            __m128         loaded_nrm = _mm_setr_ps(nrm_ptr[0], nrm_ptr[1], nrm_ptr[2], 0.0f);
+
+                            loaded_nrm = _mm_sub_ps(
+                                _mm_mul_ps(
+                                    _mm_div_ps(loaded_nrm, _mm_set1_ps(255.0f)),
+                                    _mm_set1_ps(2.0f)),
+                                _mm_set1_ps(1.0f));
+
+                            light_data.diffuse_colour.m = _mm_setr_ps(pixel_colour[i].m128i_u8[0] / 255.0f,
+                                                                      pixel_colour[i].m128i_u8[1] / 255.0f,
+                                                                      pixel_colour[i].m128i_u8[2] / 255.0f,
+                                                                      1.0f);
+
+                            mvec4 shading0 = Light_Calculate_Shading((mvec4){.m = tang_frag_pos[i]}, (mvec4){.m = loaded_nrm}, tang_cam_pos, &light_data);
+
+                            pixel_colour[i] = _mm_cvtps_epi32(_mm_mul_ps(shading0.m, _mm_set1_ps(255.0f)));
+                        }
+
+                        const __m128i interleaved1 = _mm_packus_epi32(pixel_colour[0], pixel_colour[1]);
+                        const __m128i interleaved2 = _mm_packus_epi32(pixel_colour[2], pixel_colour[3]);
+
+                        combined_colours = _mm_packus_epi16(interleaved1, interleaved2);
+                    }
+                    else
+                    {
+                        const __m128i interleaved1 = _mm_unpacklo_epi32(pixel_colour[0], pixel_colour[1]);
+                        const __m128i interleaved2 = _mm_unpacklo_epi32(pixel_colour[2], pixel_colour[3]);
+
+                        // combined: [r1, g1, b1, a1, r2, g2, b2, a2, r3, g3, b3, a3, r4, g4, b4, a4]
+                        combined_colours = _mm_unpacklo_epi64(interleaved1, interleaved2);
                     }
                 }
                 else
