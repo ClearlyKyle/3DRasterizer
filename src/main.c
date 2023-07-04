@@ -26,13 +26,13 @@ int main(int argc, char *argv[])
     atexit(Renderer_Destroy);
 
     // WOODEN CRATE
-    // const char *obj_filename = "../../res/Wooden Box/wooden crate.obj";
+    const char *obj_filename = "../../res/Wooden Box/wooden crate.obj";
 
     // TEAPOT
     // const char *obj_filename = "../../res/Teapot/teapot.obj";
 
     // TEAPOT
-    const char *obj_filename = "../../res/Dog House/DogHouse.obj";
+    // const char *obj_filename = "../../res/Dog House/DogHouse.obj";
 
     // Load Mesh
     ObjectData_t object = Object_Load(obj_filename);
@@ -54,9 +54,11 @@ int main(int argc, char *argv[])
     const mvec4 scale_into_view = mate_vec4(1.0f, 1.0f, 0.0f, 0.0f);
 
     // Loop timer
-    struct timer looptimer    = Timer_Init_Start();
-    unsigned int loop_counter = 0;
-    float        fTheta       = 0.0f; // used for rotation animation
+    struct timer looptimer              = Timer_Init_Start();
+    unsigned int loop_counter           = 0;
+    double       loop_accumulated_timer = 0.0;
+
+    float fTheta = 0.0f; // used for rotation animation
 
     global_app.shading_mode = SHADING_WIRE_FRAME;
 
