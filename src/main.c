@@ -125,102 +125,97 @@ int main(int argc, char *argv[])
         {
 #pragma omp single
             {
-        RasterData_t       rd[4]                         = {0};
-        uint8_t            number_of_collected_triangles = 0;
-        const unsigned int number_of_triangles           = object.number_of_triangles;
+                RasterData_t       rd[4]                         = {0};
+                uint8_t            number_of_collected_triangles = 0;
+                const unsigned int number_of_triangles           = object.number_of_triangles;
 
-        for (size_t i = 0; i <= object.number_of_triangles; ++i) // can we jump through triangles?
-        {
-            mvec4 raw_v0 = mate_vec4_load(&object.vertex_coordinates[i * 12 + 0]); // 12 because we load 3 triangles at at a time looping
-            mvec4 raw_v1 = mate_vec4_load(&object.vertex_coordinates[i * 12 + 4]); // through triangles. 3 traingles each spaced 4 coordinates apart
-            mvec4 raw_v2 = mate_vec4_load(&object.vertex_coordinates[i * 12 + 8]); // 4 * 3 = 12; [x y z w][x y z w][x y z w]...
+                for (size_t i = 0; i <= object.number_of_triangles; ++i) // can we jump through triangles?
+                {
+                    mvec4 raw_v0 = mate_vec4_load(&object.vertex_coordinates[i * 12 + 0]); // 12 because we load 3 triangles at at a time looping
+                    mvec4 raw_v1 = mate_vec4_load(&object.vertex_coordinates[i * 12 + 4]); // through triangles. 3 traingles each spaced 4 coordinates apart
+                    mvec4 raw_v2 = mate_vec4_load(&object.vertex_coordinates[i * 12 + 8]); // 4 * 3 = 12; [x y z w][x y z w][x y z w]...
 
-            mvec4 ws_tri0 = mate_mat_mulv(model_matrix, raw_v0);
-            mvec4 ws_tri1 = mate_mat_mulv(model_matrix, raw_v1);
-            mvec4 ws_tri2 = mate_mat_mulv(model_matrix, raw_v2);
+                    mvec4 ws_tri0 = mate_mat_mulv(model_matrix, raw_v0);
+                    mvec4 ws_tri1 = mate_mat_mulv(model_matrix, raw_v1);
+                    mvec4 ws_tri2 = mate_mat_mulv(model_matrix, raw_v2);
 
-            mvec4 proj_v0 = mate_mat_mulv(MVP, raw_v0);
-            mvec4 proj_v1 = mate_mat_mulv(MVP, raw_v1);
-            mvec4 proj_v2 = mate_mat_mulv(MVP, raw_v2);
+                    mvec4 proj_v0 = mate_mat_mulv(MVP, raw_v0);
+                    mvec4 proj_v1 = mate_mat_mulv(MVP, raw_v1);
+                    mvec4 proj_v2 = mate_mat_mulv(MVP, raw_v2);
 
-            // 3D -> 2D (Projected space)
-            // Matrix Projected * Viewed Vertex = projected Vertex
-            const float w0 = proj_v0.f[3];
-            const float w1 = proj_v1.f[3];
-            const float w2 = proj_v2.f[3];
+                    // 3D -> 2D (Projected space)
+                    // Matrix Projected * Viewed Vertex = projected Vertex
+                    const float w0 = proj_v0.f[3];
+                    const float w1 = proj_v1.f[3];
+                    const float w2 = proj_v2.f[3];
 
-            // Clipping (not the best, but its something)
-            if (!(-w0 <= proj_v0.f[0] && proj_v0.f[0] <= w0) || !(-w0 <= proj_v0.f[1] && proj_v0.f[1] <= w0) || !(-w0 <= proj_v0.f[2] && proj_v0.f[2] <= w0))
-                continue;
-            if (!(-w1 <= proj_v1.f[0] && proj_v1.f[0] <= w1) || !(-w1 <= proj_v1.f[1] && proj_v1.f[1] <= w1) || !(-w1 <= proj_v1.f[2] && proj_v1.f[2] <= w1))
-                continue;
-            if (!(-w2 <= proj_v2.f[0] && proj_v2.f[0] <= w2) || !(-w2 <= proj_v2.f[1] && proj_v2.f[1] <= w2) || !(-w2 <= proj_v2.f[2] && proj_v2.f[2] <= w2))
-                continue;
+                    // Clipping (not the best, but its something)
+                    if (!(-w0 <= proj_v0.f[0] && proj_v0.f[0] <= w0) || !(-w0 <= proj_v0.f[1] && proj_v0.f[1] <= w0) || !(-w0 <= proj_v0.f[2] && proj_v0.f[2] <= w0))
+                        continue;
+                    if (!(-w1 <= proj_v1.f[0] && proj_v1.f[0] <= w1) || !(-w1 <= proj_v1.f[1] && proj_v1.f[1] <= w1) || !(-w1 <= proj_v1.f[2] && proj_v1.f[2] <= w1))
+                        continue;
+                    if (!(-w2 <= proj_v2.f[0] && proj_v2.f[0] <= w2) || !(-w2 <= proj_v2.f[1] && proj_v2.f[1] <= w2) || !(-w2 <= proj_v2.f[2] && proj_v2.f[2] <= w2))
+                        continue;
 
-            const float one_over_w0 = 1.0f / w0;
-            const float one_over_w1 = 1.0f / w1;
-            const float one_over_w2 = 1.0f / w2;
+                    const float one_over_w0 = 1.0f / w0;
+                    const float one_over_w1 = 1.0f / w1;
+                    const float one_over_w2 = 1.0f / w2;
 
-            // Perform x/w, y/w, z/w
-            proj_v0 = mate_vec4_scale(proj_v0, one_over_w0);
-            proj_v1 = mate_vec4_scale(proj_v1, one_over_w1);
-            proj_v2 = mate_vec4_scale(proj_v2, one_over_w2);
+                    // Perform x/w, y/w, z/w
+                    proj_v0 = mate_vec4_scale(proj_v0, one_over_w0);
+                    proj_v1 = mate_vec4_scale(proj_v1, one_over_w1);
+                    proj_v2 = mate_vec4_scale(proj_v2, one_over_w2);
 
-            // Sacle Into View (x + 1.0f, y + 1.0f, z + 1.0f, w + 0.0f)
-            proj_v0 = mate_vec4_add(proj_v0, scale_into_view);
-            proj_v1 = mate_vec4_add(proj_v1, scale_into_view);
-            proj_v2 = mate_vec4_add(proj_v2, scale_into_view);
+                    // Sacle Into View (x + 1.0f, y + 1.0f, z + 1.0f, w + 0.0f)
+                    proj_v0 = mate_vec4_add(proj_v0, scale_into_view);
+                    proj_v1 = mate_vec4_add(proj_v1, scale_into_view);
+                    proj_v2 = mate_vec4_add(proj_v2, scale_into_view);
 
-            proj_v0 = mate_vec4_mul(proj_v0, adjustment);
-            proj_v1 = mate_vec4_mul(proj_v1, adjustment);
-            proj_v2 = mate_vec4_mul(proj_v2, adjustment);
+                    proj_v0 = mate_vec4_mul(proj_v0, adjustment);
+                    proj_v1 = mate_vec4_mul(proj_v1, adjustment);
+                    proj_v2 = mate_vec4_mul(proj_v2, adjustment);
 
-            // Calcualte Triangle Area
-            // const float B1 = proj_v2.f[0] - proj_v0.f[0];
-            // const float B2 = proj_v0.f[0] - proj_v1.f[0];
-            // const float A1 = proj_v0.f[1] - proj_v2.f[1];
-            // const float A2 = proj_v1.f[1] - proj_v0.f[1];
+                    // Calcualte Triangle Area
+                    mvec4 AB = mate_vec4_sub(proj_v0, proj_v1);
+                    mvec4 AC = mate_vec4_sub(proj_v0, proj_v2);
 
-            // mvec4 AB = mate_vec4_sub(proj_v0, proj_v1);
-            // mvec4 AC = mate_vec4_sub(proj_v0, proj_v2);
+                    const float sign = AB.f[0] * AC.f[1] - AC.f[0] * AB.f[1];
 
-            // float sign = AB.f[0] * AC.f[1] - AC.f[0] * AB.f[1];
+                    // Back face culling
+                    if (sign > 0.0f)
+                    {
+                        // Load normal values
+                        mvec4 raw_nrm0 = mate_vec4_load(&object.normal_coordinates[i * 12 + 0]);
+                        mvec4 raw_nrm1 = mate_vec4_load(&object.normal_coordinates[i * 12 + 4]);
+                        mvec4 raw_nrm2 = mate_vec4_load(&object.normal_coordinates[i * 12 + 8]);
 
-            // Back face culling
-            // if (sign > 0.0f)
-            {
-                // Load normal values
-                mvec4 raw_nrm2 = mate_vec4_load(&object.normal_coordinates[i * 12 + 0]);
-                mvec4 raw_nrm1 = mate_vec4_load(&object.normal_coordinates[i * 12 + 4]);
-                mvec4 raw_nrm0 = mate_vec4_load(&object.normal_coordinates[i * 12 + 8]);
+                        /* Construct the Normal Matrix*/
+                        mmat3 nrm_matrix = mate_mat3_inv(mate_mat4_make_mat3_transpose(model_matrix));
 
-                /* Construct the Normal Matrix*/
-                mmat3 nrm_matrix = mate_mat3_inv(mate_mat4_make_mat3_transpose(model_matrix));
-
-                vec3 new_n0, new_n1, new_n2;
+                        vec3 new_n0, new_n1, new_n2;
                         mate_mat3_mulv(nrm_matrix, (vec3){raw_nrm0.f[0], raw_nrm0.f[1], raw_nrm0.f[2]}, new_n0);
-                mate_mat3_mulv(nrm_matrix, (vec3){raw_nrm1.f[0], raw_nrm1.f[1], raw_nrm1.f[2]}, new_n1);
+                        mate_mat3_mulv(nrm_matrix, (vec3){raw_nrm1.f[0], raw_nrm1.f[1], raw_nrm1.f[2]}, new_n1);
                         mate_mat3_mulv(nrm_matrix, (vec3){raw_nrm2.f[0], raw_nrm2.f[1], raw_nrm2.f[2]}, new_n2);
 
-                mvec4 ws_nrm0 = {.f = {new_n0[0], new_n0[1], new_n0[2], 0.0f}};
-                mvec4 ws_nrm1 = {.f = {new_n1[0], new_n1[1], new_n1[2], 0.0f}};
-                mvec4 ws_nrm2 = {.f = {new_n2[0], new_n2[1], new_n2[2], 0.0f}};
+                        mvec4 ws_nrm0 = {.f = {new_n0[0], new_n0[1], new_n0[2], 0.0f}};
+                        mvec4 ws_nrm1 = {.f = {new_n1[0], new_n1[1], new_n1[2], 0.0f}};
+                        mvec4 ws_nrm2 = {.f = {new_n2[0], new_n2[1], new_n2[2], 0.0f}};
 
-                // tex coordinates are read in like : u u u...
-                // uv[0], uv[1], uv[2]
-                if (object.has_texcoords)
-                {
-                    __m128 texture_u = _mm_setr_ps(object.uv_coordinates[6 * i + 0], object.uv_coordinates[6 * i + 2], object.uv_coordinates[6 * i + 4], 0.0f);
-                    __m128 texture_v = _mm_setr_ps(object.uv_coordinates[6 * i + 1], object.uv_coordinates[6 * i + 3], object.uv_coordinates[6 * i + 5], 0.0f);
+                        // tex coordinates are read in like : u u u...
+                        // uv[0], uv[1], uv[2]
+                        if (object.has_texcoords)
+                        {
+                            __m128 texture_u = _mm_setr_ps(object.uv_coordinates[6 * i + 0], object.uv_coordinates[6 * i + 2], object.uv_coordinates[6 * i + 4], 0.0f);
+                            __m128 texture_v = _mm_setr_ps(object.uv_coordinates[6 * i + 1], object.uv_coordinates[6 * i + 3], object.uv_coordinates[6 * i + 5], 0.0f);
 
-                    rd[number_of_collected_triangles].tex_u = (mvec4){.m = texture_u};
-                    rd[number_of_collected_triangles].tex_v = (mvec4){.m = texture_v};
-                }
+                            rd[number_of_collected_triangles].tex_u = (mvec4){.m = texture_u};
+                            rd[number_of_collected_triangles].tex_v = (mvec4){.m = texture_v};
+                        }
 
                         // NORMAL Mapping -----
                         mmat3 TBN = {0};
-                if (global_app.shading_mode == SHADING_NORMAL_MAPPING)
-                {
+                        if (global_app.shading_mode == SHADING_NORMAL_MAPPING)
+                        {
                             // Calculate the edge values for creating the tangent and bitangent vectors
                             // for use with Normal mapping
                             mvec4 edge1 = mate_vec4_sub(raw_v1, raw_v0);
@@ -232,7 +227,7 @@ int main(int argc, char *argv[])
                             const float delta_uv1_x = object.uv_coordinates[6 * i + 2] - object.uv_coordinates[6 * i + 0]; // u
                             const float delta_uv1_y = object.uv_coordinates[6 * i + 3] - object.uv_coordinates[6 * i + 1]; // v
 
-                    // Note, these are flipped
+                            // Note, these are flipped
                             const float delta_uv2_x = object.uv_coordinates[6 * i + 4] - object.uv_coordinates[6 * i + 0]; // u
                             const float delta_uv2_y = object.uv_coordinates[6 * i + 5] - object.uv_coordinates[6 * i + 1]; // v
 
@@ -290,86 +285,86 @@ int main(int argc, char *argv[])
                             TBN.f[1][2] = N[1];
                             TBN.f[2][2] = N[2];
 
-                    /*
-                    the TBN matrix is used to transform vectors from tangent space into world space,
-                    while the inverse TBN matrix is used to transform vectors from world space into tangent space.
+                            /*
+                            the TBN matrix is used to transform vectors from tangent space into world space,
+                            while the inverse TBN matrix is used to transform vectors from world space into tangent space.
 
-                    Method 1 - Take the TBN matrix (tangent to world space) give it to the fragment shader,
-                                and transform the sampled normal from tangent space (normal map) to world space;
-                                the normal is then in the same space as the other lighting variables.
-                    Method 2 - Take the inverse of the TBN matrix that transforms any vector from world space to
-                                tangent space, and use this matrix to transform not the normal, but the other
-                                relevant lighting variables to tangent space; the normal is then again in the
-                                same space as the other lighting variables
-                    */
-                }
+                            Method 1 - Take the TBN matrix (tangent to world space) give it to the fragment shader,
+                                        and transform the sampled normal from tangent space (normal map) to world space;
+                                        the normal is then in the same space as the other lighting variables.
+                            Method 2 - Take the inverse of the TBN matrix that transforms any vector from world space to
+                                        tangent space, and use this matrix to transform not the normal, but the other
+                                        relevant lighting variables to tangent space; the normal is then again in the
+                                        same space as the other lighting variables
+                            */
+                        }
 
-                mvec4 end0 = mate_vec4_add3(raw_v0, mate_vec4_scale(raw_nrm0, 0.4f));
-                mvec4 end1 = mate_vec4_add3(raw_v1, mate_vec4_scale(raw_nrm1, 0.4f));
-                mvec4 end2 = mate_vec4_add3(raw_v2, mate_vec4_scale(raw_nrm2, 0.4f));
+                        mvec4 end0 = mate_vec4_add3(raw_v0, mate_vec4_scale(raw_nrm0, 0.4f));
+                        mvec4 end1 = mate_vec4_add3(raw_v1, mate_vec4_scale(raw_nrm1, 0.4f));
+                        mvec4 end2 = mate_vec4_add3(raw_v2, mate_vec4_scale(raw_nrm2, 0.4f));
 
-                end0 = mate_mat_mulv(MVP, end0);
-                end1 = mate_mat_mulv(MVP, end1);
-                end2 = mate_mat_mulv(MVP, end2);
+                        end0 = mate_mat_mulv(MVP, end0);
+                        end1 = mate_mat_mulv(MVP, end1);
+                        end2 = mate_mat_mulv(MVP, end2);
 
-                const float end_w1 = 1.0f / mate_vec4_get(end0, 3);
-                const float end_w2 = 1.0f / mate_vec4_get(end1, 3);
-                const float end_w3 = 1.0f / mate_vec4_get(end2, 3);
+                        const float end_w1 = 1.0f / mate_vec4_get(end0, 3);
+                        const float end_w2 = 1.0f / mate_vec4_get(end1, 3);
+                        const float end_w3 = 1.0f / mate_vec4_get(end2, 3);
 
-                // Perform x/w, y/w, z/w
-                end0 = mate_vec4_scale(end0, end_w1);
-                end1 = mate_vec4_scale(end1, end_w2);
-                end2 = mate_vec4_scale(end2, end_w3);
+                        // Perform x/w, y/w, z/w
+                        end0 = mate_vec4_scale(end0, end_w1);
+                        end1 = mate_vec4_scale(end1, end_w2);
+                        end2 = mate_vec4_scale(end2, end_w3);
 
-                end0 = mate_vec4_add(end0, scale_into_view);
-                end1 = mate_vec4_add(end1, scale_into_view);
-                end2 = mate_vec4_add(end2, scale_into_view);
+                        end0 = mate_vec4_add(end0, scale_into_view);
+                        end1 = mate_vec4_add(end1, scale_into_view);
+                        end2 = mate_vec4_add(end2, scale_into_view);
 
-                end0 = mate_vec4_mul(end0, adjustment);
-                end1 = mate_vec4_mul(end1, adjustment);
-                end2 = mate_vec4_mul(end2, adjustment);
+                        end0 = mate_vec4_mul(end0, adjustment);
+                        end1 = mate_vec4_mul(end1, adjustment);
+                        end2 = mate_vec4_mul(end2, adjustment);
 
-                rd[number_of_collected_triangles].world_space_verticies[0] = ws_tri0;
-                rd[number_of_collected_triangles].world_space_verticies[1] = ws_tri1;
-                rd[number_of_collected_triangles].world_space_verticies[2] = ws_tri2;
+                        rd[number_of_collected_triangles].world_space_verticies[0] = ws_tri0;
+                        rd[number_of_collected_triangles].world_space_verticies[1] = ws_tri1;
+                        rd[number_of_collected_triangles].world_space_verticies[2] = ws_tri2;
 
-                rd[number_of_collected_triangles].screen_space_verticies[0] = proj_v0;
-                rd[number_of_collected_triangles].screen_space_verticies[1] = proj_v1;
-                rd[number_of_collected_triangles].screen_space_verticies[2] = proj_v2;
+                        rd[number_of_collected_triangles].screen_space_verticies[0] = proj_v0;
+                        rd[number_of_collected_triangles].screen_space_verticies[1] = proj_v1;
+                        rd[number_of_collected_triangles].screen_space_verticies[2] = proj_v2;
 
-                rd[number_of_collected_triangles].endpoints[0] = end0;
-                rd[number_of_collected_triangles].endpoints[1] = end1;
-                rd[number_of_collected_triangles].endpoints[2] = end2;
+                        rd[number_of_collected_triangles].endpoints[0] = end0;
+                        rd[number_of_collected_triangles].endpoints[1] = end1;
+                        rd[number_of_collected_triangles].endpoints[2] = end2;
 
-                rd[number_of_collected_triangles].w_values[0] = one_over_w0; // NOTE : Do we need to store these?
-                rd[number_of_collected_triangles].w_values[1] = one_over_w1;
-                rd[number_of_collected_triangles].w_values[2] = one_over_w2;
+                        rd[number_of_collected_triangles].w_values[0] = one_over_w0; // NOTE : Do we need to store these?
+                        rd[number_of_collected_triangles].w_values[1] = one_over_w1;
+                        rd[number_of_collected_triangles].w_values[2] = one_over_w2;
 
-                rd[number_of_collected_triangles].normals[0] = ws_nrm0;
-                rd[number_of_collected_triangles].normals[1] = ws_nrm1;
-                rd[number_of_collected_triangles].normals[2] = ws_nrm2;
+                        rd[number_of_collected_triangles].normals[0] = ws_nrm0;
+                        rd[number_of_collected_triangles].normals[1] = ws_nrm1;
+                        rd[number_of_collected_triangles].normals[2] = ws_nrm2;
 
                         rd[number_of_collected_triangles].TBN = TBN;
 
-                number_of_collected_triangles++;
+                        number_of_collected_triangles++;
 
                         if (number_of_collected_triangles < 4 && i <= number_of_triangles)
-                    continue;
+                            continue;
 
 #pragma omp task
                         {
                             // Time the task
                             // const double start_time = omp_get_wtime();
 
-                Flat_Shading(rd, number_of_collected_triangles);
+                            Flat_Shading(rd, number_of_collected_triangles);
 
                             // const double end_time     = omp_get_wtime();
                             // const double elapsed_time = end_time - start_time;
                             // printf("Thread (%d) - task execution time: %f seconds\n", omp_get_thread_num(), elapsed_time);
                         }
-                number_of_collected_triangles = 0;
-            }
-        }
+                        number_of_collected_triangles = 0;
+                    }
+                }
 #pragma omp taskwait
             }
         }
