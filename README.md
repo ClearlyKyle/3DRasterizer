@@ -1,6 +1,8 @@
-3D rasterizer written in C that utilizes SIMD instructions, OpenMP. Capable of loading objects from OBJ files and displaying them using various shading techniques. The supported shading techniques are as follows:
+3D rasterizer written in C that utilizes SIMD instructions, OpenMP. Capable of loading objects from OBJ files and displaying them using various shading techniques.
 
-![shading_mode_video](add link later)
+<div style="text-align:center;">
+    <img src="output.gif" />
+</div>
 
 ## Features
 Loads objects from OBJ files, allowing 3D models to be rendered.
