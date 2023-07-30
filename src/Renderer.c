@@ -459,10 +459,9 @@ void Flat_Shading(const RasterData_t rd[4], const uint8_t collected_triangles_co
     const __m128i C2 = _mm_sub_epi32(_mm_mullo_epi32(X_values[0], Y_values[1]), _mm_mullo_epi32(X_values[1], Y_values[0]));
 
 #ifdef COMPUTE_AREA_IN_RASTER
-    // Compute inverse triangle area
-    // const __m128i triArea        = _mm_sub_epi32(_mm_mullo_epi32(B1, A2), _mm_mullo_epi32(B2, A1)); // intel
-    const __m128i triArea        = _mm_sub_epi32(_mm_mullo_epi32(B2, A1), _mm_mullo_epi32(B1, A2));
-    const __m128  oneOverTriArea = _mm_rcp_ps(_mm_cvtepi32_ps(triArea));
+    const __m128i triArea = _mm_sub_epi32(_mm_mullo_epi32(B2, A1), _mm_mullo_epi32(B1, A2));
+    // const __m128  oneOverTriArea = _mm_rcp_ps(_mm_cvtepi32_ps(triArea));
+    const __m128 oneOverTriArea = _mm_div_ps(_mm_set1_ps(1.0f), _mm_cvtepi32_ps(triArea));
 #endif
 
     // Use bounding box traversal strategy to determine which pixels to rasterize
@@ -514,18 +513,20 @@ void Flat_Shading(const RasterData_t rd[4], const uint8_t collected_triangles_co
             continue;
         }
 
-        mvec4  tang_cam_pos      = {0};
+        __m128 tang_cam_pos[3]   = {0};
+        __m128 tang_light_pos[3] = {0};
         __m128 tang_world_pos[3] = {0};
         if (global_app.shading_mode == SHADING_NORMAL_MAPPING)
         {
-            const mmat3 TBN = rd[lane].TBN;
+            for (size_t i = 0; i < 3; i++)
+            {
+                const mmat3 TBN = rd[lane].TBN[i];
 
-            light_data.position = mate_mat3_mulv4(TBN, world_space_light_positon);  // Tangent light position
-            tang_cam_pos        = mate_mat3_mulv4(TBN, global_app.camera_position); // Tangent camera position
+                tang_light_pos[i] = mate_mat3_mulv4(TBN, world_space_light_positon).m;  // Tangent light position
+                tang_cam_pos[i]   = mate_mat3_mulv4(TBN, global_app.camera_position).m; // Tangent camera position
 
-            tang_world_pos[0] = mate_mat3_mulv4(TBN, rd[lane].world_space_verticies[0]).m;
-            tang_world_pos[1] = mate_mat3_mulv4(TBN, rd[lane].world_space_verticies[1]).m;
-            tang_world_pos[2] = mate_mat3_mulv4(TBN, rd[lane].world_space_verticies[2]).m;
+                tang_world_pos[i] = mate_mat3_mulv4(TBN, rd[lane].world_space_verticies[i]).m;
+            }
         }
 
         const int startXx = startX.m128i_i32[lane];
@@ -738,7 +739,7 @@ void Flat_Shading(const RasterData_t rd[4], const uint8_t collected_triangles_co
                     __m128 U_w = _mm_add_ps(_mm_add_ps(newU[0], newU[1]), newU[2]);
                     __m128 V_w = _mm_add_ps(_mm_add_ps(newV[0], newV[1]), newV[2]);
 
-                    //// clamp the vector to the range [0.0f, 1.0f]
+                    // clamp the vector to the range [0.0f, 1.0f]
                     U_w = _mm_max_ps(_mm_min_ps(U_w, _mm_set1_ps(1.0f)), _mm_setzero_ps());
                     V_w = _mm_max_ps(_mm_min_ps(V_w, _mm_set1_ps(1.0f)), _mm_setzero_ps());
 
@@ -777,7 +778,10 @@ void Flat_Shading(const RasterData_t rd[4], const uint8_t collected_triangles_co
                                                                       pixel_colour[i].m128i_u8[2] / 255.0f,
                                                                       1.0f);
 
-                            mvec4 shading0 = Light_Calculate_Shading((mvec4){.m = inter_frag_location[i]}, (mvec4){.m = inter_normal[i]}, global_app.camera_position, &light_data);
+                            mvec4 shading0 = Light_Calculate_Shading((mvec4){.m = inter_frag_location[i]},
+                                                                     (mvec4){.m = inter_normal[i]},
+                                                                     global_app.camera_position,
+                                                                     &light_data);
 
                             pixel_colour[i] = _mm_cvtps_epi32(_mm_mul_ps(shading0.m, _mm_set1_ps(255.0f)));
                         }
@@ -789,9 +793,20 @@ void Flat_Shading(const RasterData_t rd[4], const uint8_t collected_triangles_co
                     }
                     else if (global_app.shading_mode == SHADING_NORMAL_MAPPING)
                     {
-                        // Interpolate pixel location
+                        // 1 - get normal from normal map (in the range -1 to 1)
+                        // 2 - get diffuse colour from diffuse texture
+                        // 3 - interpolate the cam position, light position and the frag position in tangent space
+                        // 4 - calculate shading
+                        // 5 - convert back to 255 colours
+
                         __m128 tang_frag_pos[4] = {0};
                         _Interpolate_Something(persp, tang_world_pos, tang_frag_pos);
+
+                        __m128 tang_frag_cam_pos[4] = {0};
+                        _Interpolate_Something(persp, tang_cam_pos, tang_frag_cam_pos);
+
+                        __m128 tang_frag_light_pos[4] = {0};
+                        _Interpolate_Something(persp, tang_light_pos, tang_frag_light_pos);
 
                         // Could this be the same as "texture_offset"? nope, nrm map is 3bpp
                         __m128i nrm_texture_offset = _mm_mullo_epi32(
@@ -802,9 +817,7 @@ void Flat_Shading(const RasterData_t rd[4], const uint8_t collected_triangles_co
                                     _mm_set1_epi32(nrm.w),
                                     _mm_cvtps_epi32(V_w))));
 
-                        // nrm_texture_offset = _mm_mullo_epi32(nrm_texture_offset, which_tex_coords_to_get);
-
-                        for (int i = 0; i < 4; ++i)
+                        for (int i = 0; i < 4; ++i) // For each pixel
                         {
                             // normal[0] = ((nrmRGB[0] / 255.0f) * 2.0f) - 1.0f;
                             unsigned char *nrm_ptr    = nrm.data + nrm_texture_offset.m128i_u32[i];
@@ -821,9 +834,14 @@ void Flat_Shading(const RasterData_t rd[4], const uint8_t collected_triangles_co
                                                                       pixel_colour[i].m128i_u8[2] / 255.0f,
                                                                       1.0f);
 
-                            mvec4 shading0 = Light_Calculate_Shading((mvec4){.m = tang_frag_pos[i]}, (mvec4){.m = loaded_nrm}, tang_cam_pos, &light_data);
+                            light_data.position.m = tang_frag_light_pos[i];
 
-                            pixel_colour[i] = _mm_cvtps_epi32(_mm_mul_ps(shading0.m, _mm_set1_ps(255.0f)));
+                            mvec4 shading = Light_Calculate_Shading((mvec4){.m = tang_frag_pos[i]},
+                                                                    (mvec4){.m = loaded_nrm},
+                                                                    (mvec4){.m = tang_frag_cam_pos[i]},
+                                                                    &light_data);
+
+                            pixel_colour[i] = _mm_cvtps_epi32(_mm_mul_ps(shading.m, _mm_set1_ps(255.0f)));
                         }
 
                         const __m128i interleaved1 = _mm_packus_epi32(pixel_colour[0], pixel_colour[1]);

@@ -72,7 +72,7 @@ typedef struct RasterData
 
     float w_values[3];
 
-    mmat3 TBN;
+    mmat3 TBN[3];
 } RasterData_t;
 
 void Flat_Shading(const RasterData_t rd[4], const uint8_t collected_triangles_count);
