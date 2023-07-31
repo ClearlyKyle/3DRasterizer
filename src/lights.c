@@ -46,7 +46,7 @@ static float _Calculate_Specular_Amount(const mvec4 L, const mvec4 E, const mvec
     else // PHONG
     {
         // Calculate R - the reflection vector
-        const mvec4 R = mate_norm3(mate_negate(mate_reflect(L, N)));
+        const mvec4 R = mate_negate(mate_reflect(L, N));
 
         dot_product = mate_dot(E, R);
     }
@@ -81,11 +81,11 @@ mvec4 Light_Calculate_Shading(const mvec4 position, const mvec4 normal, const mv
     const mvec4 Iamb = mate_vec4_mul(light->diffuse_colour, light->ambient_amount);
 
     // Calculate Diffuse Term:
-    const float diffuse_amount = _Calculate_Diffuse_Amount(L, normal);
+    const float diffuse_amount = _Calculate_Diffuse_Amount(L, N);
     const mvec4 Idiff          = mate_vec4_scale(light->diffuse_colour, diffuse_amount); // Might need to set the Alpha here
 
     // Calculate Specular Term:
-    const float shininess = 128.0f;
+    const float shininess = 64.0f;
     const float specular  = _Calculate_Specular_Amount(L, E, N, shininess);
     const mvec4 Ispec     = mate_vec4_scale(light->specular_amount, specular);
 
