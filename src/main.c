@@ -10,13 +10,6 @@
 #define SCREEN_WIDTH  800
 #define SCREEN_HEIGHT 800
 
-// TODO: cleanup on exit checking
-// TODO: Load 4 triangles, and go through pipeline
-// TODO: mt?
-// TODO : 4 Triangle loading
-// TODO : Organise main better
-// TODO : Organise graphics and RenderState better
-
 int main(int argc, char *argv[])
 {
     UTILS_UNUSED(argc);
@@ -114,7 +107,6 @@ int main(int argc, char *argv[])
         fTheta += (float)Timer_Get_Elapsed_Seconds(&looptimer) / 4;
 
         const mmat4 rotation_matrix = mate_rotation_make(0.0f, 1.0f, 0.0f, fTheta);
-        // const mmat4 rotation_matrix = mate_rotation_make(0.0f, 1.0f, 0.0f, 0.0f);
 
         // The matrix multiplication is done in the order SRT (Scale, Rotate, and Translate)
         const mmat4 model_matrix      = mate_mat_mul(object.transform, rotation_matrix);
@@ -129,11 +121,11 @@ int main(int argc, char *argv[])
                 uint8_t            number_of_collected_triangles = 0;
                 const unsigned int number_of_triangles           = object.number_of_triangles;
 
-                for (size_t i = 0; i <= object.number_of_triangles; ++i) // can we jump through triangles?
+                for (size_t tri_idx = 0; tri_idx <= object.number_of_triangles; ++tri_idx) // can we jump through triangles?
                 {
-                    mvec4 raw_v0 = mate_vec4_load(&object.vertex_coordinates[i * 12 + 0]); // 12 because we load 3 triangles at at a time looping
-                    mvec4 raw_v1 = mate_vec4_load(&object.vertex_coordinates[i * 12 + 4]); // through triangles. 3 traingles each spaced 4 coordinates apart
-                    mvec4 raw_v2 = mate_vec4_load(&object.vertex_coordinates[i * 12 + 8]); // 4 * 3 = 12; [x y z w][x y z w][x y z w]...
+                    mvec4 raw_v0 = mate_vec4_load(&object.vertex_coordinates[tri_idx * 12 + 0]); // 12 because we load 3 triangles at at a time looping
+                    mvec4 raw_v1 = mate_vec4_load(&object.vertex_coordinates[tri_idx * 12 + 4]); // through triangles. 3 traingles each spaced 4 coordinates apart
+                    mvec4 raw_v2 = mate_vec4_load(&object.vertex_coordinates[tri_idx * 12 + 8]); // 4 * 3 = 12; [x y z w][x y z w][x y z w]...
 
                     mvec4 ws_tri0 = mate_mat_mulv(model_matrix, raw_v0);
                     mvec4 ws_tri1 = mate_mat_mulv(model_matrix, raw_v1);
@@ -185,35 +177,34 @@ int main(int argc, char *argv[])
                     if (sign > 0.0f)
                     {
                         // Load normal values
-                        mvec4 raw_nrm0 = mate_vec4_load(&object.normal_coordinates[i * 12 + 0]);
-                        mvec4 raw_nrm1 = mate_vec4_load(&object.normal_coordinates[i * 12 + 4]);
-                        mvec4 raw_nrm2 = mate_vec4_load(&object.normal_coordinates[i * 12 + 8]);
+                        mvec4 raw_nrms[3];
+                        raw_nrms[0] = mate_vec4_load(&object.normal_coordinates[tri_idx * 12 + 0]);
+                        raw_nrms[1] = mate_vec4_load(&object.normal_coordinates[tri_idx * 12 + 4]);
+                        raw_nrms[2] = mate_vec4_load(&object.normal_coordinates[tri_idx * 12 + 8]);
 
                         /* Construct the Normal Matrix*/
-                        mmat3 nrm_matrix = mate_mat3_inv(mate_mat4_make_mat3_transpose(model_matrix));
+                        mmat3 nrm_matrix = mate_mat4_to_mat3(model_matrix);
+                        nrm_matrix       = mate_mat3_inv(nrm_matrix);
+                        nrm_matrix       = mate_mat3_transpose(nrm_matrix);
 
-                        vec3 new_n0, new_n1, new_n2;
-                        mate_mat3_mulv(nrm_matrix, (vec3){raw_nrm0.f[0], raw_nrm0.f[1], raw_nrm0.f[2]}, new_n0);
-                        mate_mat3_mulv(nrm_matrix, (vec3){raw_nrm1.f[0], raw_nrm1.f[1], raw_nrm1.f[2]}, new_n1);
-                        mate_mat3_mulv(nrm_matrix, (vec3){raw_nrm2.f[0], raw_nrm2.f[1], raw_nrm2.f[2]}, new_n2);
-
-                        mvec4 ws_nrm0 = {.f = {new_n0[0], new_n0[1], new_n0[2], 0.0f}};
-                        mvec4 ws_nrm1 = {.f = {new_n1[0], new_n1[1], new_n1[2], 0.0f}};
-                        mvec4 ws_nrm2 = {.f = {new_n2[0], new_n2[1], new_n2[2], 0.0f}};
+                        vec3 ws_nrms[3];
+                        mate_mat3_mulv(nrm_matrix, (vec3){raw_nrms[0].f[0], raw_nrms[0].f[1], raw_nrms[0].f[2]}, ws_nrms[0]);
+                        mate_mat3_mulv(nrm_matrix, (vec3){raw_nrms[1].f[0], raw_nrms[1].f[1], raw_nrms[1].f[2]}, ws_nrms[1]);
+                        mate_mat3_mulv(nrm_matrix, (vec3){raw_nrms[2].f[0], raw_nrms[2].f[1], raw_nrms[2].f[2]}, ws_nrms[2]);
 
                         // tex coordinates are read in like : u u u...
                         // uv[0], uv[1], uv[2]
                         if (object.has_texcoords)
                         {
-                            __m128 texture_u = _mm_setr_ps(object.uv_coordinates[6 * i + 0], object.uv_coordinates[6 * i + 2], object.uv_coordinates[6 * i + 4], 0.0f);
-                            __m128 texture_v = _mm_setr_ps(object.uv_coordinates[6 * i + 1], object.uv_coordinates[6 * i + 3], object.uv_coordinates[6 * i + 5], 0.0f);
+                            __m128 texture_u = _mm_setr_ps(object.uv_coordinates[6 * tri_idx + 0], object.uv_coordinates[6 * tri_idx + 2], object.uv_coordinates[6 * tri_idx + 4], 0.0f);
+                            __m128 texture_v = _mm_setr_ps(object.uv_coordinates[6 * tri_idx + 1], object.uv_coordinates[6 * tri_idx + 3], object.uv_coordinates[6 * tri_idx + 5], 0.0f);
 
                             rd[number_of_collected_triangles].tex_u = (mvec4){.m = texture_u};
                             rd[number_of_collected_triangles].tex_v = (mvec4){.m = texture_v};
                         }
 
                         // NORMAL Mapping -----
-                        mmat3 TBN = {0};
+                        mmat3 TBN[3] = {0};
                         if (global_app.shading_mode == SHADING_NORMAL_MAPPING)
                         {
                             // Calculate the edge values for creating the tangent and bitangent vectors
@@ -224,12 +215,12 @@ int main(int argc, char *argv[])
                             // texture_u -> U0, U1, U2
                             // texture_v -> V0, V1, V2
 
-                            const float delta_uv1_x = object.uv_coordinates[6 * i + 2] - object.uv_coordinates[6 * i + 0]; // u
-                            const float delta_uv1_y = object.uv_coordinates[6 * i + 3] - object.uv_coordinates[6 * i + 1]; // v
+                            const float delta_uv1_x = object.uv_coordinates[6 * tri_idx + 2] - object.uv_coordinates[6 * tri_idx + 0]; // u
+                            const float delta_uv1_y = object.uv_coordinates[6 * tri_idx + 3] - object.uv_coordinates[6 * tri_idx + 1]; // v
 
                             // Note, these are flipped
-                            const float delta_uv2_x = object.uv_coordinates[6 * i + 4] - object.uv_coordinates[6 * i + 0]; // u
-                            const float delta_uv2_y = object.uv_coordinates[6 * i + 5] - object.uv_coordinates[6 * i + 1]; // v
+                            const float delta_uv2_x = object.uv_coordinates[6 * tri_idx + 4] - object.uv_coordinates[6 * tri_idx + 0]; // u
+                            const float delta_uv2_y = object.uv_coordinates[6 * tri_idx + 5] - object.uv_coordinates[6 * tri_idx + 1]; // v
 
                             const float f = 1.0f / (delta_uv1_x * delta_uv2_y - delta_uv2_x * delta_uv1_y);
 
@@ -238,52 +229,52 @@ int main(int argc, char *argv[])
                             tangent[1] = f * (delta_uv2_y * edge1.f[1] - delta_uv1_y * edge2.f[1]);
                             tangent[2] = f * (delta_uv2_y * edge1.f[2] - delta_uv1_y * edge2.f[2]);
 
-                            vec3 bitangent;
-                            bitangent[0] = f * (-delta_uv2_x * edge1.f[0] + delta_uv1_x * edge2.f[0]);
-                            bitangent[1] = f * (-delta_uv2_x * edge1.f[1] + delta_uv1_x * edge2.f[1]);
-                            bitangent[2] = f * (-delta_uv2_x * edge1.f[2] + delta_uv1_x * edge2.f[2]);
+                            // vec3 bitangent;
+                            // bitangent[0] = f * (-delta_uv2_x * edge1.f[0] + delta_uv1_x * edge2.f[0]);
+                            // bitangent[1] = f * (-delta_uv2_x * edge1.f[1] + delta_uv1_x * edge2.f[1]);
+                            // bitangent[2] = f * (-delta_uv2_x * edge1.f[2] + delta_uv1_x * edge2.f[2]);
 
-                            vec3 N = {new_n0[0], new_n0[1], new_n0[2]}; // Should this be surface normal?
-                            mate_vec3_normalise(N);
+                            for (size_t i = 0; i < 3; i++) // for each vertex normal
+                            {
+                                vec3 N = {ws_nrms[i][0], ws_nrms[i][1], ws_nrms[i][2]};
+                                // mate_vec3_normalise(N);
 
-                            vec3 T;
-                            mate_mat3_mulv(nrm_matrix, tangent, T);
-                            mate_vec3_normalise(T);
+                                vec3 T;
+                                mate_mat3_mulv(nrm_matrix, tangent, T);
+                                mate_vec3_normalise(T);
 
-                            vec3 B;
-                            mate_mat3_mulv(nrm_matrix, bitangent, B);
-                            mate_vec3_normalise(B);
+                                /* Gram-Schmidt orthogonalize : t = normalize(t - n * dot(n, t)) */
+                                vec3 rhs;
+                                mate_vec3_scale(N, mate_vec3_dot(T, N), rhs);
+                                mate_vec3_sub(T, rhs, T);
+                                mate_vec3_normalise(T);
 
-                            // mate_vec3_cross(N, T, B); // can build the bitangent from the N and T
-                            // mate_vec3_normalise(B);
+                                vec3 B;
+                                // mate_mat3_mulv(nrm_matrix, bitangent, B);
+                                mate_vec3_cross(N, T, B); // can build the bitangent from the N and T
 
-                            /* Gram-Schmidt orthogonalize : t = normalize(t - n * dot(n, t)) */
-                            vec3 rhs;
-                            mate_vec3_scale(N, mate_vec3_dot(N, T), rhs);
-                            mate_vec3_sub(T, rhs, T);
-                            mate_vec3_normalise(T);
+                                /* Handedness */
+                                vec3 tmp;
+                                mate_vec3_cross(N, T, tmp);
+                                if (mate_vec3_dot(tmp, B) < 0.0f)
+                                    mate_vec3_negate(T);
 
-                            /* Handedness */
-                            vec3 tmp;
-                            mate_vec3_cross(N, T, tmp);
-                            if (mate_vec3_dot(tmp, B) < 0.0f)
-                                mate_vec3_negate(T);
+                                // Now our matrix is ready to take world coordinates, and put them into tangent space
+                                // Transpose to make a TBN that can convert vertices into Tangent space
 
-                            // Now our matrix is ready to take world coordinates, and put them into tangent space
-                            // Transpose to make a TBN that can convert vertices into Tangent space
+                                /* same as transpose */
+                                TBN[i].f[0][0] = T[0];
+                                TBN[i].f[1][0] = T[1];
+                                TBN[i].f[2][0] = T[2];
 
-                            /* same as transpose */
-                            TBN.f[0][0] = T[0];
-                            TBN.f[1][0] = T[1];
-                            TBN.f[2][0] = T[2];
+                                TBN[i].f[0][1] = B[0];
+                                TBN[i].f[1][1] = B[1];
+                                TBN[i].f[2][1] = B[2];
 
-                            TBN.f[0][1] = B[0];
-                            TBN.f[1][1] = B[1];
-                            TBN.f[2][1] = B[2];
-
-                            TBN.f[0][2] = N[0];
-                            TBN.f[1][2] = N[1];
-                            TBN.f[2][2] = N[2];
+                                TBN[i].f[0][2] = N[0];
+                                TBN[i].f[1][2] = N[1];
+                                TBN[i].f[2][2] = N[2];
+                            }
 
                             /*
                             the TBN matrix is used to transform vectors from tangent space into world space,
@@ -299,9 +290,9 @@ int main(int argc, char *argv[])
                             */
                         }
 
-                        mvec4 end0 = mate_vec4_add3(raw_v0, mate_vec4_scale(raw_nrm0, 0.4f));
-                        mvec4 end1 = mate_vec4_add3(raw_v1, mate_vec4_scale(raw_nrm1, 0.4f));
-                        mvec4 end2 = mate_vec4_add3(raw_v2, mate_vec4_scale(raw_nrm2, 0.4f));
+                        mvec4 end0 = mate_vec4_add3(raw_v0, mate_vec4_scale(raw_nrms[0], 0.4f));
+                        mvec4 end1 = mate_vec4_add3(raw_v1, mate_vec4_scale(raw_nrms[1], 0.4f));
+                        mvec4 end2 = mate_vec4_add3(raw_v2, mate_vec4_scale(raw_nrms[2], 0.4f));
 
                         end0 = mate_mat_mulv(MVP, end0);
                         end1 = mate_mat_mulv(MVP, end1);
@@ -340,15 +331,17 @@ int main(int argc, char *argv[])
                         rd[number_of_collected_triangles].w_values[1] = one_over_w1;
                         rd[number_of_collected_triangles].w_values[2] = one_over_w2;
 
-                        rd[number_of_collected_triangles].normals[0] = ws_nrm0;
-                        rd[number_of_collected_triangles].normals[1] = ws_nrm1;
-                        rd[number_of_collected_triangles].normals[2] = ws_nrm2;
+                        rd[number_of_collected_triangles].normals[0].m = _mm_setr_ps(ws_nrms[0][0], ws_nrms[0][1], ws_nrms[0][2], 0.0f);
+                        rd[number_of_collected_triangles].normals[1].m = _mm_setr_ps(ws_nrms[1][0], ws_nrms[1][1], ws_nrms[1][2], 0.0f);
+                        rd[number_of_collected_triangles].normals[2].m = _mm_setr_ps(ws_nrms[2][0], ws_nrms[2][1], ws_nrms[2][2], 0.0f);
 
-                        rd[number_of_collected_triangles].TBN = TBN;
+                        rd[number_of_collected_triangles].TBN[0] = TBN[0];
+                        rd[number_of_collected_triangles].TBN[1] = TBN[1];
+                        rd[number_of_collected_triangles].TBN[2] = TBN[2];
 
                         number_of_collected_triangles++;
 
-                        if (number_of_collected_triangles < 4 && i <= number_of_triangles)
+                        if (number_of_collected_triangles < 4 && tri_idx <= number_of_triangles)
                             continue;
 
 #pragma omp task
