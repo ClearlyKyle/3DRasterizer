@@ -18,7 +18,9 @@
 
 #define MATEMATIKA_ASSERT(EXPR) assert(EXPR)
 
+#ifndef M_PI
 #define M_PI          3.14159265358979323846264338327950288
+#endif
 #define MATE_D2R(DEG) ((DEG)*M_PI / 180.0)
 #define MATE_R2D(RAD) ((RAD)*180.0 / M_PI)
 
