@@ -8,6 +8,7 @@ set(CMAKE_C_STANDARD 11) # Set the desired C standard (e.g., C11)
 
 if(MSVC)
     add_compile_options(/W4) # Set warning level to 4
+    add_compile_options(/std:c11 /sdl /guard:cf /analyze)
     add_compile_options(/openmp:llvm)
 endif()
 
