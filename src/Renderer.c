@@ -41,8 +41,8 @@ void Reneder_Startup(const char *title, const int width, const int height)
     global_renderer.fmt = window_surface->format;
 
     printf("Window Surface\n\tPixel format : %s\n", SDL_GetPixelFormatName(global_renderer.surface->format->format));
-    printf("\tBytesPP      : %d\n", global_renderer.fmt->BytesPerPixel);
-    printf("\tBPP          : %d\n", global_renderer.fmt->BitsPerPixel);
+    printf("\tBytesPP      : %u\n", global_renderer.fmt->BytesPerPixel);
+    printf("\tBPP          : %u\n", global_renderer.fmt->BitsPerPixel);
     printf("\tPitch        : %d\n", window_surface->pitch);
 
     // global_renderer.pixels            = (uint8_t *)window_surface->pixels;

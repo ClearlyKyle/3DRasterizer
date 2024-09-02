@@ -61,11 +61,11 @@ static int _load_file(void *ctx, const char *filename, const int is_mtl, const c
 static inline void _print_attribute_data(const tinyobj_attrib_t attrib)
 {
     printf("Attribute data...\n");
-    printf("\t num_vertices       : %d\n", attrib.num_vertices);       // Number of vertices in 'vertices' (the actual array length is num_vertices*3)
-    printf("\t num_normals        : %d\n", attrib.num_normals);        // Number of vertices in 'normals' (the actual array length is num_normals*3)
-    printf("\t num_texcoords      : %d\n", attrib.num_texcoords);      // Number of vertices in 'texcoords' (the actual array length is num_normals*2)
-    printf("\t num_faces          : %d\n", attrib.num_faces);          // Array of faces (containing tinyobj_vertex_index_t information)
-    printf("\t num_face_num_verts : %d\n", attrib.num_face_num_verts); // Total number of triangles in this object (length of face_num_verts)
+    printf("\t num_vertices       : %u\n", attrib.num_vertices);       // Number of vertices in 'vertices' (the actual array length is num_vertices*3)
+    printf("\t num_normals        : %u\n", attrib.num_normals);        // Number of vertices in 'normals' (the actual array length is num_normals*3)
+    printf("\t num_texcoords      : %u\n", attrib.num_texcoords);      // Number of vertices in 'texcoords' (the actual array length is num_normals*2)
+    printf("\t num_faces          : %u\n", attrib.num_faces);          // Array of faces (containing tinyobj_vertex_index_t information)
+    printf("\t num_face_num_verts : %u\n", attrib.num_face_num_verts); // Total number of triangles in this object (length of face_num_verts)
 }
 
 static void _load_textures(ObjectData_t *obj, tinyobj_material_t *materials)
@@ -110,15 +110,19 @@ ObjectData_t Object_Load(const char *file_name)
     tinyobj_attrib_init(&attribute);
 
     const int ret = tinyobj_parse_obj(&attribute, &shapes, &number_of_shapes, &materials, &number_of_materials, file_name, _load_file, NULL, TINYOBJ_FLAG_TRIANGULATE);
-    ASSERT(ret == TINYOBJ_SUCCESS);
+    if (ret != TINYOBJ_SUCCESS)
+    {
+        fprintf(stderr, "Error: 'tinyobj_parse_obj', object path: %s\n", file_name);
+        exit(1);
+    }
 
     const unsigned int number_of_triangles = attribute.num_face_num_verts;
     const unsigned int number_of_verticies = attribute.num_faces;
 
     printf("Loading Model : %s\n", file_name);
     printf("\t num materials : %zd\n", number_of_materials);
-    printf("\t num triangles : %d\n", number_of_triangles);
-    printf("\t num vertices  : %d\n", number_of_verticies);
+    printf("\t num triangles : %u\n", number_of_triangles);
+    printf("\t num vertices  : %u\n", number_of_verticies);
     ret_obj.number_of_triangles = number_of_triangles;
 
     _print_attribute_data(attribute);
